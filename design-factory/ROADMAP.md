@@ -30,3 +30,6 @@
 - **Apps Factory:** canonical components, design skill and QA.
 - **Upstream sources:** research/optional implementation references and original licences.
 - **Individual apps:** distinct product branding, domain screens, approved client workflows and release acceptance.
+
+## Creative motion/icons/layers/video
+For motion, creative iconography, layered landing pages, WebGL or code-driven video, follow `design-factory/CREATIVE_AGENT_PLAYBOOK.md`, `design-factory/CREATIVE_ARCHITECTURE.md`, `design-factory/creative-sources.lock.json` and `design-factory/creative-recipes/`. Prefer original offline `creative-effects.css` and `creative-primitives.js`, test reduced motion, fallback, licences and real browser frames. Video export goes through the owner's existing Animation Studio; never imply references are production dependencies.

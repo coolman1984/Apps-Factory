@@ -21,3 +21,71 @@
 [submodule "design-factory/upstream/webawesome"]
 	path = design-factory/upstream/webawesome
 	url = https://github.com/shoelace-style/webawesome.git
+
+[submodule "design-factory/upstream/motion"]
+	path = design-factory/upstream/motion
+	url = https://github.com/motiondivision/motion.git
+
+[submodule "design-factory/upstream/lucide"]
+	path = design-factory/upstream/lucide
+	url = https://github.com/lucide-icons/lucide.git
+
+[submodule "design-factory/upstream/lenis"]
+	path = design-factory/upstream/lenis
+	url = https://github.com/darkroomengineering/lenis.git
+
+[submodule "design-factory/upstream/lottie-web"]
+	path = design-factory/upstream/lottie-web
+	url = https://github.com/airbnb/lottie-web.git
+
+[submodule "design-factory/upstream/dotlottie-web"]
+	path = design-factory/upstream/dotlottie-web
+	url = https://github.com/LottieFiles/dotlottie-web.git
+
+[submodule "design-factory/upstream/three-js"]
+	path = design-factory/upstream/three-js
+	url = https://github.com/mrdoob/three.js.git
+
+[submodule "design-factory/upstream/react-three-fiber"]
+	path = design-factory/upstream/react-three-fiber
+	url = https://github.com/pmndrs/react-three-fiber.git
+
+[submodule "design-factory/upstream/pixi-js"]
+	path = design-factory/upstream/pixi-js
+	url = https://github.com/pixijs/pixijs.git
+
+[submodule "design-factory/upstream/rive-runtime"]
+	path = design-factory/upstream/rive-runtime
+	url = https://github.com/rive-app/rive-runtime.git
+
+[submodule "design-factory/upstream/motion-canvas"]
+	path = design-factory/upstream/motion-canvas
+	url = https://github.com/motion-canvas/motion-canvas.git
+
+[submodule "design-factory/upstream/theatre"]
+	path = design-factory/upstream/theatre
+	url = https://github.com/theatre-js/theatre.git
+
+[submodule "design-factory/upstream/magic-ui"]
+	path = design-factory/upstream/magic-ui
+	url = https://github.com/magicuidesign/magicui.git
+
+[submodule "design-factory/upstream/auto-animate"]
+	path = design-factory/upstream/auto-animate
+	url = https://github.com/formkit/auto-animate.git
+
+[submodule "design-factory/upstream/iconify"]
+	path = design-factory/upstream/iconify
+	url = https://github.com/iconify/iconify.git
+
+[submodule "design-factory/upstream/owner-animation"]
+	path = design-factory/upstream/owner-animation
+	url = https://github.com/coolman1984/Animation.git
+
+[submodule "design-factory/upstream/owner-slide-forge"]
+	path = design-factory/upstream/owner-slide-forge
+	url = https://github.com/coolman1984/The-Slide-Show.git
+
+[submodule "design-factory/upstream/owner-promo-video"]
+	path = design-factory/upstream/owner-promo-video
+	url = https://github.com/coolman1984/promo-video-generator.git

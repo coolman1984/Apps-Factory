@@ -18,6 +18,9 @@ Each stage has an observable artifact. Agent must never claim stage completed if
 
 **D7: Release.** Attach screenshot evidence and functional tests to PR. Run accessibility and security/role tests. Label remaining defects. Do not approve a customer-facing product if design evidence absent; no "perfect" claims.
 
+## Creative motion extension
+If the user asks for icons, animated text, transitions, scroll-based layers, video-like effects or film: route to `CREATIVE_AGENT_PLAYBOOK.md` and `CREATIVE_ARCHITECTURE.md`. Choose one of `creative-recipes/`, preserve reduced-motion/no-JS static content, validate on actual browser and distinguish visual test results from artistic approval. Existing Video Studio and Slide Forge remain authoritative for their export pipelines.
+
 ## Source roles
 - UI UX Pro Max: visual inspiration search, never silent runtime dependency.
 - Tabler: vanilla/Bootstrap route; preserve MIT license and third-party licensing.

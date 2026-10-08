@@ -10,6 +10,14 @@
 - ٦ مصادر واجهات ومهارات مربوطة بإصدارات مُثبتة كـ **Git Submodules، وليست Forks شخصية**؛ انظر [المصادر والتراخيص](design-factory/UPSTREAMS.md).
 - أي Agent لازم يقرأ [قواعد التصميم](design-factory/AGENTS.md) ويعمل [فحوصات الجودة البصرية](design-factory/QA_CHECKLIST.md) قبل اعتماد الواجهة.
 
+## ✨ Creative Factory v2 — الأيقونات والحركة والطبقات والفيديو
+- [المعمل البصري الحي، بدون إنترنت](design-factory/creative-lab/index.html) وفيه مشهد ٤ طبقات، تحكم في العمق والتايم لاين، عربي وإنجليزي، ووصف قابل للتصدير.
+- [دستور الحركة والطبقات](design-factory/CREATIVE_ARCHITECTURE.md) و[تعليمات أي وكيل](design-factory/CREATIVE_AGENT_PLAYBOOK.md) و[تدقيق مشاريع الموشن عندنا](design-factory/CREATIVE_REPO_AUDIT.md).
+- [١٧ مصدرًا جديدًا بإصدارات مثبتة](design-factory/creative-sources.lock.json) (١٤ خارجي + ٣ مشاريع موجودة عندك) عبر Git Submodules، **مش نسخ كود تجاري داخل المصنع**.
+- [وصفات جاهزة](design-factory/creative-recipes/) وبرمجيات خفيفة قابلة للتركيب `design-factory/core/creative-effects.css` و`design-factory/core/creative-primitives.js`.
+- أدوات تركيب للمشروع الموجود: `python design-factory/scripts/install.py --target "C:\\My-App" --creative` (معاينة) ثم أضف `--apply` للتثبيت الآمن؛ لا يتم استبدال الملفات الموجودة.
+- فحوصات المتصفح: `cd design-factory && npm run test:creative` بعد تثبيت اعتماد الاختبارات وChromium، ولا تدّعي الموافقة الفنية لمجرد نجاحها.
+
 ## لوحة تشغيل المصنع
 - [افتح لوحة إنشاء مواصفات برنامج جديد](CONTROL_CENTER.html) بعد تنزيل الملف أو استنساخ المشروع. الصفحة محلية، لا ترسل بيانات.
 - اختبار القواعد: `python scripts/factory.py doctor`

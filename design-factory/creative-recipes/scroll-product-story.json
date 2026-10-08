@@ -1,0 +1,38 @@
+{
+  "schema_version": "1.0",
+  "id": "scroll-product-story",
+  "profile": "polished",
+  "target": "marketing",
+  "use_case": "Narrative timeline and viewport entry without scroll hijacking",
+  "engine": "factory-primitives",
+  "layers": [
+    {
+      "id": "base",
+      "depth": 0
+    },
+    {
+      "id": "subject",
+      "depth": 0.5
+    }
+  ],
+  "timeline": {
+    "duration_ms": 650,
+    "trigger": "intersection",
+    "loop": false
+  },
+  "accessibility": {
+    "reduced_motion": "immediate",
+    "keyboard": true,
+    "rtl": true
+  },
+  "perf": {
+    "webgl": false,
+    "external_runtime": false,
+    "max_simultaneously_animated": 3
+  },
+  "acceptance": [
+    "Content remains visible when JavaScript unavailable",
+    "Links and anchor navigation work without Lenis",
+    "Scroll never traps a keyboard user"
+  ]
+}

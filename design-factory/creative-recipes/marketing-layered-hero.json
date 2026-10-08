@@ -1,0 +1,47 @@
+{
+  "schema_version": "1.0",
+  "id": "marketing-layered-hero",
+  "profile": "cinematic",
+  "target": "marketing",
+  "use_case": "Cinematic layered storytelling landing section",
+  "engine": "factory-primitives",
+  "layers": [
+    {
+      "id": "background",
+      "depth": 0.12
+    },
+    {
+      "id": "midground",
+      "depth": 0.35
+    },
+    {
+      "id": "subject",
+      "depth": 0.58
+    },
+    {
+      "id": "foreground",
+      "depth": 0.88
+    }
+  ],
+  "timeline": {
+    "duration_ms": 6000,
+    "trigger": "pointer-or-scrub",
+    "loop": false
+  },
+  "accessibility": {
+    "reduced_motion": "static",
+    "keyboard": true,
+    "rtl": true
+  },
+  "perf": {
+    "webgl": false,
+    "external_runtime": false,
+    "max_simultaneously_animated": 4
+  },
+  "acceptance": [
+    "Works without external fetch or a GPU",
+    "No page overflow at phone width",
+    "Pointer layer depth clamped and reduced-motion disabled",
+    "Can scrub same time twice with same result"
+  ]
+}

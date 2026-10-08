@@ -20,6 +20,12 @@ jobs:
         run: |
           node --check design-factory/reference/app.js
           node --check design-factory/qa/capture.mjs
+          node --check design-factory/creative-lab/creative.js
+          node --check design-factory/creative-lab/qa/test.mjs
+          node --check design-factory/core/creative-primitives.js
+          node --check design-factory/core/af-icons.js
+          node --check design-factory/icon-studio/studio.js
+          node --check design-factory/icon-studio/qa/test.mjs
   browser:
     runs-on: ubuntu-latest
     steps:
@@ -35,7 +41,10 @@ jobs:
         run: npx playwright install --with-deps chromium
       - name: Test live offline reference across viewports, directions and themes
         working-directory: design-factory
-        run: npm run test:browser
+        run: |
+          npm run test:browser
+          npm run test:creative
+          npm run test:icons
       - uses: actions/upload-artifact@v4
         if: always()
         with:

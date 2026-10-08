@@ -1,11 +1,13 @@
 {
   "name": "apps-factory-design-qa",
   "private": true,
-  "version": "1.0.0",
+  "version": "2.0.0",
   "description": "Offline first Design Factory reference browser QA only",
   "scripts": {
     "test:browser": "node qa/capture.mjs",
-    "test:syntax": "node --check reference/app.js && node --check qa/capture.mjs"
+    "test:syntax": "node --check reference/app.js && node --check qa/capture.mjs && node --check creative-lab/creative.js && node --check creative-lab/qa/test.mjs && node --check core/creative-primitives.js && node --check core/af-icons.js && node --check icon-studio/studio.js && node --check icon-studio/qa/test.mjs",
+    "test:creative": "node creative-lab/qa/test.mjs",
+    "test:icons": "node icon-studio/qa/test.mjs"
   },
   "devDependencies": {
     "playwright": "1.56.1"

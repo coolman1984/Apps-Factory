@@ -30,3 +30,13 @@ Use this checklist as product-specific test instructions. **Static checks are in
 - Status for each line PASS / FAIL / UNVERIFIED, with screenshot/test evidence.
 - Browser unavailable => screenshot verification UNVERIFIED, never PASS.
 - Accessibility scanner green ≠ full WCAG compliance; record manual results.
+
+## Creative Factory extra checks
+- [ ] Motion conveys meaning, not unrelated decoration or hidden essential content
+- [ ] Back/mid/foreground layers are documented with depth and maximum travel, including mobile/static fallback
+- [ ] Motion starts paused when previewing; respects system reduced-motion and offers pause for user-controlled effects
+- [ ] Scroll never hijacked in admin/forms; normal anchor navigation remains possible
+- [ ] No GPU/WebGL requirement for routine business tasks; heavy assets are lazy/optional
+- [ ] Icons use one coherent stroke/fill family; actual SVG/icon-set licence verified
+- [ ] Film/timeline scenes report exact dimensions, fps and playback/listening checks rather than stills-only pass
+- [ ] Actual Chromium QA verifies pointer, manual scrub, play/pause, reduced motion, RTL/LTR, no horizontal overflow, no external network dependencies for offline reference

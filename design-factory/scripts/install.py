@@ -11,11 +11,15 @@ ASSETS={
   "design-system/af-tokens.css": FACTORY/"core/tokens.css",
   "design-system/af-components.css": FACTORY/"core/components.css",
 }
+CREATIVE_ASSETS={
+  "creative/creative-effects.css": FACTORY/"core/creative-effects.css",
+  "creative/creative-primitives.js": FACTORY/"core/creative-primitives.js",
+}
 DOC="""# Apps Factory Design System integration
 
 This is a local snapshot of Apps Factory's **design reference only**, not a production account, API, license or authorization component.
 Upstream: https://github.com/coolman1984/Apps-Factory/tree/main/design-factory
-Source version: Design Factory UI v1.0.0
+Source version: Design Factory UI v2.0.0
 
 ## Agent rules
 1. Before any UI/UX update, read the original Apps Factory `design-factory/AGENTS.md`, `DESIGN_CONSTITUTION.md`, `WORKFLOW.md` and `QA_CHECKLIST.md` (copy them if working offline).
@@ -42,20 +46,20 @@ DOCS={
  "design-system/AGENT_DESIGN_QA.md":(FACTORY/"QA_CHECKLIST.md").read_text(encoding="utf-8"),
 }
 
-def plan(target:Path):
+def plan(target:Path,creative=False):
     if not target.exists() or not target.is_dir():
         raise ValueError("Existing target project directory required")
     if target.resolve()==FACTORY.resolve() or target.resolve()==FACTORY.parent.resolve():
         raise ValueError("Select another project, not Apps Factory itself")
     operations=[]
-    for relative,source in ASSETS.items():
+    for relative,source in {**ASSETS,**(CREATIVE_ASSETS if creative else {})}.items():
         if not source.is_file():raise ValueError("Missing source asset "+str(source))
         operations.append((relative,source,None))
     for relative,content in DOCS.items():operations.append((relative,None,content))
     return [(relative,source,content,"SKIP_EXISTS" if (target/relative).exists() else "CREATE") for relative,source,content in operations]
 
-def execute(target,apply=False):
-    operations=plan(target)
+def execute(target,apply=False,creative=False):
+    operations=plan(target,creative=creative)
     for relative,source,content,status in operations:
         print(status,relative)
         if apply and status=="CREATE":
@@ -73,8 +77,9 @@ def main():
     parser=argparse.ArgumentParser(description="Copy reusable design starter into another app. Default: preview only.")
     parser.add_argument("--target",required=True,type=Path,help="Path to an existing local project")
     parser.add_argument("--apply",action="store_true",help="Write missing files, never overwrite")
+    parser.add_argument("--creative",action="store_true",help="Also install original lightweight motion/layer assets (opt-in)")
     args=parser.parse_args()
-    try:execute(args.target,args.apply);return 0
+    try:execute(args.target,args.apply,args.creative);return 0
     except (ValueError,OSError) as error:print("ERROR:",error,file=sys.stderr);return 2
 
 if __name__=="__main__":sys.exit(main())

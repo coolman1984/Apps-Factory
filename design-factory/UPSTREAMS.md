@@ -1,6 +1,6 @@
 # Third-party sources, reproducibility & licences • checked 2026-10-08
 
-These are **six Git submodules**, exact gitlink commit SHA pinned in Apps Factory; NOT GitHub forks in the user's account, not duplicated vendored code. `.gitmodules` defines upstream origins. Submodules won't download until explicitly initialized. Recheck latest tags, security advisories and package licenses before production installation.
+The original catalog contains **six Git submodules**, exact gitlink commit SHA pinned in Apps Factory; NOT GitHub forks in the user's account, not duplicated vendored code. `.gitmodules` defines upstream origins. Submodules won't download until explicitly initialized. Recheck latest tags, security advisories and package licenses before production installation.
 
 | Repository | Gitlink ref | Primary use | Licence observations | Deployment policy |
 |---|---|---|---|---|
@@ -10,6 +10,9 @@ These are **six Git submodules**, exact gitlink commit SHA pinned in Apps Factor
 | [Vercel Agent Skills](https://github.com/vercel-labs/agent-skills) | `063bee94c3f4df8453406c830b0a7df0f2860278` | `skills/web-design-guidelines` and React guidance when appropriate | No blanket root LICENSE confirmed in snapshot; verify per subfolder and referenced sources before copying | Link/reference only unless licence confirmed |
 | [shadcn/ui](https://github.com/shadcn-ui/ui) | `0132174664c07d41262fb51012d0cc782e458e6c` | React route, separate from HTML kit | Root `LICENSE.md` MIT; individual dependencies/assets need checking | ONLY if app already React |
 | [Web Awesome](https://github.com/shoelace-style/webawesome) | `e99dc5e26ae63410bd481aa8a686a61ff7158ccd` | Framework-neutral Web Components alternative | Root `LICENSE.md` permissive; **free vs pro distribution/assets need separate assessment** | Choose instead of Tabler, not alongside it |
+
+## Expanded Creative Factory sources
+Seventeen additional pinned references and their licensing/selection flags are listed in [creative-sources.lock.json](creative-sources.lock.json). Three are owner-connected: Animation, The-Slide-Show, promo-video-generator. Before shipping, separately check the exact selected assets/source, because licences differ within Theatre.js, Rive, Iconify packs and film tools. These gitlinks do not bring source into customer binaries. Avoid checking out every multi-GB repository by default.
 
 ## Updating pinned upstream safely
 1. Read release notes, dependency changes, licence updates, security issues and browser/framework compatibility.
