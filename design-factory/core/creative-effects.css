@@ -1,0 +1,20 @@
+/* Apps Factory Creative Primitives v1.0.0
+   Framework neutral, offline, progressive enhancement, reduced motion first. */
+.af-depth-scene{isolation:isolate;position:relative;perspective:900px;overflow:clip;transform-style:preserve-3d}
+.af-depth-scene [data-af-depth]{--af-shift-x:0px;--af-shift-y:0px;transform:translate3d(var(--af-shift-x),var(--af-shift-y),0);will-change:transform}
+.af-depth-scene [data-af-depth="0"]{will-change:auto}
+.af-depth-scene [data-af-depth]>*{backface-visibility:hidden}
+.af-masked-reveal{position:relative;overflow:clip}
+.af-overlap-stage{display:grid;position:relative;isolation:isolate}
+.af-overlap-stage>*{grid-area:1/1;min-width:0;max-width:100%}
+.af-overlap-stage [data-af-plane="background"]{z-index:0}
+.af-overlap-stage [data-af-plane="subject"]{z-index:1}
+.af-overlap-stage [data-af-plane="foreground"]{z-index:2;pointer-events:none}
+.af-soft-in{opacity:1;transform:none}
+html.af-motion-ready .af-soft-in:not(.af-soft-in--visible){opacity:0;transform:translate3d(0,14px,0)}
+html.af-motion-ready .af-soft-in{transition:opacity 520ms cubic-bezier(.2,.65,.25,1),transform 520ms cubic-bezier(.2,.65,.25,1)}
+.af-crossfade{transition:opacity 350ms ease-out}
+@media(prefers-reduced-motion:reduce){
+  .af-depth-scene [data-af-depth]{transform:none!important;will-change:auto!important}
+  .af-soft-in,.af-crossfade{opacity:1!important;transform:none!important;transition:none!important}
+}
