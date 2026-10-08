@@ -2,7 +2,7 @@
 :root {
   color-scheme: light;
   --af-bg:#f4f5f6;--af-surface:#ffffff;--af-surface-soft:#f9fafb;--af-surface-inverse:#151b27;
-  --af-text:#17202d;--af-text-secondary:#596473;--af-text-tertiary:#788395;
+  --af-text:#17202d;--af-text-secondary:#596473;--af-text-tertiary:#646f7f;
   --af-border:#e2e5e9;--af-border-strong:#cbd1db;--af-accent:#3759ec;--af-accent-hover:#2447d5;
   --af-accent-soft:#ebefff;--af-success:#116d4e;--af-success-soft:#e7f5ee;
   --af-warning:#895d0a;--af-warning-soft:#fff5dc;--af-danger:#b02d38;--af-danger-soft:#ffebed;
