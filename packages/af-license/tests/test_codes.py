@@ -30,6 +30,12 @@ class CodeTests(unittest.TestCase):
     def read(self, code, today=TODAY, device=None, product='al-store', keys=None):
         return codes.read_code(code, keys or [self.pub], product, device or self.device, today)
 
+    def test_reading_a_non_text_value_never_raises(self):
+        for junk in (None, 1, 1.5, True, [], ['a'], {}, b'bytes'):
+            result = codes.read_code(junk, ['AAAA'], 'al-store', 'ABCDE-FGHJK')
+            self.assertFalse(result.full_access)
+            self.assertEqual(result.state, 'invalid')
+
     def test_trial_is_fourteen_days_inclusive(self):
         c = self.trial()
         self.assertEqual(c['last_day'], '2026-10-21')

@@ -1505,7 +1505,7 @@
       "requirement": "A release candidate carries one quality report: unit, API/role-denial, static page checks, browser journeys, layout sweep, UI Lab, licence gate, and the field checks still pending, each with the exact command and result",
       "acceptance_evidence": "docs/QUALITY_SYSTEM.md checklist filled for the candidate commit",
       "required_if_applies": true,
-      "implementation_status": "planned"
+      "implementation_status": "implemented"
     },
     {
       "id": "LIC-01",
@@ -1518,6 +1518,33 @@
       ],
       "requirement": "Trial and paid entitlements are Ed25519 licence codes from apps/licence-studio (af-license codes v1): tied to the customer's device code, dated, verified offline with public keys only; expiry switches to read/export/backup, never deletes or hides data; clock rollback is detected",
       "acceptance_evidence": "Product test: code for another PC refused, expired code refused, clock-back locks writes, reads/export/backup still work",
+      "required_if_applies": true,
+      "implementation_status": "implemented"
+    },
+    {
+      "id": "QA-02",
+      "slug": "junk-input-test",
+      "category": "delivery",
+      "profiles": [
+        "desktop",
+        "lan",
+        "saas"
+      ],
+      "requirement": "Every write route is tested with junk (wrong types, huge numbers, lists where ids belong, bad dates, long text) at top level and one field at a time inside a valid payload: the answer is always a calm 4xx, never a crash; a wrong value in a setting or licence box can never damage working data",
+      "acceptance_evidence": "A junk-input suite (Al-Store tests/test_fuzz.py) green on the release commit; every crash it finds becomes a named regression test",
+      "required_if_applies": true,
+      "implementation_status": "implemented"
+    },
+    {
+      "id": "OPS-07",
+      "slug": "windows-pipeline-proven",
+      "category": "delivery",
+      "profiles": [
+        "desktop",
+        "lan"
+      ],
+      "requirement": "The Windows installer is built by a workflow on a real Windows runner, the built program folder and the silently installed copy are started and checked to serve their pages, and uninstall keeps the customer data (templates/windows-installer)",
+      "acceptance_evidence": "A green workflow run id recorded in the product release notes; the clean-PC install by a person remains a separate gate (OPS-02)",
       "required_if_applies": true,
       "implementation_status": "implemented"
     }

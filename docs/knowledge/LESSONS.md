@@ -22,6 +22,20 @@ Each lesson comes from a real history file. A rule that caught a real bug outran
 | CLS 0.57 on the phone counter | Results scroll inside their own area; skeletons of the final shape | Reserve space before data arrives |
 | Backdrop blur cost ~20 ms/frame on a slow CPU | Opaque gradients | No effect without a UI Lab number |
 
+## Review round and Windows build (Al-Store 1.0.2)
+| What happened | Fix | Rule |
+|---|---|---|
+| The same sale line listed twice in one return was checked against the old returned quantity → refunded twice | Count earlier rows of the same request | A validation that reads the database must also count what the same request already added |
+| "Activate" with an empty box saved an empty code over the working licence | Refuse empty; test that nothing can wipe the working code | A save button must never be able to replace good data with nothing |
+| Shift float appeared in the drawer without leaving the safe → the safe grew every shift | Float comes out of the safe | Every cash move has two sides |
+| A product counted, then sold, became a false surplus at count close | "Expected" = books at the moment of counting | Snapshot the comparison point |
+| A filter applied after `LIMIT 200` hid customers | Filter in the query | Filter first, limit last |
+| Settings accepted any value → one bad value broke every later sale | Typed settings | Validate stored configuration like input |
+| A junk-input test found 20+ crashes in an hour | `core.whole/rows/obj/day`, `db._plain`, calm 400s | Test the edges with junk before customers do (QA-02) |
+| Printing Arabic to a Windows console (cp1252) killed the compiled server at start-up | `say()`: UTF-8, ASCII fallback, no console OK | Run the built program on the target OS in CI and print its own output when it fails |
+| A dialog's delayed `focus()` moved typed text from the password box to the user-name box (1-in-4 flaky test) | Only focus if the person is not already in a field | A flaky UI test is a real race until proven otherwise |
+| Tests that deliberately send wrong passwords locked the owner account (the lockout works) | Keep lockout probes on throw-away users | Test accounts used for probing are never the one the rest of the suite needs |
+
 ## Automation (opening-nerp-tcode / G-MES, SmartOps, wad)
 - **Wait for the exact state**, not a fixed sleep: the grid is "done" when its row count and busy flag say so.
 - **Stop on an unknown dialog**; never click "OK" on something you did not expect.
