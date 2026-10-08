@@ -31,9 +31,9 @@ try { axeSource = fs.readFileSync(require.resolve('axe-core/axe.min.js'), 'utf8'
 
 // Collected inside the page from the first byte (buffered observers).
 const OBSERVE = () => {
-  window.__lab = { lcp: 0, cls: 0, long: [], events: [] };
+  window.__lab = { lcp: 0, cls: 0, long: [], events: [], shifts: [] };
   try { new PerformanceObserver((l) => { for (const e of l.getEntries()) window.__lab.lcp = e.startTime; }).observe({ type: 'largest-contentful-paint', buffered: true }); } catch {}
-  try { new PerformanceObserver((l) => { for (const e of l.getEntries()) if (!e.hadRecentInput) window.__lab.cls += e.value; }).observe({ type: 'layout-shift', buffered: true }); } catch {}
+  try { new PerformanceObserver((l) => { for (const e of l.getEntries()) if (!e.hadRecentInput) { window.__lab.cls += e.value; if (e.value > 0.01) window.__lab.shifts.push({ at: Math.round(e.startTime), value: +e.value.toFixed(3), what: (e.sources || []).slice(0, 3).map((x) => { const n = x.node; return n ? `${n.nodeName.toLowerCase()}${n.id ? '#' + n.id : ''}${n.className && typeof n.className === 'string' ? '.' + n.className.trim().split(/\s+/)[0] : ''} ${Math.round(x.previousRect.y)}→${Math.round(x.currentRect.y)}` : '?'; }) }); } }).observe({ type: 'layout-shift', buffered: true }); } catch {}
   try { new PerformanceObserver((l) => { for (const e of l.getEntries()) window.__lab.long.push([e.startTime, e.duration]); }).observe({ type: 'longtask', buffered: true }); } catch {}
   try { new PerformanceObserver((l) => { for (const e of l.getEntries()) if (e.interactionId) window.__lab.events.push(e.duration); }).observe({ type: 'event', buffered: true, durationThreshold: 16 }); } catch {}
 };
@@ -131,7 +131,7 @@ for (const [w, h] of viewports) {
     page.off('response', onResp);
     const shot = path.join(outDir, `${route.replace(/[^\w]+/g, '_')}-${w}.png`);
     await page.screenshot({ path: shot });
-    results.push({ route, viewport: `${w}x${h}`, cpu, load_ms: loadMs, ...nav, lcp: Math.round(lab.lcp), cls: +lab.cls.toFixed(3), tbt: Math.round(tbt), inp: Math.round(inp),
+    results.push({ route, viewport: `${w}x${h}`, cpu, load_ms: loadMs, ...nav, lcp: Math.round(lab.lcp), cls: +lab.cls.toFixed(3), shifts: lab.shifts, tbt: Math.round(tbt), inp: Math.round(inp),
       ...Object.fromEntries(Object.entries(frames).map(([k, v]) => ['frame_' + k, v])), dom: lab.dom, heap_mb: lab.heap,
       kb: Object.fromEntries(Object.entries(bytes).map(([k, v]) => [k, Math.round(v / 1024)])), overflow, a11y, errors: [...errors], screenshot: path.basename(shot) });
     errors.length = 0;
@@ -161,6 +161,7 @@ for (const r of results) {
 const totalJs = Math.max(...results.map((r) => r.kb.script));
 lines.push('', `Largest JS transfer of one page: ${totalJs} kB (budget ${budgets.bundle.js_kb} kB).`, '', '## Accessibility findings', '');
 for (const r of results) if (r.a11y.ids?.length) lines.push(`- ${r.route} ${r.viewport}: ${r.a11y.ids.join(', ')}`);
+for (const r of results) if (r.shifts?.length && r.cls > 0.02) lines.push(`- ${r.route} ${r.viewport}: layout shifts — ${r.shifts.map((x) => `${x.value} at ${x.at} ms (${x.what.join('; ')})`).join(' | ')}`);
 for (const r of results) if (r.overflow.length || r.errors.length) lines.push(`- ${r.route} ${r.viewport}: ${[...r.overflow, ...r.errors].join(' · ')}`);
 if (totalJs > budgets.bundle.js_kb) failed++;
 fs.writeFileSync(path.join(outDir, 'report.json'), JSON.stringify({ when: new Date().toISOString(), cpu, budgets: budgets.version, results }, null, 1));
