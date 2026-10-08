@@ -1,5 +1,7 @@
 # Common UX design system, without identical apps
 
+> **Canonical implementation entrypoint:** [Design Factory](../design-factory/README.md); tokens and reference in `design-factory/core/` and `design-factory/reference/`. Agent visual QA: [workflow](../design-factory/WORKFLOW.md), [checklist](../design-factory/QA_CHECKLIST.md). Earlier example variables below remain guidance; for new components the versioned `--af-*` tokens are authoritative.
+
 **Goal:** All products feel related to the same quality brand, but their expert workflow is shaped by their user. Standardize tokens, semantics, states, forms and controls, not every business dashboard.
 
 ## Visual tokens (recommended foundation, customize by brand)

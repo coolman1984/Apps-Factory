@@ -1,0 +1,82 @@
+{
+  "schema_version": 1,
+  "design_system": "Apps Factory UI",
+  "version": "1.0.0",
+  "implementation_status": "reference-only",
+  "implementation_note": "Shared style primitives and synthetic app example, NOT production design components with business/security backend. No blanket compliance claim.",
+  "stack": "HTML CSS vanilla JS",
+  "supported_locales": [
+    "ar-EG",
+    "en"
+  ],
+  "direction_modes": [
+    "rtl",
+    "ltr"
+  ],
+  "themes": [
+    "light",
+    "dark"
+  ],
+  "source_css": [
+    "core/tokens.css",
+    "core/components.css"
+  ],
+  "items": [
+    {
+      "name": "layout-shell",
+      "contract": "sidebar + responsive navbar + page header",
+      "reference": "reference/index.html",
+      "status": "reference_only",
+      "test_gate": "desktop/mobile browser, keyboard and RTL/LTR"
+    },
+    {
+      "name": "button",
+      "contract": "primary secondary ghost; loading and disabled semantics required for production",
+      "reference": "core/components.css",
+      "status": "reference_only",
+      "test_gate": "focus/hover/disabled/contrast"
+    },
+    {
+      "name": "field",
+      "contract": "label, input, validation and errors",
+      "reference": "core/components.css",
+      "status": "reference_only",
+      "test_gate": "keyboard input, validation, locale"
+    },
+    {
+      "name": "table",
+      "contract": "filter and state; server filtering for production",
+      "reference": "reference/app.js",
+      "status": "reference_only",
+      "test_gate": "correctness, scroll, empty and export"
+    },
+    {
+      "name": "badge",
+      "contract": "semantic text and status; no color-only meaning",
+      "reference": "core/components.css",
+      "status": "reference_only",
+      "test_gate": "light/dark and color contrast"
+    },
+    {
+      "name": "dialog",
+      "contract": "native dialog, validation, cancel and return focus",
+      "reference": "reference/index.html",
+      "status": "reference_only",
+      "test_gate": "keyboard/escape and focus"
+    },
+    {
+      "name": "theme-language",
+      "contract": "i18n with RTL/LTR and theme switch",
+      "reference": "reference/app.js",
+      "status": "reference_only",
+      "test_gate": "AR/EN and both themes"
+    },
+    {
+      "name": "export-demo",
+      "contract": "synthetic CSV export with spreadsheet formula neutralization",
+      "reference": "reference/app.js",
+      "status": "reference_only",
+      "test_gate": "export and injection fixture"
+    }
+  ]
+}

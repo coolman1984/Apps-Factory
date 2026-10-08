@@ -1,0 +1,21 @@
+# Design brief • [Product / Screen]
+
+- Buyer and operator:
+- Main problem solved by this screen:
+- Core task and desired click path:
+- Current screenshot and app route (before):
+- Existing frontend stack:
+- Target deployment: Windows offline / office LAN / cloud:
+- Language: AR RTL, EN LTR; locale/currency:
+- 3 competitor/sector-specific inspiration URLs, dates and what is learnt:
+- Visual identity direction (from 3 alternatives if new brand):
+- Selected kit: vanilla-core / Tabler / Web Awesome / shadcn React (ONE):
+- Allowed brand assets and licensing:
+- Information hierarchy: one primary action, supporting information, advanced actions:
+- Table columns and density; mobile overflow strategy:
+- User states: loading / empty / success / error / denied / disconnected:
+- Accessibility and keyboard actions:
+- Screens to capture: 1440×900, 768×1024, 390×844 × AR/EN × light/dark:
+- What absolutely must not change in data/permissions/flow:
+- Acceptance criteria: measurable actions and design quality:
+- QA report location and reviewer:

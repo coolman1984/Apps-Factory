@@ -1,0 +1,45 @@
+name: Design Factory visual and component checks
+on:
+  push:
+    branches: [main, "feat/**"]
+  pull_request:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  structure:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Design Factory standards and pinned upstream gitlinks
+        run: python -m unittest discover -s design-factory/tests -v
+      - name: Check source scripts syntax
+        run: |
+          node --check design-factory/reference/app.js
+          node --check design-factory/qa/capture.mjs
+  browser:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install exact Playwright version for QA only
+        working-directory: design-factory
+        run: npm install --no-save --no-package-lock --no-audit --no-fund
+      - name: Install Chromium
+        working-directory: design-factory
+        run: npx playwright install --with-deps chromium
+      - name: Test live offline reference across viewports, directions and themes
+        working-directory: design-factory
+        run: npm run test:browser
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: design-factory-screenshots
+          path: design-factory/artifacts/
+          if-no-files-found: warn
+          retention-days: 14

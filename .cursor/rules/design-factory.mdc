@@ -1,0 +1,7 @@
+---
+description: Apps Factory visual/UI development: shared tokens, licensed libraries, bilingual RTL/LTR, real screenshot QA
+globs: "**/*.{html,css,js,jsx,ts,tsx,vue,svelte}"
+alwaysApply: false
+---
+
+When modifying frontend, read `AGENTS.md` and `design-factory/AGENTS.md`, then `design-factory/DESIGN_CONSTITUTION.md`, `WORKFLOW.md` and `QA_CHECKLIST.md`. Reuse design tokens and choose one kit: vanilla, Tabler, Web Awesome or shadcn React. Actual UI must be inspected in browser before saying it passes. Respect existing product stack and data/security permissions.
