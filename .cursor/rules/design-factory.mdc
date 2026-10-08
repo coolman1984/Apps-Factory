@@ -5,3 +5,6 @@ alwaysApply: false
 ---
 
 When modifying frontend, read `AGENTS.md` and `design-factory/AGENTS.md`, then `design-factory/DESIGN_CONSTITUTION.md`, `WORKFLOW.md` and `QA_CHECKLIST.md`. Reuse design tokens and choose one kit: vanilla, Tabler, Web Awesome or shadcn React. Actual UI must be inspected in browser before saying it passes. Respect existing product stack and data/security permissions.
+
+## Creative motion/icons/layers/video
+For motion, creative iconography, layered landing pages, WebGL or code-driven video, follow `design-factory/CREATIVE_AGENT_PLAYBOOK.md`, `design-factory/CREATIVE_ARCHITECTURE.md`, `design-factory/creative-sources.lock.json` and `design-factory/creative-recipes/`. Prefer original offline `creative-effects.css` and `creative-primitives.js`, test reduced motion, fallback, licences and real browser frames. Video export goes through the owner's existing Animation Studio; never imply references are production dependencies.
