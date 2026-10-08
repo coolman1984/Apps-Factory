@@ -1,0 +1,43 @@
+{
+  "schema_version": "1.0",
+  "id": "studio-product-film",
+  "profile": "film",
+  "target": "film",
+  "use_case": "AI-directed brand launch film rendered with native Animation Studio",
+  "engine": "owner-animation",
+  "layers": [
+    {
+      "id": "picture",
+      "depth": 0
+    },
+    {
+      "id": "typography",
+      "depth": 0.5
+    },
+    {
+      "id": "sound-cues",
+      "depth": 0.1
+    }
+  ],
+  "timeline": {
+    "duration_ms": 20000,
+    "trigger": "deterministic-seek",
+    "loop": false
+  },
+  "accessibility": {
+    "reduced_motion": "not-applicable-export",
+    "keyboard": false,
+    "rtl": true
+  },
+  "perf": {
+    "webgl": false,
+    "external_runtime": true,
+    "max_simultaneously_animated": 12
+  },
+  "acceptance": [
+    "Exact FPS and aspect ratio verified via FFprobe",
+    "Cues share one timeline with picture and sound",
+    "Typography and Arabic text gate passes",
+    "Full export and listening/review recorded distinctly"
+  ]
+}
