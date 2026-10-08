@@ -23,6 +23,9 @@ jobs:
           node --check design-factory/creative-lab/creative.js
           node --check design-factory/creative-lab/qa/test.mjs
           node --check design-factory/core/creative-primitives.js
+          node --check design-factory/core/af-icons.js
+          node --check design-factory/icon-studio/studio.js
+          node --check design-factory/icon-studio/qa/test.mjs
   browser:
     runs-on: ubuntu-latest
     steps:
@@ -41,6 +44,7 @@ jobs:
         run: |
           npm run test:browser
           npm run test:creative
+          npm run test:icons
       - uses: actions/upload-artifact@v4
         if: always()
         with:
