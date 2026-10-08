@@ -1,0 +1,53 @@
+{
+  "version": 1,
+  "sources": [
+    {
+      "id": "mobbin",
+      "url": "https://mobbin.com",
+      "category": "real-app-ux",
+      "purpose": "Reference real product flows",
+      "license": "reference-only",
+      "enabled": true
+    },
+    {
+      "id": "60fps",
+      "url": "https://60fps.design",
+      "category": "motion-reference",
+      "purpose": "Study UI microinteraction timing",
+      "license": "reference-only",
+      "enabled": true
+    },
+    {
+      "id": "landbook",
+      "url": "https://land-book.com",
+      "category": "web-inspiration",
+      "purpose": "Study web layout and typography",
+      "license": "reference-only",
+      "enabled": true
+    },
+    {
+      "id": "reelfolio",
+      "url": "https://reelfolio.io",
+      "category": "showreel-reference",
+      "purpose": "Study demo-video compositions",
+      "license": "reference-only",
+      "enabled": true
+    },
+    {
+      "id": "inspora",
+      "url": "https://inspora.design",
+      "category": "discovery",
+      "purpose": "Candidate discovery feed",
+      "license": "unverified",
+      "enabled": false
+    },
+    {
+      "id": "movez",
+      "url": "https://movez.substack.com/p/how-to-build-motion-design-studio",
+      "category": "motion-workflow",
+      "purpose": "Study iterative motion-review workflow",
+      "license": "reference-only",
+      "enabled": true
+    }
+  ]
+}
