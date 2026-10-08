@@ -1,7 +1,7 @@
 # Mandatory instructions for every AI coding agent
 
 ## Read order
-1. README.md → FACTORY_CONSTITUTION.md → docs/decisions/ (ADRs) → docs/PLATFORM_ARCHITECTURE.md → docs/CONNECTIVITY_AND_SYNC.md → docs/PROTECTION_UPDATES_AND_SUPPORT.md
+1. README.md → FACTORY_CONSTITUTION.md → docs/decisions/ (ADRs) → docs/PLATFORM_ARCHITECTURE.md → docs/CONNECTIVITY_AND_SYNC.md → docs/PROTECTION_UPDATES_AND_SUPPORT.md → docs/HELP_AND_GUIDANCE_STANDARD.md → docs/DIAGNOSTICS_AND_REMOTE_FIX.md
 2. docs/MARKET_AND_STANDARDS.md → docs/REPOSITORY_AUDIT.md
 3. factory/controls.json → factory/product.schema.json → templates/*
 4. docs/DELIVERY_GATES.md, docs/ADOPTION_PLAN.md and docs/BUILD_PLAN.md
