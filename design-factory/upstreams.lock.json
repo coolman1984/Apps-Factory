@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "checked_on": "2026-10-08",
+  "disclaimer": "Pinned upstream Git submodules are references, not user-owned forks, licence grants or bundled customer assets. Verify selected files and dependencies before shipping.",
+  "upstreams": [
+    {
+      "id": "ui-ux-pro-max",
+      "repo": "nextlevelbuilder/ui-ux-pro-max-skill",
+      "commit": "1a2c459b35f26116fd165b0a0f30597f252749ff",
+      "role": "design_research_only",
+      "scope": "developer",
+      "license_note": "MIT root verified"
+    },
+    {
+      "id": "tabler",
+      "repo": "tabler/tabler",
+      "commit": "c2a7cbf0262d201d97d7b5f9e7cc9ed5a346108e",
+      "role": "optional_html_bootstrap_kit",
+      "scope": "optional_runtime_with_separate_asset_audit",
+      "license_note": "MIT root verified; transitive assets need review"
+    },
+    {
+      "id": "anthropic-skills",
+      "repo": "anthropics/skills",
+      "commit": "683bc88e56f3e09ba94f7055977f3d3aa499f202",
+      "role": "frontend_design_skill_only",
+      "scope": "developer",
+      "license_note": "frontend-design skill Apache 2.0; OTHER skills may have restrictive licences"
+    },
+    {
+      "id": "vercel-agent-skills",
+      "repo": "vercel-labs/agent-skills",
+      "commit": "063bee94c3f4df8453406c830b0a7df0f2860278",
+      "role": "web_design_guidance_only",
+      "scope": "developer",
+      "license_note": "No root blanket licence confirmed; do not copy without per-file check"
+    },
+    {
+      "id": "shadcn-ui",
+      "repo": "shadcn-ui/ui",
+      "commit": "0132174664c07d41262fb51012d0cc782e458e6c",
+      "role": "react_only_option",
+      "scope": "optional_runtime_with_dependency_audit",
+      "license_note": "MIT root verified; assets/dependencies need review"
+    },
+    {
+      "id": "webawesome",
+      "repo": "shoelace-style/webawesome",
+      "commit": "e99dc5e26ae63410bd481aa8a686a61ff7158ccd",
+      "role": "web_components_option",
+      "scope": "optional_runtime_free_components_only",
+      "license_note": "Root permissive; pro resources/brand/addons need separate licences"
+    }
+  ]
+}
