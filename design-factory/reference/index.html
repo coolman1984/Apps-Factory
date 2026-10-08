@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="ar" dir="rtl" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<meta name="description" content="Apps Factory Design System: Offline interactive bilingual reference with synthetic records.">
+<title>Apps Factory | Design Reference</title>
+<link rel="stylesheet" href="../core/tokens.css">
+<link rel="stylesheet" href="../core/components.css">
+<link rel="stylesheet" href="./reference.css">
+<script src="./app.js" defer></script>
+</head>
+<body>
+<a class="af-skip" href="#main" data-i18n="skip">تخطي إلى المحتوى</a>
+<div class="workspace" id="workspace">
+<aside class="sidebar" id="sidebar" aria-label="القائمة الرئيسية">
+ <div class="brand">
+  <span class="brand-icon" aria-hidden="true"><span></span><span></span><span></span><span></span></span>
+  <div class="brand-copy"><strong>APPS FACTORY</strong><span data-i18n="product">إدارة الفريق</span></div>
+ </div>
+ <div class="navigation-label" data-i18n="workspace">مساحة العمل</div>
+ <nav class="nav-links" aria-label="Main navigation">
+  <button class="nav-link active" type="button" data-page="overview" aria-current="page"><span class="nav-icon" aria-hidden="true">▦</span><span data-i18n="overview">نظرة عامة</span></button>
+  <button class="nav-link" type="button" data-page="people"><span class="nav-icon" aria-hidden="true">♙</span><span data-i18n="people">الموظفون</span><span class="nav-count" id="navCount">6</span></button>
+  <button class="nav-link" type="button" data-page="reports"><span class="nav-icon" aria-hidden="true">▥</span><span data-i18n="reports">التقارير</span></button>
+  <button class="nav-link" type="button" data-page="settings"><span class="nav-icon" aria-hidden="true">⚙</span><span data-i18n="settings">الإعدادات</span></button>
+ </nav>
+ <div class="sidebar-bottom">
+  <div class="quiet-line"><span class="online-dot" aria-hidden="true"></span><span data-i18n="local">يعمل محليًا • وضع تجريبي</span></div>
+  <div class="side-avatar">AF</div>
+  <div class="account"><strong data-i18n="owner">مساحة تجربة</strong><span data-i18n="sample">بيانات اصطناعية بالكامل</span></div>
+ </div>
+</aside>
+<button class="mobile-shade" id="mobileShade" type="button" aria-label="Close menu" hidden></button>
+<div class="main-shell">
+<header class="topbar">
+ <div class="topbar-start">
+  <button class="af-button af-button--ghost mobile-menu" type="button" id="menuBtn" aria-label="فتح القائمة" aria-controls="sidebar" aria-expanded="false">☰</button>
+  <span class="topbar-project" data-i18n="product">إدارة الفريق</span><span class="breadcrumb-divider">/</span><span id="breadcrumb" data-i18n="overview">نظرة عامة</span>
+ </div>
+ <div class="topbar-actions">
+  <span class="af-badge demo-badge" data-i18n="demo">تجربة • بيانات وهمية</span>
+  <button type="button" class="af-button af-button--secondary af-button--small" id="langBtn" aria-label="Switch language"><span aria-hidden="true">◎</span><span id="langLabel">EN</span></button>
+  <button type="button" class="af-button af-button--secondary af-button--small" id="themeBtn" aria-label="Toggle theme" aria-pressed="false"><span aria-hidden="true" id="themeIcon">☾</span><span id="themeLabel" data-i18n="themeDark">داكن</span></button>
+  <span class="user-initials" aria-label="Demo user">AF</span>
+ </div>
+</header>
+<main id="main" tabindex="-1">
+ <div class="eyebrow"><span class="eyebrow-line"></span><span data-i18n="eyebrow">لوحة نموذجية، ليست برنامج عميل حقيقي</span></div>
+ <div class="page-heading">
+  <div><h1 id="pageTitle" data-i18n="overview">نظرة عامة</h1><p id="pageDescription" class="af-muted" data-i18n="overviewDesc">إدارة واضحة لكل ما يحتاجه فريقك، بدون ضوضاء.</p></div>
+  <button id="addBtn" class="af-button" type="button"><span aria-hidden="true">＋</span><span data-i18n="newPerson">موظف جديد</span></button>
+ </div>
+
+ <section class="overview-section" data-panel="overview" aria-label="Overview">
+  <div class="metric-grid">
+   <article class="metric af-panel"><div class="metric-head"><span data-i18n="total">إجمالي الموظفين</span><span class="metric-marker">01 / 03</span></div><div class="metric-value" id="metricTotal">6</div><div class="metric-sub"><span class="mini-dot green"></span><span data-i18n="registered">سجلات تجريبية</span></div></article>
+   <article class="metric af-panel"><div class="metric-head"><span data-i18n="active">نشط</span><span class="metric-marker">02 / 03</span></div><div class="metric-value" id="metricActive">5</div><div class="metric-sub"><span class="mini-dot green"></span><span data-i18n="ready">متاح للعمل</span></div></article>
+   <article class="metric af-panel"><div class="metric-head"><span data-i18n="pending">قيد المراجعة</span><span class="metric-marker">03 / 03</span></div><div class="metric-value" id="metricPending">1</div><div class="metric-sub"><span class="mini-dot amber"></span><span data-i18n="needReview">بحاجة إلى مراجعة</span></div></article>
+  </div>
+  <div class="intro-grid">
+   <article class="af-panel feature"><div class="section-mini" data-i18n="workflow">التدفق الأساسي</div><div class="feature-body"><span class="feature-number">01</span><h2 data-i18n="taskHeading">كل شيء يبدأ بمهمة واضحة.</h2><p data-i18n="taskBody">أضف موظفًا، راجع حالته، أو ابحث في السجلات من مكان واحد. الأرقام هنا تجريبية وتتحدث مع تغييراتك.</p><button type="button" class="text-button" id="viewPeople"><span data-i18n="viewPeople">عرض جميع الموظفين</span><span aria-hidden="true">↗</span></button></div></article>
+   <article class="af-panel snapshot"><div class="section-mini" data-i18n="statusMix">توزيع الحالات</div><div class="chart"><div class="chart-bars" id="chartBars" aria-label="Visual breakdown"></div><div class="chart-ticks"><span data-i18n="active">نشط</span><span data-i18n="pending">قيد المراجعة</span></div></div><div class="chart-caption" data-i18n="chartNote">مؤشرات حقيقية محسوبة من البيانات التجريبية</div></article>
+  </div>
+ </section>
+
+ <section class="af-panel data-section" data-panel="people">
+  <div class="panel-head"><div><div class="section-mini" data-i18n="directory">دليل الفريق</div><h2 data-i18n="latest">سجل الموظفين</h2></div><div class="table-controls"><label class="af-sr-only" for="search" data-i18n="searchLabel">بحث بالاسم أو القسم</label><input class="af-input search" id="search" autocomplete="off" data-i18n-placeholder="search" placeholder="بحث بالاسم أو القسم..." type="search"><label class="af-sr-only" for="statusFilter" data-i18n="filterLabel">تصفية الحالة</label><select class="af-select status-filter" id="statusFilter"><option value="all" data-i18n="all">كل الحالات</option><option value="active" data-i18n="active">نشط</option><option value="pending" data-i18n="pending">قيد المراجعة</option></select></div></div>
+  <div class="af-table-wrap"><table class="af-table"><thead><tr><th scope="col" data-i18n="person">الموظف</th><th scope="col" data-i18n="department">القسم</th><th scope="col" data-i18n="state">الحالة</th><th scope="col" data-i18n="joined">أضيف في</th><th scope="col" data-i18n="action">الإجراء</th></tr></thead><tbody id="peopleRows"></tbody></table></div>
+  <p class="af-empty" id="empty" hidden data-i18n="empty">لا توجد نتائج مطابقة. جرّب بحثًا آخر.</p>
+  <div class="panel-footer"><span id="recordCount" aria-live="polite"></span><span data-i18n="sampleFoot">بيانات مرجعية اصطناعية • دون خادم</span></div>
+ </section>
+
+ <section class="af-panel hidden-panel" data-panel="reports" hidden><div class="detail-body"><div class="section-mini" data-i18n="reports">التقارير</div><h2 data-i18n="reportsTitle">ملخص الحالة</h2><p class="af-muted" data-i18n="reportsBody">تقرير مباشر من بيانات المثال، يُحدَّث كلما أضفت شخصًا أو غيّرت حالته.</p><div class="report-stats" id="reportStats" aria-live="polite"></div><button id="downloadCsv" class="af-button af-button--secondary" type="button"><span aria-hidden="true">↓</span><span data-i18n="csv">تصدير CSV</span></button></div></section>
+
+ <section class="af-panel hidden-panel" data-panel="settings" hidden><div class="detail-body"><div class="section-mini" data-i18n="settings">الإعدادات</div><h2 data-i18n="settingsTitle">تخصيص تجربة العرض</h2><p class="af-muted" data-i18n="settingsBody">تغيير اللغة والمظهر ينعكس فورًا على كل الشاشات في هذا المثال.</p><div class="settings-actions"><button class="af-button af-button--secondary" id="settingsLang" type="button" data-i18n="changeLanguage">تغيير اللغة</button><button class="af-button af-button--secondary" id="settingsTheme" type="button" data-i18n="changeTheme">تغيير المظهر</button></div></div></section>
+ <footer class="footer"><span data-i18n="footer">Apps Factory Design System · نسخة مرجعية محلية</span><span class="af-mono">v1.0.0</span></footer>
+</main>
+</div>
+</div>
+<div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+<dialog class="af-dialog" id="addDialog" aria-labelledby="dialogTitle">
+ <form method="dialog" id="newPersonForm">
+  <div class="af-dialog__body af-stack">
+   <div><div class="section-mini" data-i18n="formEyebrow">سجل تجريبي جديد</div><h2 id="dialogTitle" data-i18n="newPerson">موظف جديد</h2><p class="af-muted" data-i18n="formNote">البيانات لن تُرسل أو تُحفظ خارج هذه الصفحة.</p></div>
+   <div><label class="af-label" for="personName" data-i18n="person">الموظف</label><input id="personName" name="name" class="af-input" minlength="2" maxlength="60" required autocomplete="off"></div>
+   <div><label class="af-label" for="personDepartment" data-i18n="department">القسم</label><input id="personDepartment" name="department" class="af-input" maxlength="60" required autocomplete="off"></div>
+   <div><label class="af-label" for="personState" data-i18n="state">الحالة</label><select id="personState" class="af-select" name="state"><option value="active" data-i18n="active">نشط</option><option value="pending" data-i18n="pending">قيد المراجعة</option></select></div>
+  </div>
+  <div class="af-dialog__footer"><button type="button" class="af-button af-button--secondary" id="cancelDialog" data-i18n="cancel">إلغاء</button><button type="submit" class="af-button" data-i18n="save">إضافة الموظف</button></div>
+ </form>
+</dialog>
+</body></html>
