@@ -2,6 +2,12 @@
 
 **A working, offline-first visual-system starter plus audited upstream references.** This does **not** certify pixel-perfect quality without screenshot inspection. App business logic, security, login, licensing and backups remain owned by the existing Apps Factory contracts.
 
+## Creative Factory v2 extension
+- [Live offline cinematic layer lab](creative-lab/index.html) with original depth composition, timeline scrub, playback/pause, reduced-motion, RTL/LTR and scene export.
+- [Creative architecture](CREATIVE_ARCHITECTURE.md), [creative agent playbook](CREATIVE_AGENT_PLAYBOOK.md) and [reusable recipes](creative-recipes/).
+- 17 additional exact pinned submodules for icons, motion, 2D/3D, vector players and three owner repositories. These are source references, **not all bundled build dependencies or original GitHub forks**. [Source list](creative-sources.lock.json).
+- Drop-in zero-third-party-runtime `core/creative-effects.css` and `core/creative-primitives.js`, opt-in via installer `--creative`. Heavy film/3D editors and AGPL-affected tools stay isolated.
+
 ## Start here
 1. Agent: read [design-factory/AGENTS.md](AGENTS.md), [DESIGN_CONSTITUTION.md](DESIGN_CONSTITUTION.md), [WORKFLOW.md](WORKFLOW.md), [QA_CHECKLIST.md](QA_CHECKLIST.md); review the app's user journey, current screens and permitted tech before changing code.
 2. Open [reference/index.html](reference/index.html) locally. No network, Node, Python or CDN required. Synthetic screen only.
