@@ -26,6 +26,10 @@ A product is not ready merely because a plan says "done." Each gate produces aud
 - Sync tier: a duplicated/replayed change applied twice, a revoked user's offline change accepted, a rejected change dropped silently, or a hub restore that resurrects deleted data.
 - Several PCs writing one SQLite file over a network share.
 - Phone PWA holding unsynced records with no visible pending count.
+- Unsigned installer/EXE in a commercial release; update applied without verifying the signed manifest and file hash.
+- An upgrade or uninstall that can overwrite or delete the customer database or settings.
+- Licence failure that hides, deletes or encrypts customer data; a signing private key inside the shipped build.
+- Remote/AI support action on a customer install without a live customer grant and audit entry.
 
 ## Evidence record (copy for each gate)
 ```

@@ -18,7 +18,8 @@ TIERS_BY_MODE = {"desktop": {"standalone", "cloud_sync"},
 DEFAULT_TIER = {"desktop": "standalone", "lan": "office_server", "saas": "cloud_only"}
 DEFAULT_CLIENTS = {"desktop": ["windows_desktop"], "lan": ["windows_desktop", "browser"], "saas": ["browser"]}
 CLIENTS = {"windows_desktop", "browser", "mobile_pwa"}
-PROFILES = {"desktop", "lan", "saas", "paid", "ai", "regulated", "sync", "mobile", "multi_site", "multi_owner"}
+PROFILES = {"desktop", "lan", "saas", "paid", "ai", "regulated", "sync", "mobile", "multi_site", "multi_owner",
+            "windows"}
 MARKETS = {"EG", "SA", "AE", "EU", "US", "OTHER"}
 PAID = {"subscription", "perpetual", "usage", "hybrid"}
 REQUIRED = ("schema_version", "id", "name", "deployment", "markets", "buyer",
@@ -57,6 +58,8 @@ def profiles(product):
         enabled.update({"sync", "saas"})  # the hub is a hosted multi-tenant service
     if "mobile_pwa" in link["clients"]:
         enabled.add("mobile")
+    if "windows_desktop" in link["clients"]:
+        enabled.add("windows")  # we ship an EXE: protection, signing and safe-update controls
     if link["sites"] == "multi":
         enabled.add("multi_site")
     if link["multi_owner"]:
@@ -115,7 +118,7 @@ def advisories(product):
                      "Say so in the contract or offer cloud_sync.")
     if link["tier"] in CLOUD_TIERS and product["data"].get("has_personal_data"):
         notes.append("Personal data leaves the premises: privacy_review must cover hosting region "
-                     "and cross-border transfer before any pilot (SYNC-13).")
+                     "and cross-border transfer before any pilot.")
     if link["tier"] == "cloud_sync" and product["monetization"]["model"] == "free":
         notes.append("cloud_sync has recurring hosting cost; a free model needs a recorded owner exception.")
     if link["tier"] == "cloud_sync" and product["data"].get("has_financial_ledger"):

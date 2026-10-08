@@ -1,6 +1,6 @@
 # Apps Factory | مصنع التطبيقات 🏭
 
-**Version:** 0.2.0 foundation + connectivity tiers • **Status:** standards/research/control-plane specification only; not a deployable authenticated SaaS or finished licensing engine.
+**Version:** 0.3.0 foundation + connectivity tiers + protection/updates/support • **Status:** standards, specs and one shared package (`af-license`); not a deployable authenticated SaaS. The licence package is unit-tested, not yet field-verified inside a product.
 
 مستودع القواعد الموحدة اللي كل تطبيق تجاري جديد عندك يبدأ منه: بحث السوق، تصميم ثابت، إدارة وصلاحيات، اشتراكات وتراخيص، خصوصية، أمان، بيانات، نسخ احتياطي، اختبار، تشغيل ودعم. **التخصص فقط بيتغير، القاعدة لا تُنسخ عشوائيًا.**
 
@@ -12,6 +12,7 @@
 - فحص مسودة: `python scripts/factory.py check test-app.json`
 - اختبار جاهزية بيع **يُفشل المسودات عمدًا**: `python scripts/factory.py check test-app.json --release`
 - اختبارات أداة المصنع: `python -m unittest discover -s tests -v`
+- اختبارات قطعة الرخص: `cd packages/af-license && pip install -r requirements.txt && python -m unittest discover -s tests -v`
 
 ## ابدأ من هنا
 1. اقرأ [تعليمات الوكيل](AGENTS.md) و[دستور المصنع](FACTORY_CONSTITUTION.md).
@@ -29,6 +30,8 @@
 | شبكة مكتب | `office_server` | باقي الأجهزة ماتقدرش تسجل |
 | مزامنة سحابية (الأعلى) | `cloud_sync` | كل جهاز يكمل أوفلاين ويتزامن بعدين، موبايل وفروع وملاك متعددين |
 | سحابي بالكامل | `cloud_only` | مش فارقة، بس محتاج نت |
+
+🛡️ **الحماية والتحديث والدعم:** رخص موقّعة (قطعة جاهزة في `packages/af-license`)، نسخ مترجمة وموقّعة، تحديثات موقّعة مابتلمسش بيانات العميل، وبرج مراقبة للعملاء والأعطال والدعم عن بعد بإذن العميل. [التفاصيل](docs/PROTECTION_UPDATES_AND_SUPPORT.md) • [مواصفات برج المراقبة](examples/vendor-control-center.json)
 
 📌 [خطة البناء](docs/BUILD_PLAN.md) • [قرار المعمارية ADR-0001](docs/decisions/ADR-0001-architecture-and-connectivity-tiers.md) • [قواعد المزامنة](docs/CONNECTIVITY_AND_SYNC.md) • [مثال الباقة الأعلى](examples/multi-branch-reference.json)
 

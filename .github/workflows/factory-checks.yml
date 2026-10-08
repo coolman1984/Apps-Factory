@@ -23,11 +23,17 @@ jobs:
           python scripts/factory.py check examples/hessa-product.json
           python scripts/factory.py check examples/trip-orders-product.json
           python scripts/factory.py check examples/multi-branch-reference.json
+          python scripts/factory.py check examples/vendor-control-center.json
       - name: Unit tests
         run: python -m unittest discover -s tests -v
+      - name: Licence package tests (af-license)
+        working-directory: packages/af-license
+        run: |
+          python -m pip install -r requirements.txt
+          python -m unittest discover -s tests -v
       - name: Assert release remains blocked until evidence exists
         run: |
-          for f in examples/hessa-product.json examples/multi-branch-reference.json; do
+          for f in examples/hessa-product.json examples/multi-branch-reference.json examples/vendor-control-center.json; do
             if python scripts/factory.py check "$f" --release; then
               echo "ERROR: $f improperly passed commercial release gate" >&2
               exit 1

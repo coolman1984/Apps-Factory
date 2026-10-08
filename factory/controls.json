@@ -1,7 +1,7 @@
 {
-  "catalog_version": "1.1.0",
+  "catalog_version": "1.2.0",
   "updated": "2026-10-08",
-  "policy": "Required-if-applicable, never auto-certifies an implementation. Profiles: desktop, lan, saas, paid, ai, regulated, sync, mobile, multi_site, multi_owner. Connectivity tier cloud_sync activates sync and saas.",
+  "policy": "Required-if-applicable, never auto-certifies an implementation. Profiles: desktop, lan, saas, paid, ai, regulated, sync, mobile, multi_site, multi_owner, windows. Connectivity tier cloud_sync activates sync and saas.",
   "references": [
     "https://owasp.org/projects/asvs",
     "https://csrc.nist.gov/pubs/sp/800/218/final",
@@ -966,6 +966,174 @@
       ],
       "requirement": "All owners see audit of permission, money and admin changes; full export by any owner allowed and notified to others",
       "acceptance_evidence": "Audit visibility and export notification test",
+      "required_if_applies": true,
+      "implementation_status": "planned"
+    },
+    {
+      "id": "PROT-01",
+      "slug": "compiled-release",
+      "category": "protection",
+      "profiles": [
+        "windows"
+      ],
+      "requirement": "Commercial Windows builds are compiled (e.g. Nuitka core) without shipped Python sources/bytecode, debug off, and no secrets or private keys inside the binary",
+      "acceptance_evidence": "Build log plus secret scan of the packaged artifact",
+      "required_if_applies": true,
+      "implementation_status": "planned"
+    },
+    {
+      "id": "PROT-02",
+      "slug": "tamper-evidence",
+      "category": "protection",
+      "profiles": [
+        "paid"
+      ],
+      "requirement": "Signed licence verified with fixed algorithm and purpose-separated keys; own-file hash check at start; clock-rollback guard",
+      "acceptance_evidence": "af-license tests plus tampered-file and clock-rollback drills on the shipped build",
+      "required_if_applies": true,
+      "implementation_status": "planned"
+    },
+    {
+      "id": "PROT-03",
+      "slug": "traceable-licence",
+      "category": "protection",
+      "profiles": [
+        "paid"
+      ],
+      "requirement": "Licensed customer name visible in the app and documents; activation/seat limit; updates, support and cloud features only for valid licences",
+      "acceptance_evidence": "Screenshot plus second-device activation refusal",
+      "required_if_applies": true,
+      "implementation_status": "planned"
+    },
+    {
+      "id": "PROT-04",
+      "slug": "fail-safe-enforcement",
+      "category": "protection",
+      "profiles": [
+        "paid"
+      ],
+      "requirement": "Licence failure or expiry never deletes, hides or encrypts customer data; no hidden remote kill switch; expired = read/export/backup",
+      "acceptance_evidence": "Expired and invalid licence drills showing export and backup still work",
+      "required_if_applies": true,
+      "implementation_status": "planned"
+    },
+    {
+      "id": "REL-01",
+      "slug": "code-signing",
+      "category": "release",
+      "profiles": [
+        "windows"
+      ],
+      "requirement": "Installer and executables Authenticode-signed with timestamp under one publisher identity; version info set; no UPX packing",
+      "acceptance_evidence": "Signature check on the downloaded artifact",
+      "required_if_applies": true,
+      "implementation_status": "planned"
+    },
+    {
+      "id": "REL-02",
+      "slug": "signed-update-channel",
+      "category": "release",
+      "profiles": [
+        "windows"
+      ],
+      "requirement": "Update manifest signed with a separate update key and file hash verified by the app before installing; the delivery link itself is untrusted",
+      "acceptance_evidence": "Forged-manifest and swapped-file tests refused",
+      "required_if_applies": true,
+      "implementation_status": "planned"
+    },
+    {
+      "id": "REL-03",
+      "slug": "data-preserving-upgrade",
+      "category": "release",
+      "profiles": [
+        "windows"
+      ],
+      "requirement": "Data and settings live outside the program folder; installer never overwrites/deletes them; verified backup before migration; automatic rollback on failure",
+      "acceptance_evidence": "Upgrade N-1 to N on a real-shaped synthetic DB, failed-migration rollback, uninstall keeps data by default",
+      "required_if_applies": true,
+      "implementation_status": "planned"
+    },
+    {
+      "id": "REL-04",
+      "slug": "staged-rollout",
+      "category": "release",
+      "profiles": [
+        "desktop",
+        "lan",
+        "saas"
+      ],
+      "requirement": "Canary customer first, pause and rollback switch, security fixes delivered even to expired licences",
+      "acceptance_evidence": "Release record with canary result",
+      "required_if_applies": true,
+      "implementation_status": "planned"
+    },
+    {
+      "id": "SUP-01",
+      "slug": "in-app-help-request",
+      "category": "support",
+      "profiles": [
+        "desktop",
+        "lan",
+        "saas"
+      ],
+      "requirement": "Help button creates a ticket with a redacted diagnostic bundle the customer previews before sending; status visible in the app",
+      "acceptance_evidence": "Ticket round-trip test and bundle redaction test",
+      "required_if_applies": true,
+      "implementation_status": "planned"
+    },
+    {
+      "id": "SUP-02",
+      "slug": "self-diagnosis",
+      "category": "support",
+      "profiles": [
+        "desktop",
+        "lan",
+        "saas"
+      ],
+      "requirement": "Self-check page: DB integrity, disk space, backup age, licence, sync, printer, version; every error has a code, Arabic message, next step and technical detail",
+      "acceptance_evidence": "Fault-injection run showing correct codes",
+      "required_if_applies": true,
+      "implementation_status": "planned"
+    },
+    {
+      "id": "SUP-03",
+      "slug": "consented-remote-session",
+      "category": "support",
+      "profiles": [
+        "desktop",
+        "lan",
+        "saas"
+      ],
+      "requirement": "Remote help only customer-initiated, time-boxed, visible, revocable and audited; no permanent unattended credentials by default; self-hosted relay where used",
+      "acceptance_evidence": "Session without grant refused; customer ends session; audit entry",
+      "required_if_applies": true,
+      "implementation_status": "planned"
+    },
+    {
+      "id": "SUP-04",
+      "slug": "minimal-telemetry",
+      "category": "support",
+      "profiles": [
+        "desktop",
+        "lan",
+        "saas"
+      ],
+      "requirement": "Heartbeat/error fields listed in the contract, no personal data, switchable except what a cloud tier needs to run",
+      "acceptance_evidence": "Captured heartbeat payload review",
+      "required_if_applies": true,
+      "implementation_status": "planned"
+    },
+    {
+      "id": "AI-04",
+      "slug": "agent-support-boundaries",
+      "category": "ai",
+      "profiles": [
+        "desktop",
+        "lan",
+        "saas"
+      ],
+      "requirement": "AI agents reach customer data only through the vendor control center: read by default, repo changes via PR and human merge, customer-side repair only from a tested allowlist under live grant, vendor approval and audit; tickets/logs treated as untrusted input",
+      "acceptance_evidence": "Prompt-injection ticket test and denied out-of-grant repair action",
       "required_if_applies": true,
       "implementation_status": "planned"
     }

@@ -1,4 +1,4 @@
-# Apps Factory Constitution • v1.1 • 2026-10-08
+# Apps Factory Constitution • v1.2 • 2026-10-08
 
 > One repeatable **commercial product process**, not one enormous framework forced onto every app. All MUST requirements have a named test or a documented field-acceptance gate.
 
@@ -24,6 +24,11 @@
 19. **Modular monolith, tier-ready data:** one deployable app per product built from modules with versioned contracts ([ADR-0001](docs/decisions/ADR-0001-architecture-and-connectivity-tiers.md)). Every record has org (and branch) scope and a globally unique client-generated ID from the first schema, so moving a customer to a higher connectivity tier never rewrites data.
 20. **Honest connectivity:** the contract states what happens when the main PC, the internet or the cloud is down. Offline work is bounded (grace days), every offline change is re-authorized by the hub, rejected changes are visible, and replicas are never counted as backups ([sync spec](docs/CONNECTIVITY_AND_SYNC.md)).
 
+21. **Free and simple first:** pick proven free/open-source tools; pay only where no free path exists (code signing, one small server, a domain). Record the reason for every paid tool. Revisit when revenue allows.
+22. **Protection without hostage-taking:** copy protection is layered and honest ([ADR-0002](docs/decisions/ADR-0002-protection-updates-vendor-control.md)): signed licences with vetted crypto, compiled signed builds, traceable licences. It never deletes, hides or encrypts customer data and never hides a remote kill switch.
+23. **Updates never touch customer data:** signed update manifests, data/settings outside the program folder, verified backup before migration, automatic rollback, canary first.
+24. **Support through one door:** every product has a help button, self-diagnosis and customer-consented remote sessions reporting to the Vendor Control Center. AI agents work through that center with read-by-default tools, PRs for code, and allowlisted, approved, audited repairs only.
+
 ## Profiles
 - **desktop:** one-device local data + trusted offline or optional online licensing; local loopback app or native UI; OS installer test.
 - **lan:** one primary owner server on local subnet, many scoped accounts, safe network exposure, network outage + device recovery tests.
@@ -34,7 +39,7 @@
 - **office_server** (lan): one office PC owns the database; when it is off, other devices cannot write (said in the contract).
 - **cloud_sync** (premium; desktop/lan/saas): every device keeps a scoped replica and works offline; a cloud hub is the record authority. Activates `sync` + `saas` controls.
 - **cloud_only** (saas): hosted, online browser/PWA.
-- Overlays: `mobile` (installable PWA, cloud tiers only), `multi_site` (branches, cloud tiers only), `multi_owner` (owner quorum and transparency).
+- Overlays: `mobile` (installable PWA, cloud tiers only), `multi_site` (branches, cloud tiers only), `multi_owner` (owner quorum and transparency), `windows` (a shipped EXE: protection, code signing, safe updates).
 - **high_risk_overlay:** optional for healthcare, financial, children's or regulated/high-impact data; extra laws, retention, consent/rights, audit, independent security review and vertical-specific approvals.
 
 ## Implementation status vocabulary
@@ -52,4 +57,7 @@
 - Treating synced replicas as backups; letting a device stay offline-authoritative forever; silently dropping a rejected offline change.
 - Storing mutable money balances instead of deriving them from append-only events.
 - Promising "free cloud" for a paid tier, or promising iPhone PWA features that Safari does not provide.
+- Hand-written cryptography, signing keys in a repository/CI/customer build, or one key for both licences and updates.
+- Customer databases inside the program folder; an installer or uninstaller that can delete customer data.
+- Permanent unattended remote passwords by default; AI agents with shell or SQL access to customer machines.
 - Claiming unsupported compliance/security certifications.

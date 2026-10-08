@@ -65,7 +65,7 @@ Draft contract: [`factory/contracts/sync-envelope.schema.json`](../factory/contr
 
 ## 8. Sync engine spike (decide with evidence, `PRO`/ADR rule)
 Candidates to evaluate in a 2-week spike against Hessa's real entities: **own outbox/event protocol** (FastAPI + SQLite + PostgreSQL), PowerSync, ElectricSQL, CouchDB/PouchDB, Replicache/Zero, cr-sqlite, libSQL embedded replicas.
-Score each on: Python + browser support, offline **writes** (not only reads), conflict control per class, self-hosting and licence terms (verify current), Arabic/RTL irrelevance (UI-independent), maturity/maintenance, cost per tenant, migration/exit path, and the §9 test suite. Record result as ADR-0002. Licence/maintenance claims must be checked on the vendor's current pages with dates.
+Score each on: Python + browser support, offline **writes** (not only reads), conflict control per class, self-hosting and licence terms (verify current), Arabic/RTL irrelevance (UI-independent), maturity/maintenance, cost per tenant, migration/exit path, and the §9 test suite. Record result as ADR-0003. Licence/maintenance claims must be checked on the vendor's current pages with dates.
 
 ## 9. Mandatory sync test suite (`SYNC-12`)
 Deterministic simulation in CI, plus one field drill:

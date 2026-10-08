@@ -1,0 +1,70 @@
+{
+  "schema_version": "1.1",
+  "id": "vendor-control-center",
+  "name": "برج المراقبة: مركز تحكم المصنع",
+  "deployment": "saas",
+  "connectivity": {
+    "tier": "cloud_only",
+    "sites": "single",
+    "clients": [
+      "browser",
+      "mobile_pwa"
+    ],
+    "multi_owner": false
+  },
+  "markets": [
+    "EG"
+  ],
+  "buyer": "INTERNAL: the factory owner and future support staff (not sold to customers)",
+  "problem": "No single place shows which customer runs which version, whose backup or sync failed, who asked for help, and which licences expire.",
+  "core_journey": "Customer presses help in their app, ticket and redacted diagnosis arrive, vendor and AI agent diagnose, fix ships as a signed update to a canary then everyone, ticket closes.",
+  "monetization": {
+    "model": "free",
+    "entitlement_method": "none",
+    "expiry_data_access": "read_export_backup"
+  },
+  "data": {
+    "sensitivity": "personal",
+    "has_financial_ledger": false,
+    "has_personal_data": true,
+    "backup_restore_plan": "Nightly database dump to separate storage and restore drill on a fresh server.",
+    "residency": "PENDING owner decision: small VPS region",
+    "retention_policy": "Tickets and diagnostic bundles kept 12 months unless the contract says otherwise (PENDING legal review)"
+  },
+  "addons": {
+    "ai_agents": true,
+    "regulated_overlay": false
+  },
+  "stage": "research",
+  "competitors": [],
+  "acceptance": [
+    "A help request from a customer app appears with a redacted bundle the customer previewed before sending.",
+    "A remote session without a live customer grant is refused and audited.",
+    "An AI agent reading a ticket that contains injected instructions cannot trigger any customer-side action.",
+    "A signed update reaches the canary customer, keeps all data and settings, and can be rolled back.",
+    "Every install shows version, licence state, last backup and last heartbeat."
+  ],
+  "evidence": {
+    "market_review": "PENDING",
+    "privacy_review": "PENDING",
+    "security_review": "PENDING",
+    "clean_device_restore": "PENDING",
+    "core_user_acceptance": "PENDING"
+  },
+  "control_evidence": {},
+  "features": [
+    "install-registry",
+    "licence-desk",
+    "health-board",
+    "crash-inbox",
+    "support-tickets",
+    "remote-session-grants",
+    "release-desk",
+    "mcp-agent-gateway"
+  ],
+  "exclusions": [
+    "unattended remote access by default",
+    "agent shell access on customer machines",
+    "customer billing (later)"
+  ]
+}

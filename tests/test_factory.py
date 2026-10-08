@@ -23,7 +23,8 @@ class FactoryTests(unittest.TestCase):
         self.assertEqual(set(d["properties"]["connectivity"]["properties"]["tier"]["enum"]), factory.TIERS)
 
     def test_all_sample_manifests(self):
-        for name in ("hessa-product.json", "trip-orders-product.json", "multi-branch-reference.json"):
+        for name in ("hessa-product.json", "trip-orders-product.json", "multi-branch-reference.json",
+                     "vendor-control-center.json"):
             with self.subTest(name=name):
                 p = factory.load(ROOT / "examples" / name)
                 errors, selected = factory.valid_product(p)
@@ -68,7 +69,8 @@ class FactoryTests(unittest.TestCase):
         cmd = [sys.executable, str(ROOT / "scripts/factory.py")]
         for tail in [["doctor"], ["check", str(ROOT / "examples/hessa-product.json")],
                      ["check", str(ROOT / "examples/trip-orders-product.json")],
-                     ["check", str(ROOT / "examples/multi-branch-reference.json")]]:
+                     ["check", str(ROOT / "examples/multi-branch-reference.json")],
+                     ["check", str(ROOT / "examples/vendor-control-center.json")]]:
             p = subprocess.run(cmd + tail, capture_output=True, text=True, check=False)
             self.assertEqual(p.returncode, 0, p.stderr + p.stdout)
 
@@ -184,6 +186,18 @@ class FactoryTests(unittest.TestCase):
         self.assertTrue(set(example).issubset(schema["properties"]))
         self.assertIn(example["class"], schema["properties"]["class"]["enum"])
         self.assertNotIn("D_derived", schema["properties"]["class"]["enum"])
+
+    def test_windows_builds_get_protection_and_safe_updates(self):
+        ids = {c["id"] for c in factory.valid_product(factory.load(ROOT / "examples/hessa-product.json"))[1]}
+        for cid in ("PROT-01", "PROT-04", "REL-01", "REL-02", "REL-03", "SUP-03", "AI-04"):
+            self.assertIn(cid, ids)
+        web = {c["id"] for c in factory.valid_product(factory.load(ROOT / "examples/vendor-control-center.json"))[1]}
+        self.assertFalse({"PROT-01", "REL-01", "REL-03"} & web)
+        self.assertTrue({"AI-01", "AI-04", "SUP-01", "MOB-01"}.issubset(web))
+
+    def test_control_center_is_not_releasable_yet(self):
+        errors, _ = factory.valid_product(factory.load(ROOT / "examples/vendor-control-center.json"), release=True)
+        self.assertTrue(any("hosting region" in e for e in errors))
 
     def test_every_control_profile_is_known(self):
         for c in factory.catalog():
