@@ -1,4 +1,4 @@
-# Apps Factory Constitution • v1.2 • 2026-10-08
+# Apps Factory Constitution • v1.3 • 2026-10-08
 
 > One repeatable **commercial product process**, not one enormous framework forced onto every app. All MUST requirements have a named test or a documented field-acceptance gate.
 
@@ -28,6 +28,9 @@
 22. **Protection without hostage-taking:** copy protection is layered and honest ([ADR-0002](docs/decisions/ADR-0002-protection-updates-vendor-control.md)): signed licences with vetted crypto, compiled signed builds, traceable licences. It never deletes, hides or encrypts customer data and never hides a remote kill switch.
 23. **Updates never touch customer data:** signed update manifests, data/settings outside the program folder, verified backup before migration, automatic rollback, canary first.
 24. **Support through one door:** every product has a help button, self-diagnosis and customer-consented remote sessions reporting to the Vendor Control Center. AI agents work through that center with read-by-default tools, PRs for code, and allowlisted, approved, audited repairs only.
+
+25. **Help is part of the product:** guides, "Guide me", "Solve a problem" and questions in polished Egyptian Arabic that a 12-year-old understands; no welcome slideshow ([ADR-0005](docs/decisions/ADR-0005-help-diagnostics-remote.md)).
+26. **Hidden diagnostics:** every product carries a vendor-only diagnostics probe, run only under an open customer support window.
 
 ## Profiles
 - **desktop:** one-device local data + trusted offline or optional online licensing; local loopback app or native UI; OS installer test.

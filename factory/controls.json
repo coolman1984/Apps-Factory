@@ -1,5 +1,5 @@
 {
-  "catalog_version": "1.3.0",
+  "catalog_version": "1.4.0",
   "updated": "2026-10-08",
   "policy": "Required-if-applicable, never auto-certifies an implementation. Profiles: desktop, lan, saas, paid, ai, regulated, sync, mobile, multi_site, multi_owner, windows. Connectivity tier cloud_sync activates sync and saas.",
   "references": [
@@ -1146,6 +1146,132 @@
       ],
       "requirement": "Installation never asks the customer to disable antivirus, add broad exclusions or trust a vendor root certificate; false positives are submitted to Microsoft; Smart App Control handled with the customer owner's consent",
       "acceptance_evidence": "Install checklist signed off on a clean Windows 11 PC",
+      "required_if_applies": true,
+      "implementation_status": "planned"
+    },
+    {
+      "id": "HELP-01",
+      "slug": "guides-per-job",
+      "category": "help",
+      "profiles": [
+        "desktop",
+        "lan",
+        "saas"
+      ],
+      "requirement": "Step-by-step guides for every daily job and role; every screen reachable from a guide",
+      "acceptance_evidence": "Guide list mapped to screens",
+      "required_if_applies": true,
+      "implementation_status": "planned"
+    },
+    {
+      "id": "HELP-02",
+      "slug": "guide-me-coach",
+      "category": "help",
+      "profiles": [
+        "desktop",
+        "lan",
+        "saas"
+      ],
+      "requirement": "A 'Guide me' coach opens the page and outlines each named button; every step finds its button",
+      "acceptance_evidence": "Browser test walking every guide",
+      "required_if_applies": true,
+      "implementation_status": "planned"
+    },
+    {
+      "id": "HELP-03",
+      "slug": "solve-a-problem",
+      "category": "help",
+      "profiles": [
+        "desktop",
+        "lan",
+        "saas"
+      ],
+      "requirement": "'Solve a problem' section: every user-facing error and the coverage checklist, each with what/why/steps, a link to the page and a Guide me button",
+      "acceptance_evidence": "Coverage checklist and error-key test",
+      "required_if_applies": true,
+      "implementation_status": "planned"
+    },
+    {
+      "id": "HELP-04",
+      "slug": "plain-egyptian-help",
+      "category": "help",
+      "profiles": [
+        "desktop",
+        "lan",
+        "saas"
+      ],
+      "requirement": "Help written in polished Egyptian Arabic a 12-year-old understands; reading pass by a non-developer each release",
+      "acceptance_evidence": "Release evidence names the reviewer",
+      "required_if_applies": true,
+      "implementation_status": "planned"
+    },
+    {
+      "id": "HELP-05",
+      "slug": "no-welcome-slideshow",
+      "category": "help",
+      "profiles": [
+        "desktop",
+        "lan",
+        "saas"
+      ],
+      "requirement": "No slideshow on first sign-in; one line pointing to Help; tour only as opt-in",
+      "acceptance_evidence": "Browser test of first sign-in",
+      "required_if_applies": true,
+      "implementation_status": "planned"
+    },
+    {
+      "id": "HELP-06",
+      "slug": "ticket-to-help-loop",
+      "category": "help",
+      "profiles": [
+        "desktop",
+        "lan",
+        "saas"
+      ],
+      "requirement": "Every 'how do I' ticket adds or improves a guide or problem entry in the next release",
+      "acceptance_evidence": "Ticket log linked to help changes",
+      "required_if_applies": true,
+      "implementation_status": "planned"
+    },
+    {
+      "id": "DIAG-01",
+      "slug": "hidden-diagnostics-probe",
+      "category": "support",
+      "profiles": [
+        "desktop",
+        "lan",
+        "saas"
+      ],
+      "requirement": "Isolated diagnostics module not shown in customer menus, started only by the vendor under an open grant with repair scope",
+      "acceptance_evidence": "Refused without grant; report with grant",
+      "required_if_applies": true,
+      "implementation_status": "planned"
+    },
+    {
+      "id": "DIAG-02",
+      "slug": "diagnostics-coverage",
+      "category": "support",
+      "profiles": [
+        "desktop",
+        "lan",
+        "saas"
+      ],
+      "requirement": "Probes for data, backups (test restore in a temp folder), network, sync, licence and program version/errors",
+      "acceptance_evidence": "Fault-injection run per probe",
+      "required_if_applies": true,
+      "implementation_status": "planned"
+    },
+    {
+      "id": "DIAG-03",
+      "slug": "diagnostics-privacy",
+      "category": "support",
+      "profiles": [
+        "desktop",
+        "lan",
+        "saas"
+      ],
+      "requirement": "Read-only, temp files only, no personal data or money in reports, every run logged on both sides",
+      "acceptance_evidence": "Report review and log entries",
       "required_if_applies": true,
       "implementation_status": "planned"
     }
