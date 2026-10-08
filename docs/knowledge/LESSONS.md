@@ -22,6 +22,15 @@ Each lesson comes from a real history file. A rule that caught a real bug outran
 | CLS 0.57 on the phone counter | Results scroll inside their own area; skeletons of the final shape | Reserve space before data arrives |
 | Backdrop blur cost ~20 ms/frame on a slow CPU | Opaque gradients | No effect without a UI Lab number |
 
+## Design system v2 (Al-Store → Mizan, 2026-10-08)
+| What happened | Fix | Rule |
+|---|---|---|
+| A neon accent (volt) looked striking in screenshots but failed contrast as text and tired the eye at a counter | One restrained accent used only for the main action; navy for structure | Brand colour is chosen at the counter, not in the demo |
+| The factory's own `--af-text-tertiary` was 3.5:1 and used for 10–11px text | `qa/token_gate.py` fails the build; colour darkened | Contrast is a test, not a review comment |
+| Raising body text to 16px made a table without a scroll wrapper spill out of its card on a 360px phone | Wrapper added; any bare table in a card scrolls inside it | Re-run the measured layout sweep after every type-scale change |
+| KPI money wrapped onto two lines in narrow cards | Container-query font size (`cqi`) and `nowrap` | Numbers shrink, never wrap |
+| A phone pay sheet hid its confirm button below the fold | Sticky dialog footer | The action that finishes the task is always visible |
+
 ## Review round and Windows build (Al-Store 1.0.2)
 | What happened | Fix | Rule |
 |---|---|---|
