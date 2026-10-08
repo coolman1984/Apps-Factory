@@ -90,6 +90,8 @@ class Studio:
             self.db.execute('INSERT OR IGNORE INTO products(id, name, trial_days, created_at) VALUES (?, ?, ?, ?)', (pid, name, days, now_iso()))
         self._key: Ed25519PrivateKey | None = None
         self._unlocked_at = 0.0
+        self._unlock_lock = threading.Lock()
+        self._unlock_failures, self._unlock_blocked_until = 0, 0.0
 
     # ------------------------------------------------------------------ helpers
     def rows(self, sql, *args):
@@ -134,7 +136,7 @@ class Studio:
     def create_key(self, passphrase: str):
         if self.key_file():
             raise StudioError('key.exists', 'A signing key already exists. Back it up; do not make a second one by accident.', 409)
-        if len(passphrase or '') < 12:
+        if not isinstance(passphrase, str) or len(passphrase) < 12:
             raise StudioError('key.weak', 'Use a passphrase of at least 12 characters (a short sentence is best).')
         private = Ed25519PrivateKey.generate()
         raw = private.public_key().public_bytes(serialization.Encoding.Raw, serialization.PublicFormat.Raw)
@@ -155,12 +157,20 @@ class Studio:
         f = self.key_file()
         if not f:
             raise StudioError('key.none', 'Create the signing key first.', 409)
-        try:
-            key = serialization.load_pem_private_key(f.read_bytes(), password=(passphrase or '').encode('utf-8'))
-        except (ValueError, TypeError):
-            time.sleep(0.8)  # slows guessing; the file itself is protected by the passphrase's KDF
-            self.audit('owner', 'key.unlock.failed')
-            raise StudioError('key.wrong', 'Wrong passphrase.', 403)
+        passphrase = passphrase if isinstance(passphrase, str) else ''
+        with self._unlock_lock:  # one guess at a time, and a pause after five wrong ones
+            if time.time() < self._unlock_blocked_until:
+                raise StudioError('key.blocked', 'Too many wrong passphrases. Wait a few minutes.', 429)
+            try:
+                key = serialization.load_pem_private_key(f.read_bytes(), password=passphrase.encode('utf-8'))
+            except (ValueError, TypeError):
+                time.sleep(0.8)  # slows guessing; the file itself is protected by the passphrase's KDF
+                self._unlock_failures += 1
+                if self._unlock_failures >= 5:
+                    self._unlock_failures, self._unlock_blocked_until = 0, time.time() + 300
+                self.audit('owner', 'key.unlock.failed')
+                raise StudioError('key.wrong', 'Wrong passphrase.', 403)
+            self._unlock_failures = 0
         if not isinstance(key, Ed25519PrivateKey):
             raise StudioError('key.type', 'The key file is not an Ed25519 key.', 500)
         self._key, self._unlocked_at = key, time.time()
@@ -262,13 +272,13 @@ class Studio:
             where.append('(customer LIKE ? OR phone LIKE ? OR device LIKE ? OR serial LIKE ? OR note LIKE ?)')
             args += [f'%{q}%'] * 5
         rows = self.rows(f"SELECT * FROM codes {'WHERE ' + ' AND '.join(where) if where else ''} ORDER BY issued_at DESC LIMIT ?",
-                         *args, min(int(limit), 2000))
+                         *args, 2000 if status else min(int(limit), 2000))  # a status filter runs after the query: look at all of them
         rows = [self._decorate(r) for r in rows]
         if status == 'expiring':
             rows = [r for r in rows if r['expiring_soon']]
         elif status:
             rows = [r for r in rows if r['status'] == status]
-        return rows
+        return rows[:min(int(limit), 2000)]
 
     def verify(self, code_text, product, device=None):
         keys = [self.public_key().split(':', 1)[1]] if self.public_key() else []
@@ -323,6 +333,9 @@ class Studio:
             raise StudioError('agent.days', f'An agent may issue at most {AGENT_MAX_TRIAL_DAYS} trial days.')
         if not device:
             raise StudioError('device.required', 'A trial code must be tied to a device code.')
+        normalized = codes.group(codes.normalize(device), 5) if isinstance(device, str) else None
+        if normalized and self.one('SELECT 1 FROM codes WHERE product = ? AND device = ?', product, normalized):
+            raise StudioError('agent.repeat', 'This device already had a code. A new or longer code is the owner\'s decision.', 409)
         today = date.today().isoformat()
         used = self.one("SELECT COUNT(*) AS n FROM codes WHERE issued_by = 'agent' AND substr(issued_at, 1, 10) = ?", today)['n']
         if used >= pol['agent_daily_limit']:

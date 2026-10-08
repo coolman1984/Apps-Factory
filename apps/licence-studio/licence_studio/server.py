@@ -11,6 +11,7 @@ import io
 import json
 import mimetypes
 import secrets
+import sqlite3
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -82,11 +83,18 @@ def make_handler(app: App):
                     return v
             return ''
 
+        timeout = 30  # a stalled client must not hold a thread for ever
+
         def body(self):
-            n = int(self.headers.get('Content-Length') or 0)
-            if n > 1_000_000:
+            raw = self.headers.get('Content-Length') or '0'
+            if not raw.isdigit() or int(raw) > 1_000_000:
+                self.close_connection = True  # the body is not read: never reuse this connection
                 raise StudioError('too_large', 'Request too large.', 413)
-            return json.loads(self.rfile.read(n) or b'{}') if n else {}
+            n = int(raw)
+            parsed = json.loads(self.rfile.read(n) or b'{}') if n else {}
+            if not isinstance(parsed, dict):
+                raise StudioError('bad_request', 'The request is not understood.', 400)
+            return parsed
 
         def do_GET(self):
             if not self.host_ok():
@@ -99,7 +107,7 @@ def make_handler(app: App):
             if rel.startswith('af-ui/'):
                 base, rel = AF_UI, rel[len('af-ui/'):]
             path = (base / rel).resolve()
-            if not str(path).startswith(str(base.resolve())) or not path.is_file():
+            if not path.is_relative_to(base.resolve()) or not path.is_file():
                 return self.send(404, {'error': 'not found'})
             ctype = {'.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.html': 'text/html; charset=utf-8',
                      '.woff2': 'font/woff2', '.svg': 'image/svg+xml'}.get(path.suffix) or mimetypes.guess_type(str(path))[0] or 'application/octet-stream'
@@ -119,7 +127,7 @@ def make_handler(app: App):
                 fn()
             except StudioError as e:
                 self.send(e.status, {'error': str(e), 'key': e.key})
-            except (ValueError, KeyError, TypeError, json.JSONDecodeError) as e:
+            except (ValueError, KeyError, TypeError, AttributeError, OverflowError, sqlite3.Error, json.JSONDecodeError) as e:
                 self.send(400, {'error': f'Bad request: {e}', 'key': 'bad_request'})
 
         # ------------------------------------------------------------ routes
@@ -134,10 +142,10 @@ def make_handler(app: App):
                 st['owner'] = app.owner_ok(self.cookie())
                 return self.send(200, st if st['owner'] else {k: st[k] for k in ('key', 'unlocked', 'owner')})
             if path == '/api/key/create' and method == 'POST':
-                out = S.create_key(d.get('passphrase', ''))
+                out = S.create_key(d.get('passphrase'))
                 return self.send(200, out, headers=self.session_cookie())
             if path == '/api/unlock' and method == 'POST':
-                S.unlock(d.get('passphrase', ''))
+                S.unlock(d.get('passphrase'))
                 return self.send(200, {'ok': True}, headers=self.session_cookie())
             if not app.owner_ok(self.cookie()):
                 raise StudioError('owner.locked', 'Unlock the studio with your passphrase.', 401)
@@ -162,7 +170,7 @@ def make_handler(app: App):
                     w = csv.writer(out)
                     w.writerow(cols)
                     for r in rows:
-                        w.writerow([("'" + str(r[c])) if str(r[c])[:1] in '=+-@' else r[c] for c in cols])
+                        w.writerow([("'" + str(r[c])) if str(r[c])[:1] and str(r[c])[0] in '=+-@\t\r' else r[c] for c in cols])
                     return self.send(200, out.getvalue(), 'text/csv; charset=utf-8', {'Content-Disposition': 'attachment; filename="licence-codes.csv"'})
             if method == 'POST':
                 if path == '/api/lock':

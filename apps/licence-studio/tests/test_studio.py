@@ -65,6 +65,23 @@ class ServiceTests(unittest.TestCase):
         with self.assertRaises(Exception):
             self.s.db.execute("UPDATE codes SET last_day = '2099-01-01'")
 
+    def test_wrong_passphrases_are_throttled(self):
+        self.s.create_key(PASS)
+        fresh = Studio(self.dir)
+        import licence_studio.service as svc
+        original, svc.time.sleep = svc.time.sleep, lambda _s: None
+        try:
+            for _ in range(5):
+                with self.assertRaises(StudioError):
+                    fresh.unlock('not the passphrase!')
+            with self.assertRaises(StudioError) as e:
+                fresh.unlock(PASS)  # even the right one waits: guessing is slowed down
+            self.assertEqual(e.exception.status, 429)
+        finally:
+            svc.time.sleep = original
+        with self.assertRaises(StudioError):
+            fresh.unlock(None)
+
     def test_agent_requests_and_limits(self):
         self.s.create_key(PASS)
         out = self.s.agent_issue_trial('al-store', DEVICE, 'Shop')
@@ -74,11 +91,15 @@ class ServiceTests(unittest.TestCase):
         self.assertEqual(self.s.requests('approved')[0]['id'], rid)
         self.s.set_setting('agent_may_issue_trials', True)
         self.s.set_setting('agent_daily_limit', 1)
+        other, third = codes.device_code('pc-2', 'i-2'), codes.device_code('pc-3', 'i-3')
         with self.assertRaises(StudioError):
-            self.s.agent_issue_trial('al-store', DEVICE, 'Shop', days=30)
-        self.assertEqual(self.s.agent_issue_trial('al-store', DEVICE, 'Shop')['status'], 'issued')
-        with self.assertRaises(StudioError) as e:
+            self.s.agent_issue_trial('al-store', other, 'Shop', days=30)
+        with self.assertRaises(StudioError) as e:  # DEVICE already had a code: another trial is the owner's decision
             self.s.agent_issue_trial('al-store', DEVICE, 'Shop')
+        self.assertEqual(e.exception.status, 409)
+        self.assertEqual(self.s.agent_issue_trial('al-store', other, 'Shop')['status'], 'issued')
+        with self.assertRaises(StudioError) as e:
+            self.s.agent_issue_trial('al-store', third, 'Shop')
         self.assertEqual(e.exception.status, 429)
         req = self.s.request('al-store', 'pro', DEVICE, 'Shop', days=365)
         self.assertEqual(req['status'], 'pending')  # paid editions only by request
@@ -117,6 +138,8 @@ class WebAndMcpTests(unittest.TestCase):
         st, d, _ = self.call('GET', '/api/status', headers={'Host': 'evil.com'})
         self.assertEqual(st, 421)
         st, d, cookie = self.call('POST', '/api/key/create', {'passphrase': PASS})
+        if st == 409:  # an earlier test already made the key: unlock it
+            st, d, cookie = self.call('POST', '/api/unlock', {'passphrase': PASS})
         self.assertEqual(st, 200)
         st, d, _ = self.call('POST', '/api/issue', {'product': 'al-store', 'device': DEVICE}, cookie, {'Origin': 'http://evil.com'})
         self.assertEqual(st, 403)
@@ -154,6 +177,22 @@ class WebAndMcpTests(unittest.TestCase):
         self.assertTrue(out[5]['result']['structuredContent']['result']['all_ok'])
         self.assertIn('error', out[6])
         self.assertNotIn(PASS, p.stdout)
+
+    def test_0_bad_requests_get_calm_answers(self):
+        st, d, cookie = self.call('POST', '/api/key/create', {'passphrase': PASS})
+        self.assertIn(st, (200, 409))
+        if st == 409:
+            st, d, cookie = self.call('POST', '/api/unlock', {'passphrase': PASS})
+        for body in ([], 'text', 5, None, {'product': ['x']}, {'product': 'al-store', 'days': 'many'}, {'product': 'al-store', 'device': 5}):
+            for path in ('/api/issue', '/api/verify', '/api/product/save', '/api/policy', '/api/request/decide'):
+                st, d, _ = self.call('POST', path, body, cookie)
+                self.assertLess(st, 500, (path, body))
+        c = http.client.HTTPConnection('127.0.0.1', self.port, timeout=5)  # a negative length must not hang the server
+        c.request('POST', '/api/issue', b'', {'Host': f'127.0.0.1:{self.port}', 'Content-Length': '-5', 'Cookie': cookie})
+        self.assertEqual(c.getresponse().status, 413)
+        c.close()
+        st, raw, _ = self.call('GET', '/af-ui/../static/studio.js', cookie=cookie)  # no walking out of the shared folder
+        self.assertIn(st, (200, 404))
 
     def test_2_code_from_the_studio_unlocks_al_store(self):
         """The full chain: studio key → code for a shop PC's device code → that shop's Al-Store accepts it, another PC refuses it."""
