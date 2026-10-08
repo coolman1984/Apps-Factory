@@ -48,7 +48,7 @@ var $=function(id){return document.getElementById(id)};
 var token="";try{token=sessionStorage.getItem("cc_token")||""}catch(e){}
 var STATUS={ok:"تمام",warning:"محتاج نظرة",stale:"مقطوع",never:"لم يتصل"};
 var SCOPE={view_diagnostics:"عرض التشخيص",screen_session:"مشاركة الشاشة",repair:"إصلاح"};
-var REPAIR={integrity_check:"فحص سلامة قاعدة البيانات",rebuild_search_index:"إعادة بناء فهرس البحث",retry_failed_backup:"إعادة محاولة النسخة الاحتياطية",collect_extended_logs:"تجميع سجلات أكثر"};
+var REPAIR={integrity_check:"فحص سلامة قاعدة البيانات",rebuild_search_index:"إعادة بناء فهرس البحث",retry_failed_backup:"إعادة محاولة النسخة الاحتياطية",collect_extended_logs:"تجميع سجلات أكثر",deep_diagnosis:"فحص شامل للجهاز"};
 var TICKET={open:"جديد",in_progress:"شغالين عليه",waiting_customer:"مستني العميل",resolved:"اتحل"};
 function el(tag,text,cls){var n=document.createElement(tag);if(text!=null)n.textContent=String(text);if(cls)n.className=cls;return n}
 function cell(tr,text,cls){var td=el("td",text,cls);tr.appendChild(td);return td}

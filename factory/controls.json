@@ -1,5 +1,5 @@
 {
-  "catalog_version": "1.6.0",
+  "catalog_version": "1.7.0",
   "updated": "2026-10-08",
   "policy": "Required-if-applicable, never auto-certifies an implementation. Profiles: desktop, lan, saas, paid, ai, regulated, sync, mesh, mobile, multi_site, multi_owner, windows. Connectivity tier cloud_sync activates sync and saas.",
   "references": [
@@ -1420,6 +1420,20 @@
       ],
       "requirement": "First-version menu shows only the sold core; extra pages switched on in settings",
       "acceptance_evidence": "Menu test with extras off and on",
+      "required_if_applies": true,
+      "implementation_status": "planned"
+    },
+    {
+      "id": "UX-08",
+      "slug": "measured-layout",
+      "category": "ux",
+      "profiles": [
+        "desktop",
+        "lan",
+        "saas"
+      ],
+      "requirement": "An automated browser sweep opens every page with realistic large data at phone, small-laptop and desktop widths in every language and fails when any text stands outside its card, button or badge; 'opens without errors' is not 'looks right'",
+      "acceptance_evidence": "Sweep run on the release commit, and proof it fails on a known overflow",
       "required_if_applies": true,
       "implementation_status": "planned"
     }
