@@ -1,7 +1,7 @@
 {
-  "catalog_version": "1.0.0",
+  "catalog_version": "1.1.0",
   "updated": "2026-10-08",
-  "policy": "Required-if-applicable, never auto-certifies an implementation. Profiles: desktop, lan, saas, paid, ai, regulated.",
+  "policy": "Required-if-applicable, never auto-certifies an implementation. Profiles: desktop, lan, saas, paid, ai, regulated, sync, mobile, multi_site, multi_owner. Connectivity tier cloud_sync activates sync and saas.",
   "references": [
     "https://owasp.org/projects/asvs",
     "https://csrc.nist.gov/pubs/sp/800/218/final",
@@ -622,6 +622,350 @@
       ],
       "requirement": "Explicit retention/access/rights/encryption, audit and independent security review",
       "acceptance_evidence": "G7 signed risk acceptance",
+      "required_if_applies": true,
+      "implementation_status": "planned"
+    },
+    {
+      "id": "ARCH-01",
+      "slug": "module-contract",
+      "category": "architecture",
+      "profiles": [
+        "desktop",
+        "lan",
+        "saas"
+      ],
+      "requirement": "Each module exposes a versioned typed contract with documented failure codes and its own tests; no module reads another module's tables",
+      "acceptance_evidence": "Contract file, version policy and module test run without booting the whole app",
+      "required_if_applies": true,
+      "implementation_status": "planned"
+    },
+    {
+      "id": "ARCH-02",
+      "slug": "org-scope-day-one",
+      "category": "architecture",
+      "profiles": [
+        "desktop",
+        "lan",
+        "saas"
+      ],
+      "requirement": "Every record carries org (and branch where relevant) scope from the first schema, including single-PC editions",
+      "acceptance_evidence": "Schema review and upgrade test standalone->cloud_sync without data rewrite",
+      "required_if_applies": true,
+      "implementation_status": "planned"
+    },
+    {
+      "id": "ARCH-03",
+      "slug": "sync-ready-identifiers",
+      "category": "architecture",
+      "profiles": [
+        "desktop",
+        "lan",
+        "saas"
+      ],
+      "requirement": "Globally unique client-generated IDs (UUIDv7/ULID) and device-safe human document numbers; no reliance on autoincrement for identity",
+      "acceptance_evidence": "Two devices create records offline without ID or number collision",
+      "required_if_applies": true,
+      "implementation_status": "planned"
+    },
+    {
+      "id": "OPS-06",
+      "slug": "power-loss-safety",
+      "category": "operations",
+      "profiles": [
+        "desktop",
+        "lan",
+        "saas"
+      ],
+      "requirement": "Abrupt power loss or process kill during write, sync, backup or upgrade leaves data consistent",
+      "acceptance_evidence": "Kill-process and power-cut drill log on target device",
+      "required_if_applies": true,
+      "implementation_status": "planned"
+    },
+    {
+      "id": "SYNC-01",
+      "slug": "sync-authority-topology",
+      "category": "sync",
+      "profiles": [
+        "sync"
+      ],
+      "requirement": "Cloud hub is the single record authority; devices hold scoped replicas plus transactional outbox; no peer-to-peer writes in v1",
+      "acceptance_evidence": "Topology diagram and failure-mode table reviewed",
+      "required_if_applies": true,
+      "implementation_status": "planned"
+    },
+    {
+      "id": "SYNC-02",
+      "slug": "entity-merge-classes",
+      "category": "sync",
+      "profiles": [
+        "sync"
+      ],
+      "requirement": "Every synced entity classified A append-only / B field-merge / C hub-confirmed / D derived, with tested merge rule; money balances derived only",
+      "acceptance_evidence": "Entity class table and merge tests per class",
+      "required_if_applies": true,
+      "implementation_status": "planned"
+    },
+    {
+      "id": "SYNC-03",
+      "slug": "exactly-once-apply",
+      "category": "sync",
+      "profiles": [
+        "sync"
+      ],
+      "requirement": "At-least-once delivery, idempotent apply by change_id, resumable batches, safe crash mid-batch",
+      "acceptance_evidence": "Duplicate/reorder/kill-mid-batch simulation results",
+      "required_if_applies": true,
+      "implementation_status": "planned"
+    },
+    {
+      "id": "SYNC-04",
+      "slug": "causal-ordering",
+      "category": "sync",
+      "profiles": [
+        "sync"
+      ],
+      "requirement": "Ordering by hybrid logical clock or hub sequence, never device wall clock alone; author time bounded and flagged",
+      "acceptance_evidence": "Clock-skew simulation",
+      "required_if_applies": true,
+      "implementation_status": "planned"
+    },
+    {
+      "id": "SYNC-05",
+      "slug": "bounded-offline-authority",
+      "category": "sync",
+      "profiles": [
+        "sync"
+      ],
+      "requirement": "Signed permission/entitlement snapshot per device with offline grace limit; hub re-authorizes at author time; rejected changes quarantined and visible",
+      "acceptance_evidence": "Revoked-while-offline and grace-expiry tests",
+      "required_if_applies": true,
+      "implementation_status": "planned"
+    },
+    {
+      "id": "SYNC-06",
+      "slug": "device-lifecycle",
+      "category": "sync",
+      "profiles": [
+        "sync"
+      ],
+      "requirement": "Admin-approved device enrollment, per-device key, revocation, lost-device runbook, local encryption where feasible",
+      "acceptance_evidence": "Enroll/revoke/lost-device drill",
+      "required_if_applies": true,
+      "implementation_status": "planned"
+    },
+    {
+      "id": "SYNC-07",
+      "slug": "scoped-replication",
+      "category": "sync",
+      "profiles": [
+        "sync"
+      ],
+      "requirement": "Devices receive only their org/branch/role scope; restricted fields never replicated; role change re-scopes and purges",
+      "acceptance_evidence": "Device data inspection after role change",
+      "required_if_applies": true,
+      "implementation_status": "planned"
+    },
+    {
+      "id": "SYNC-08",
+      "slug": "version-skew",
+      "category": "sync",
+      "profiles": [
+        "sync"
+      ],
+      "requirement": "Protocol and payload versions; hub supports N and N-1; older clients read-only with update prompt; upcasters tested",
+      "acceptance_evidence": "Mixed-version fleet test",
+      "required_if_applies": true,
+      "implementation_status": "planned"
+    },
+    {
+      "id": "SYNC-09",
+      "slug": "sync-visibility",
+      "category": "sync",
+      "profiles": [
+        "sync"
+      ],
+      "requirement": "Per-device pending count, last successful sync, conflicts and stale-device alerts visible to user and owner",
+      "acceptance_evidence": "UI screenshots plus stale-device alert test",
+      "required_if_applies": true,
+      "implementation_status": "planned"
+    },
+    {
+      "id": "SYNC-10",
+      "slug": "deletion-propagation",
+      "category": "sync",
+      "profiles": [
+        "sync"
+      ],
+      "requirement": "Tombstones and legal erasure propagate to every replica including offline ones on reconnect; outstanding replicas tracked",
+      "acceptance_evidence": "Erasure-while-offline test",
+      "required_if_applies": true,
+      "implementation_status": "planned"
+    },
+    {
+      "id": "SYNC-11",
+      "slug": "replicas-not-backup",
+      "category": "sync",
+      "profiles": [
+        "sync"
+      ],
+      "requirement": "Point-in-time hub backup, scheduled export and local main-PC backup; hub restore bumps epoch so restored-away data is not resurrected",
+      "acceptance_evidence": "Hub restore drill with stale devices",
+      "required_if_applies": true,
+      "implementation_status": "planned"
+    },
+    {
+      "id": "SYNC-12",
+      "slug": "partition-test-suite",
+      "category": "sync",
+      "profiles": [
+        "sync"
+      ],
+      "requirement": "Deterministic simulation of partition, duplicate, reorder, clock skew, concurrent offline edits, kill mid-sync and version skew runs in CI",
+      "acceptance_evidence": "CI artifact of the 12-case suite in docs/CONNECTIVITY_AND_SYNC.md",
+      "required_if_applies": true,
+      "implementation_status": "planned"
+    },
+    {
+      "id": "SYNC-13",
+      "slug": "cloud-data-transfer",
+      "category": "sync",
+      "profiles": [
+        "sync"
+      ],
+      "requirement": "Declared hosting region, cross-border/processor legal review, encryption in transit and at rest before customer data leaves premises",
+      "acceptance_evidence": "Privacy review record naming region and reviewer",
+      "required_if_applies": true,
+      "implementation_status": "planned"
+    },
+    {
+      "id": "SYNC-14",
+      "slug": "cost-and-quota",
+      "category": "sync",
+      "profiles": [
+        "sync"
+      ],
+      "requirement": "Per-tenant storage/bandwidth/attachment quotas and measured hosting cost per customer before pricing the tier",
+      "acceptance_evidence": "Cost measurement for pilot tenant",
+      "required_if_applies": true,
+      "implementation_status": "planned"
+    },
+    {
+      "id": "BIZ-06",
+      "slug": "cached-cloud-entitlement",
+      "category": "business",
+      "profiles": [
+        "sync"
+      ],
+      "requirement": "Devices cache a signed cloud entitlement with bounded offline grace; expiry keeps read/export/backup",
+      "acceptance_evidence": "Entitlement expiry while offline test",
+      "required_if_applies": true,
+      "implementation_status": "planned"
+    },
+    {
+      "id": "MOB-01",
+      "slug": "pwa-https-install",
+      "category": "mobile",
+      "profiles": [
+        "mobile"
+      ],
+      "requirement": "PWA served from trusted HTTPS origin with manifest, service worker and Android/iOS install guide",
+      "acceptance_evidence": "Install test on one Android and one iPhone",
+      "required_if_applies": true,
+      "implementation_status": "planned"
+    },
+    {
+      "id": "MOB-02",
+      "slug": "mobile-offline-scope",
+      "category": "mobile",
+      "profiles": [
+        "mobile"
+      ],
+      "requirement": "Declared list of offline mobile actions (capture-only by default); everything else online; hub re-validates",
+      "acceptance_evidence": "Manifest mobile_offline_actions and denial test for undeclared action",
+      "required_if_applies": true,
+      "implementation_status": "planned"
+    },
+    {
+      "id": "MOB-03",
+      "slug": "storage-eviction-safety",
+      "category": "mobile",
+      "profiles": [
+        "mobile"
+      ],
+      "requirement": "Persistent storage requested, unsynced count visible, warning before logout/clear; Safari eviction and no background sync handled",
+      "acceptance_evidence": "iOS and Android unsynced-data drills",
+      "required_if_applies": true,
+      "implementation_status": "planned"
+    },
+    {
+      "id": "MOB-04",
+      "slug": "device-capability-fallbacks",
+      "category": "mobile",
+      "profiles": [
+        "mobile"
+      ],
+      "requirement": "Camera/scan/print/push verified per platform with fallbacks (iOS push needs home-screen install, no WebUSB printing on Safari)",
+      "acceptance_evidence": "Capability matrix per target phone",
+      "required_if_applies": true,
+      "implementation_status": "planned"
+    },
+    {
+      "id": "MOB-05",
+      "slug": "mobile-ux-network",
+      "category": "mobile",
+      "profiles": [
+        "mobile"
+      ],
+      "requirement": "Touch targets, narrow RTL screens, slow mobile data, compact sync and Wi-Fi-only attachments",
+      "acceptance_evidence": "Throttled-network Playwright run and phone screenshots",
+      "required_if_applies": true,
+      "implementation_status": "planned"
+    },
+    {
+      "id": "SITE-01",
+      "slug": "branch-scope",
+      "category": "multi-site",
+      "profiles": [
+        "multi_site"
+      ],
+      "requirement": "Branch dimension on records, per-branch roles and exports; cross-branch views only for permitted roles",
+      "acceptance_evidence": "Cross-branch denial tests",
+      "required_if_applies": true,
+      "implementation_status": "planned"
+    },
+    {
+      "id": "SITE-02",
+      "slug": "consolidated-freshness",
+      "category": "multi-site",
+      "profiles": [
+        "multi_site"
+      ],
+      "requirement": "Owner dashboards aggregate branches and show per-branch data freshness (last sync)",
+      "acceptance_evidence": "Dashboard test with one stale branch",
+      "required_if_applies": true,
+      "implementation_status": "planned"
+    },
+    {
+      "id": "OWN-01",
+      "slug": "owner-quorum",
+      "category": "governance",
+      "profiles": [
+        "multi_owner"
+      ],
+      "requirement": "Adding/removing/demoting owners, billing transfer, org deletion and region change need owner quorum or documented vendor dispute process",
+      "acceptance_evidence": "Single-owner lockout attempt denied",
+      "required_if_applies": true,
+      "implementation_status": "planned"
+    },
+    {
+      "id": "OWN-02",
+      "slug": "owner-transparency",
+      "category": "governance",
+      "profiles": [
+        "multi_owner"
+      ],
+      "requirement": "All owners see audit of permission, money and admin changes; full export by any owner allowed and notified to others",
+      "acceptance_evidence": "Audit visibility and export notification test",
       "required_if_applies": true,
       "implementation_status": "planned"
     }

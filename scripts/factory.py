@@ -9,6 +9,16 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 MODES = {"desktop", "lan", "saas"}
+SCHEMA_VERSIONS = {"1.0", "1.1"}
+TIERS = {"standalone", "office_server", "cloud_sync", "cloud_only"}
+CLOUD_TIERS = {"cloud_sync", "cloud_only"}
+TIERS_BY_MODE = {"desktop": {"standalone", "cloud_sync"},
+                 "lan": {"office_server", "cloud_sync"},
+                 "saas": {"cloud_only", "cloud_sync"}}
+DEFAULT_TIER = {"desktop": "standalone", "lan": "office_server", "saas": "cloud_only"}
+DEFAULT_CLIENTS = {"desktop": ["windows_desktop"], "lan": ["windows_desktop", "browser"], "saas": ["browser"]}
+CLIENTS = {"windows_desktop", "browser", "mobile_pwa"}
+PROFILES = {"desktop", "lan", "saas", "paid", "ai", "regulated", "sync", "mobile", "multi_site", "multi_owner"}
 MARKETS = {"EG", "SA", "AE", "EU", "US", "OTHER"}
 PAID = {"subscription", "perpetual", "usage", "hybrid"}
 REQUIRED = ("schema_version", "id", "name", "deployment", "markets", "buyer",
@@ -26,19 +36,94 @@ def catalog():
     assert result["controls"] and len({c["id"] for c in result["controls"]}) == len(result["controls"])
     return result["controls"]
 
-def applicable(controls, product):
-    p = product["deployment"]
-    paid = product["monetization"]["model"] in PAID
-    ai = product["addons"]["ai_agents"]
-    regulated = product["addons"]["regulated_overlay"] or product["data"]["sensitivity"] == "regulated"
-    enabled = {p}
-    if paid:
+def connectivity(product):
+    """Explicit connectivity (schema 1.1) or the legacy default implied by deployment (schema 1.0)."""
+    if "connectivity" in product:
+        return product["connectivity"]
+    mode = product["deployment"]
+    return {"tier": DEFAULT_TIER[mode], "sites": "single",
+            "clients": list(DEFAULT_CLIENTS[mode]), "multi_owner": False}
+
+def profiles(product):
+    enabled = {product["deployment"]}
+    if product["monetization"]["model"] in PAID:
         enabled.add("paid")
-    if ai:
+    if product["addons"]["ai_agents"]:
         enabled.add("ai")
-    if regulated:
+    if product["addons"]["regulated_overlay"] or product["data"]["sensitivity"] == "regulated":
         enabled.add("regulated")
+    link = connectivity(product)
+    if link["tier"] == "cloud_sync":
+        enabled.update({"sync", "saas"})  # the hub is a hosted multi-tenant service
+    if "mobile_pwa" in link["clients"]:
+        enabled.add("mobile")
+    if link["sites"] == "multi":
+        enabled.add("multi_site")
+    if link["multi_owner"]:
+        enabled.add("multi_owner")
+    return enabled
+
+def applicable(controls, product):
+    enabled = profiles(product)
     return [c for c in controls if enabled.intersection(c["profiles"])]
+
+def connectivity_errors(product):
+    if product["schema_version"] == "1.1" and "connectivity" not in product:
+        return ["Missing required field: connectivity (schema 1.1)"]
+    if product["deployment"] not in MODES:
+        return []
+    link = connectivity(product)
+    if not isinstance(link, dict):
+        return ["connectivity must be an object"]
+    errors = []
+    tier, sites, clients = link.get("tier"), link.get("sites"), link.get("clients")
+    if tier not in TIERS:
+        return ["Unknown connectivity tier"]
+    if tier not in TIERS_BY_MODE[product["deployment"]]:
+        errors.append(f"Tier {tier} does not fit deployment {product['deployment']}")
+    if sites not in {"single", "multi"}:
+        errors.append("connectivity.sites must be single or multi")
+    if (not isinstance(clients, list) or not clients or not all(isinstance(c, str) for c in clients)
+            or len(set(clients)) != len(clients) or not set(clients).issubset(CLIENTS)):
+        errors.append("connectivity.clients must be a non-empty unique list of windows_desktop/browser/mobile_pwa")
+        clients = []
+    if not isinstance(link.get("multi_owner"), bool):
+        errors.append("connectivity.multi_owner must be true or false")
+    cloud = tier in CLOUD_TIERS
+    if "mobile_pwa" in clients and not cloud:
+        errors.append("mobile_pwa needs a trusted HTTPS origin: choose cloud_sync or cloud_only")
+    if sites == "multi" and not cloud:
+        errors.append("Multiple sites need cloud_sync or cloud_only")
+    grace = link.get("offline_grace_days")
+    if tier == "cloud_sync" and (isinstance(grace, bool) or not isinstance(grace, int) or not 1 <= grace <= 60):
+        errors.append("cloud_sync requires offline_grace_days between 1 and 60")
+    actions = link.get("mobile_offline_actions", [])
+    if not isinstance(actions, list) or not all(isinstance(a, str) and a.strip() for a in actions):
+        errors.append("mobile_offline_actions must be a list of action names")
+    elif actions and ("mobile_pwa" not in clients or tier != "cloud_sync"):
+        errors.append("Offline mobile actions require mobile_pwa on the cloud_sync tier")
+    residency = product["data"].get("residency") if isinstance(product["data"], dict) else None
+    if cloud and (not isinstance(residency, str) or not residency.strip()):
+        errors.append("Cloud tiers require data.residency (hosting region)")
+    return errors
+
+def advisories(product):
+    link = connectivity(product)
+    notes = []
+    if link["tier"] == "office_server":
+        notes.append("office_server: when the main PC is off, other devices cannot write. "
+                     "Say so in the contract or offer cloud_sync.")
+    if link["tier"] in CLOUD_TIERS and product["data"].get("has_personal_data"):
+        notes.append("Personal data leaves the premises: privacy_review must cover hosting region "
+                     "and cross-border transfer before any pilot (SYNC-13).")
+    if link["tier"] == "cloud_sync" and product["monetization"]["model"] == "free":
+        notes.append("cloud_sync has recurring hosting cost; a free model needs a recorded owner exception.")
+    if link["tier"] == "cloud_sync" and product["data"].get("has_financial_ledger"):
+        notes.append("Money must be append-only events with derived balances; cash close is hub-confirmed (SYNC-02).")
+    if "mobile_pwa" in link["clients"]:
+        notes.append("iOS PWA limits: push only after Add to Home Screen, no background sync, "
+                     "no WebUSB printing (MOB-04).")
+    return notes
 
 def valid_product(product, release=False):
     errors = []
@@ -49,8 +134,8 @@ def valid_product(product, release=False):
             errors.append("Missing required field: " + k)
     if errors:
         return errors, []
-    if product["schema_version"] != "1.0":
-        errors.append("Unsupported schema_version (expected 1.0)")
+    if product["schema_version"] not in SCHEMA_VERSIONS:
+        errors.append("Unsupported schema_version (expected 1.0 or 1.1)")
     if not isinstance(product["id"], str) or not re.fullmatch(r"[a-z][a-z0-9-]{2,48}", product["id"]):
         errors.append("Invalid product id (3–49 lowercase characters / digits / hyphens)")
     if product["deployment"] not in MODES:
@@ -78,8 +163,10 @@ def valid_product(product, release=False):
         errors.append("Paid product cannot have no entitlement policy")
     if product["deployment"] == "saas" and money.get("model") in PAID and method != "cloud_entitlement":
         errors.append("Paid SaaS requires trusted cloud_entitlement")
-    if product["deployment"] != "saas" and method == "cloud_entitlement":
-        errors.append("Cloud entitlement for offline/LAN requires explicit architecture review")
+    link = connectivity(product) if product["deployment"] in MODES else None
+    tier = link.get("tier") if isinstance(link, dict) else None
+    if product["deployment"] in MODES and method == "cloud_entitlement" and tier not in CLOUD_TIERS:
+        errors.append("Cloud entitlement for offline/LAN requires the cloud_sync tier (ADR-0001)")
     if data.get("sensitivity") not in {"ordinary", "personal", "sensitive", "regulated"}:
         errors.append("Unknown data sensitivity")
     if data.get("sensitivity") == "regulated" and addons.get("regulated_overlay") is not True:
@@ -92,6 +179,7 @@ def valid_product(product, release=False):
         errors.append("competitors must be a list")
     if not isinstance(product["evidence"], dict) or any(k not in product["evidence"] for k in EVIDENCE):
         errors.append("Missing evidence slots")
+    errors.extend(connectivity_errors(product))
     if errors:
         return errors, []
     selected = applicable(catalog(), product)
@@ -107,6 +195,8 @@ def valid_product(product, release=False):
     if release:
         if product["stage"] not in {"field_accepted", "production"}:
             errors.append("Release requires independent field acceptance")
+        if tier in CLOUD_TIERS and str(product["data"].get("residency", "")).upper().startswith(("TODO", "PENDING", "UNKNOWN")):
+            errors.append("Release needs a decided hosting region (data.residency)")
         if len(product["competitors"]) < 5:
             errors.append("Release needs 5 competitor/alternative evidence rows, or documented owner exception")
         for k in EVIDENCE:
@@ -124,23 +214,35 @@ def new_product(args):
         raise ValueError("Invalid product id")
     if args.market not in MARKETS:
         raise ValueError("Invalid market")
+    tier = getattr(args, "tier", None) or DEFAULT_TIER[args.mode]
+    clients = getattr(args, "clients", None) or ",".join(DEFAULT_CLIENTS[args.mode])
+    link = {"tier": tier, "sites": getattr(args, "sites", None) or "single",
+            "clients": [c.strip() for c in clients.split(",") if c.strip()],
+            "multi_owner": bool(getattr(args, "multi_owner", False))}
+    if tier == "cloud_sync":
+        link["offline_grace_days"] = 7
+    cloud = tier in CLOUD_TIERS
     record = {
-        "schema_version": "1.0", "id": args.id, "name": args.name,
-        "deployment": args.mode, "markets": [args.market],
+        "schema_version": "1.1", "id": args.id, "name": args.name,
+        "deployment": args.mode, "connectivity": link, "markets": [args.market],
         "buyer": "TODO: real paying customer and their roles",
         "problem": "TODO: current customer pain and economic cost",
         "core_journey": "TODO: one buyer journey from initial input to accepted output",
         "monetization": {"model": "subscription",
-                         "entitlement_method": "cloud_entitlement" if args.mode == "saas" else "manual_contract",
+                         "entitlement_method": "cloud_entitlement" if cloud else "manual_contract",
                          "expiry_data_access": "read_export_backup"},
         "data": {"sensitivity": "personal", "has_financial_ledger": False,
-                 "has_personal_data": True, "backup_restore_plan": "TODO: restore on a separate clean device"},
+                 "has_personal_data": True, "backup_restore_plan": "TODO: restore on a separate clean device",
+                 **({"residency": "TODO: hosting region decided by owner"} if cloud else {})},
         "addons": {"ai_agents": False, "regulated_overlay": False},
         "stage": "research", "competitors": [],
         "acceptance": ["TODO: actual person completes one workflow and recovery"],
         "evidence": {k: "PENDING" for k in EVIDENCE},
         "control_evidence": {}, "features": [], "exclusions": []
     }
+    errors = connectivity_errors(record)
+    if errors:
+        raise ValueError("; ".join(errors))
     target = Path(args.output)
     target.parent.mkdir(parents=True, exist_ok=True)
     with target.open("x", encoding="utf-8") as f:
@@ -156,6 +258,10 @@ def main(argv=None):
     new.add_argument("--name", required=True)
     new.add_argument("--mode", required=True, choices=sorted(MODES))
     new.add_argument("--market", required=True, choices=sorted(MARKETS))
+    new.add_argument("--tier", choices=sorted(TIERS), help="Default: standalone/office_server/cloud_only by mode")
+    new.add_argument("--sites", choices=["single", "multi"], default="single")
+    new.add_argument("--clients", help="Comma list of windows_desktop,browser,mobile_pwa")
+    new.add_argument("--multi-owner", action="store_true")
     new.add_argument("--output", required=True)
     check = sub.add_parser("check", help="Validate candidate; --release forces evidence gates")
     check.add_argument("product")
@@ -172,6 +278,11 @@ def main(argv=None):
             ids = [x["id"] for x in controls]
             if not schema.get("required") or not {"desktop", "lan", "saas"}.issubset(set(schema["properties"]["deployment"]["enum"])):
                 raise ValueError("Missing product schema requirements")
+            if set(schema["properties"]["connectivity"]["properties"]["tier"]["enum"]) != TIERS:
+                raise ValueError("Schema connectivity tiers differ from factory.py")
+            unknown = {p for c in controls for p in c["profiles"]} - PROFILES
+            if unknown:
+                raise ValueError("Controls use unknown profiles: " + ", ".join(sorted(unknown)))
             print(f"FACTORY READY: {len(ids)} unique controls; schema present. This does NOT verify a commercial product.")
             return 0
         if args.action == "controls":
@@ -189,7 +300,8 @@ def main(argv=None):
                 return 2
             print("Read AGENTS.md, FACTORY_CONSTITUTION.md, docs/MARKET_AND_STANDARDS.md and DELIVERY_GATES.md first. "
                   "Research real competitors with cited dates and price evidence. Build only the paid journey for "
-                  f"{product['name']} ({product['deployment']}, {','.join(product['markets'])}); "
+                  f"{product['name']} ({product['deployment']}, tier {connectivity(product)['tier']}, "
+                  f"{','.join(product['markets'])}); read docs/CONNECTIVITY_AND_SYNC.md for the tier rules; "
                   "reuse verified platform components without rewriting existing products. "
                   "Never hardcode demo credentials in production. "
                   "Show exact tests, skipped checks, release limitations and required customer acceptance.")
@@ -199,6 +311,9 @@ def main(argv=None):
             for e in errors:
                 print("NO-GO:", e)
             return 2
+        print("TIER:", connectivity(product)["tier"], "| PROFILES:", ",".join(sorted(profiles(product))))
+        for note in advisories(product):
+            print("ADVISORY:", note)
         print("SPEC VALID. Not a certification, security audit, completed codebase or selling approval.")
         return 0
     except (ValueError, OSError, KeyError, TypeError, AssertionError, json.JSONDecodeError) as error:

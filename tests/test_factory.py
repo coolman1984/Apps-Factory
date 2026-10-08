@@ -19,10 +19,11 @@ class FactoryTests(unittest.TestCase):
 
     def test_schema_parses(self):
         d = factory.load(ROOT / "factory/product.schema.json")
-        self.assertEqual(d["properties"]["schema_version"]["const"], "1.0")
+        self.assertEqual(d["properties"]["schema_version"]["enum"], ["1.0", "1.1"])
+        self.assertEqual(set(d["properties"]["connectivity"]["properties"]["tier"]["enum"]), factory.TIERS)
 
     def test_all_sample_manifests(self):
-        for name in ("hessa-product.json", "trip-orders-product.json"):
+        for name in ("hessa-product.json", "trip-orders-product.json", "multi-branch-reference.json"):
             with self.subTest(name=name):
                 p = factory.load(ROOT / "examples" / name)
                 errors, selected = factory.valid_product(p)
@@ -66,7 +67,8 @@ class FactoryTests(unittest.TestCase):
     def test_cli_doctor_and_samples(self):
         cmd = [sys.executable, str(ROOT / "scripts/factory.py")]
         for tail in [["doctor"], ["check", str(ROOT / "examples/hessa-product.json")],
-                     ["check", str(ROOT / "examples/trip-orders-product.json")]]:
+                     ["check", str(ROOT / "examples/trip-orders-product.json")],
+                     ["check", str(ROOT / "examples/multi-branch-reference.json")]]:
             p = subprocess.run(cmd + tail, capture_output=True, text=True, check=False)
             self.assertEqual(p.returncode, 0, p.stderr + p.stdout)
 
@@ -77,6 +79,115 @@ class FactoryTests(unittest.TestCase):
         self.assertEqual(p.returncode, 2)
         self.assertIn("NO-GO", p.stdout)
 
+
+    def reference(self):
+        return factory.load(ROOT / "examples/multi-branch-reference.json")
+
+    def test_legacy_schema_10_still_valid(self):
+        p = factory.load(ROOT / "examples/hessa-product.json")
+        p["schema_version"] = "1.0"
+        del p["connectivity"]
+        errors, selected = factory.valid_product(p)
+        self.assertEqual(errors, [])
+        self.assertEqual(factory.connectivity(p)["tier"], "office_server")
+
+    def test_schema_11_requires_connectivity(self):
+        p = factory.load(ROOT / "examples/hessa-product.json")
+        del p["connectivity"]
+        errors, _ = factory.valid_product(p)
+        self.assertTrue(any("connectivity" in e for e in errors))
+
+    def test_cloud_sync_activates_sync_and_tenant_controls(self):
+        ids = {c["id"] for c in factory.valid_product(self.reference())[1]}
+        for cid in ("SYNC-05", "SYNC-12", "TEN-01", "MOB-03", "SITE-02", "OWN-01", "BIZ-06"):
+            self.assertIn(cid, ids)
+        office = {c["id"] for c in factory.valid_product(factory.load(ROOT / "examples/hessa-product.json"))[1]}
+        self.assertFalse(any(c.startswith(("SYNC-", "MOB-", "OWN-", "SITE-")) for c in office))
+        self.assertTrue({"ARCH-02", "ARCH-03", "OPS-06"}.issubset(office))
+
+    def test_tier_must_fit_deployment(self):
+        p = self.reference()
+        p["connectivity"]["tier"] = "standalone"
+        errors, _ = factory.valid_product(p)
+        self.assertTrue(any("does not fit" in e for e in errors))
+
+    def test_mobile_and_branches_need_cloud(self):
+        p = factory.load(ROOT / "examples/hessa-product.json")
+        p["connectivity"]["clients"].append("mobile_pwa")
+        p["connectivity"]["sites"] = "multi"
+        errors, _ = factory.valid_product(p)
+        self.assertTrue(any("HTTPS" in e for e in errors))
+        self.assertTrue(any("Multiple sites" in e for e in errors))
+
+    def test_cloud_sync_needs_bounded_offline_grace_and_region(self):
+        p = self.reference()
+        del p["connectivity"]["offline_grace_days"]
+        del p["data"]["residency"]
+        errors, _ = factory.valid_product(p)
+        self.assertTrue(any("offline_grace_days" in e for e in errors))
+        self.assertTrue(any("residency" in e for e in errors))
+        p = self.reference()
+        p["connectivity"]["offline_grace_days"] = True
+        self.assertTrue(any("offline_grace_days" in e for e in factory.valid_product(p)[0]))
+
+    def test_offline_mobile_actions_only_on_cloud_sync(self):
+        p = self.reference()
+        p["deployment"] = "saas"
+        p["connectivity"]["tier"] = "cloud_only"
+        errors, _ = factory.valid_product(p)
+        self.assertTrue(any("Offline mobile actions" in e for e in errors))
+
+    def test_cloud_entitlement_needs_cloud_tier(self):
+        p = factory.load(ROOT / "examples/hessa-product.json")
+        p["monetization"]["entitlement_method"] = "cloud_entitlement"
+        errors, _ = factory.valid_product(p)
+        self.assertTrue(any("cloud_sync tier" in e for e in errors))
+
+    def test_bad_clients_fail_cleanly(self):
+        p = self.reference()
+        p["connectivity"]["clients"] = [{"x": 1}]
+        errors, _ = factory.valid_product(p)
+        self.assertTrue(any("clients" in e for e in errors))
+
+    def test_release_blocks_undecided_hosting_region(self):
+        errors, _ = factory.valid_product(self.reference(), release=True)
+        self.assertTrue(any("hosting region" in e for e in errors))
+
+    def test_advisories_are_honest(self):
+        notes = " ".join(factory.advisories(self.reference()))
+        self.assertIn("leaves the premises", notes)
+        self.assertIn("iOS", notes)
+        office = " ".join(factory.advisories(factory.load(ROOT / "examples/hessa-product.json")))
+        self.assertIn("cannot write", office)
+
+    def test_scaffold_cloud_sync_tier(self):
+        with tempfile.TemporaryDirectory() as d:
+            out = Path(d) / "premium.json"
+            args = type("Args", (), {"id": "premium-app", "name": "Premium", "mode": "lan", "market": "EG",
+                                     "output": str(out), "tier": "cloud_sync", "sites": "multi",
+                                     "clients": "windows_desktop,mobile_pwa", "multi_owner": True})
+            factory.new_product(args)
+            p = factory.load(out)
+            self.assertEqual(p["schema_version"], "1.1")
+            self.assertEqual(factory.valid_product(p)[0], [])
+            self.assertIn("sync", factory.profiles(p))
+            bad = type("Args", (), {"id": "bad-app", "name": "Bad", "mode": "desktop", "market": "EG",
+                                    "output": str(Path(d) / "bad.json"), "tier": None, "sites": "single",
+                                    "clients": "mobile_pwa", "multi_owner": False})
+            with self.assertRaises(ValueError):
+                factory.new_product(bad)
+
+    def test_sync_envelope_contract(self):
+        schema = factory.load(ROOT / "factory/contracts/sync-envelope.schema.json")
+        example = factory.load(ROOT / "factory/contracts/examples/receipt-issued.json")
+        self.assertTrue(set(schema["required"]).issubset(example))
+        self.assertTrue(set(example).issubset(schema["properties"]))
+        self.assertIn(example["class"], schema["properties"]["class"]["enum"])
+        self.assertNotIn("D_derived", schema["properties"]["class"]["enum"])
+
+    def test_every_control_profile_is_known(self):
+        for c in factory.catalog():
+            self.assertTrue(set(c["profiles"]).issubset(factory.PROFILES), c["id"])
 
 if __name__ == "__main__":
     unittest.main()

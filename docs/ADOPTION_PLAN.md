@@ -6,6 +6,8 @@
 - [Teachers](https://github.com/coolman1984/Teachers) and [Yousef-Transportation](https://github.com/coolman1984/Yousef-Transportation): common Python/local app ancestry and realistic paid pilot scopes; good first consumers for UI/identity/backup/licence standards.
 - [3D-Modeling](https://github.com/coolman1984/3D-Modeling): different geometry/canvas; reuse **shell and platform ports**, not force a generic dashboard into it.
 
+Concrete step-by-step owner plan with exit criteria: [BUILD_PLAN.md](BUILD_PLAN.md).
+
 ## Phases (don't declare these done until accepted)
 0. **This repository now:** design governance, manifest, control catalog, agent kickoff, audit/research, CI docs/spec checks.
 1. **Reference adapters:** one adapter for Hessa's actual app, one for Trip Orders; compare account provisioning, scopes, audit, license, restore and invoices. Both complete baseline contract tests.

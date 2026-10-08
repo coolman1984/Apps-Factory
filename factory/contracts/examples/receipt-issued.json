@@ -1,0 +1,22 @@
+{
+  "protocol_version": 1,
+  "schema_version": 3,
+  "change_id": "01928c3e-5b7a-7c1e-9a51-3f2b7d0e4a11",
+  "org_id": "01928c3e-0000-7000-8000-000000000001",
+  "branch_id": "01928c3e-0000-7000-8000-000000000002",
+  "device_id": "01928c3e-0000-7000-8000-0000000000a3",
+  "actor_id": "01928c3e-0000-7000-8000-0000000000f1",
+  "entity": "receipt",
+  "entity_id": "01928c3e-5b7a-7c1e-9a51-3f2b7d0e4a12",
+  "op": "append",
+  "class": "A_append_only",
+  "hlc": "1791453600000-0003-0a3f91c2",
+  "author_time": "2026-10-08T10:00:00Z",
+  "payload": {
+    "number": "R-A3-000127",
+    "student_id": "01928c3e-0000-7000-8000-00000000c001",
+    "amount_minor": 25000,
+    "currency": "EGP",
+    "note": "SYNTHETIC FIXTURE - not customer data"
+  }
+}

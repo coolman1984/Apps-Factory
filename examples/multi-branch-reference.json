@@ -1,0 +1,72 @@
+{
+  "schema_version": "1.1",
+  "id": "multi-branch-reference",
+  "name": "مرجع الفروع المتعددة (مزامنة سحابية)",
+  "deployment": "lan",
+  "connectivity": {
+    "tier": "cloud_sync",
+    "sites": "multi",
+    "clients": [
+      "windows_desktop",
+      "browser",
+      "mobile_pwa"
+    ],
+    "multi_owner": true,
+    "offline_grace_days": 7,
+    "mobile_offline_actions": [
+      "attendance.mark",
+      "expense.capture"
+    ]
+  },
+  "markets": [
+    "EG"
+  ],
+  "buyer": "REFERENCE ONLY: partners who co-own a small multi-branch service business; not a real customer",
+  "problem": "Branch data is invisible to owners until someone sends files; when the office PC is off nobody can record work.",
+  "core_journey": "Branch staff record attendance and receipts offline, devices sync through the hub, every owner sees per-branch totals with freshness and acts by permission.",
+  "monetization": {
+    "model": "subscription",
+    "entitlement_method": "cloud_entitlement",
+    "expiry_data_access": "read_export_backup"
+  },
+  "data": {
+    "sensitivity": "personal",
+    "has_financial_ledger": true,
+    "has_personal_data": true,
+    "backup_restore_plan": "Hub point-in-time restore with epoch bump, plus main-PC local backup restored on a clean PC.",
+    "residency": "PENDING owner decision: hosting region and Egypt Law 151/2020 transfer review",
+    "retention_policy": "PENDING legal review"
+  },
+  "addons": {
+    "ai_agents": false,
+    "regulated_overlay": false
+  },
+  "stage": "research",
+  "competitors": [],
+  "acceptance": [
+    "Main PC switched off: two other devices keep recording and the owner sees their totals after they sync.",
+    "Two devices edit the same student phone offline: one deterministic result, the other kept in audit.",
+    "A user revoked while a phone is offline cannot have new receipts accepted by the hub.",
+    "One owner cannot remove the other owner without quorum."
+  ],
+  "evidence": {
+    "market_review": "PENDING",
+    "privacy_review": "PENDING",
+    "security_review": "PENDING",
+    "clean_device_restore": "PENDING",
+    "core_user_acceptance": "PENDING"
+  },
+  "control_evidence": {},
+  "features": [
+    "branches",
+    "attendance",
+    "receipts",
+    "owner-dashboard",
+    "device-enrollment",
+    "sync-status"
+  ],
+  "exclusions": [
+    "peer-to-peer-lan-relay (v2)",
+    "legal tax e-receipts until reviewed"
+  ]
+}

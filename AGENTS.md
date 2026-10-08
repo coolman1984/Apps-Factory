@@ -1,10 +1,10 @@
 # Mandatory instructions for every AI coding agent
 
 ## Read order
-1. README.md → FACTORY_CONSTITUTION.md → docs/PLATFORM_ARCHITECTURE.md
+1. README.md → FACTORY_CONSTITUTION.md → docs/decisions/ (ADRs) → docs/PLATFORM_ARCHITECTURE.md → docs/CONNECTIVITY_AND_SYNC.md
 2. docs/MARKET_AND_STANDARDS.md → docs/REPOSITORY_AUDIT.md
 3. factory/controls.json → factory/product.schema.json → templates/*
-4. docs/DELIVERY_GATES.md and docs/ADOPTION_PLAN.md
+4. docs/DELIVERY_GATES.md, docs/ADOPTION_PLAN.md and docs/BUILD_PLAN.md
 
 ## Task classification
 - **New product:** perform cited market research, jurisdiction/customer/risk discovery, define the single paid core journey and cut deferred features; get owner approval for business assumptions that materially change price, liability or sensitive-data handling.
@@ -15,7 +15,7 @@
 1. State customer/persona, core pain and objectively checkable acceptance criteria.
 2. Inventory existing modules and trustworthy evidence. Label unknowns **UNKNOWN**.
 3. Produce a product manifest and market/competitor evidence; distinguish facts from ideas and marketing promises.
-4. Pick deployment and data/financial sensitivity. Activate **applicable** factory controls, not all features for all products.
+4. Pick deployment, connectivity tier (standalone / office_server / cloud_sync / cloud_only) and data/financial sensitivity. Activate **applicable** factory controls, not all features for all products. Use UUIDv7/ULID IDs and org/branch scope even for single-PC builds.
 5. Reuse a versioned shared capability; feature-specific code stays in product-owned folders.
 6. Deliver one thin customer workflow **end-to-end**: correct permissions, save/retry, errors, audit, report and recovery.
 7. Tests: unit, integration, role-denial, tenant/scope, rollback, backups/restoration, browser UI including AR/EN/RTL, accessible keyboard use; target OS installer where relevant.

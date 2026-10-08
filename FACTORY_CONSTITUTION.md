@@ -1,4 +1,4 @@
-# Apps Factory Constitution • v1.0 • 2026-10-08
+# Apps Factory Constitution • v1.1 • 2026-10-08
 
 > One repeatable **commercial product process**, not one enormous framework forced onto every app. All MUST requirements have a named test or a documented field-acceptance gate.
 
@@ -21,11 +21,20 @@
 16. **No ungrounded certification:** do not imply tax, medical, payments, ISO or legal compliance without independent scope-specific checks and approval.
 17. **Test, not theatrical reports:** passing tests must be executed on exact source/artifact; skipped tests stay skipped; verify release and customer acceptance separately.
 18. **Reusable versioned core:** product customization via manifest/plugins and product-specific modules; no duplicating security/licensing/admin engines across apps; breaking core changes require compatibility test matrix.
+19. **Modular monolith, tier-ready data:** one deployable app per product built from modules with versioned contracts ([ADR-0001](docs/decisions/ADR-0001-architecture-and-connectivity-tiers.md)). Every record has org (and branch) scope and a globally unique client-generated ID from the first schema, so moving a customer to a higher connectivity tier never rewrites data.
+20. **Honest connectivity:** the contract states what happens when the main PC, the internet or the cloud is down. Offline work is bounded (grace days), every offline change is re-authorized by the hub, rejected changes are visible, and replicas are never counted as backups ([sync spec](docs/CONNECTIVITY_AND_SYNC.md)).
 
 ## Profiles
 - **desktop:** one-device local data + trusted offline or optional online licensing; local loopback app or native UI; OS installer test.
 - **lan:** one primary owner server on local subnet, many scoped accounts, safe network exposure, network outage + device recovery tests.
 - **saas:** separate production tenants and billing identity, subscription webhooks, hosted secrets, tenant isolation, backups and incident response.
+
+### Connectivity tiers (`connectivity.tier`, schema 1.1)
+- **standalone** (desktop): one device, no network.
+- **office_server** (lan): one office PC owns the database; when it is off, other devices cannot write (said in the contract).
+- **cloud_sync** (premium; desktop/lan/saas): every device keeps a scoped replica and works offline; a cloud hub is the record authority. Activates `sync` + `saas` controls.
+- **cloud_only** (saas): hosted, online browser/PWA.
+- Overlays: `mobile` (installable PWA, cloud tiers only), `multi_site` (branches, cloud tiers only), `multi_owner` (owner quorum and transparency).
 - **high_risk_overlay:** optional for healthcare, financial, children's or regulated/high-impact data; extra laws, retention, consent/rights, audit, independent security review and vertical-specific approvals.
 
 ## Implementation status vocabulary
@@ -38,4 +47,9 @@
 - Free-form deletion of money events; hidden retroactive repricing.
 - Expiring a license by deleting or encrypting customer records.
 - Building 70 screens before one customer completes one paid workflow.
+- Autoincrement integers as record identity, or global document numbers generated offline, in anything that may ever sync.
+- Several PCs opening one SQLite file over a network share.
+- Treating synced replicas as backups; letting a device stay offline-authoritative forever; silently dropping a rejected offline change.
+- Storing mutable money balances instead of deriving them from append-only events.
+- Promising "free cloud" for a paid tier, or promising iPhone PWA features that Safari does not provide.
 - Claiming unsupported compliance/security certifications.

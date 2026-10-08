@@ -22,11 +22,14 @@ jobs:
         run: |
           python scripts/factory.py check examples/hessa-product.json
           python scripts/factory.py check examples/trip-orders-product.json
+          python scripts/factory.py check examples/multi-branch-reference.json
       - name: Unit tests
         run: python -m unittest discover -s tests -v
       - name: Assert release remains blocked until evidence exists
         run: |
-          if python scripts/factory.py check examples/hessa-product.json --release; then
-            echo "ERROR: research/pilot example improperly passed commercial release gate" >&2
-            exit 1
-          fi
+          for f in examples/hessa-product.json examples/multi-branch-reference.json; do
+            if python scripts/factory.py check "$f" --release; then
+              echo "ERROR: $f improperly passed commercial release gate" >&2
+              exit 1
+            fi
+          done

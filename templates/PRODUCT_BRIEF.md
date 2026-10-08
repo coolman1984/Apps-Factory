@@ -3,6 +3,10 @@
 ## Decision snapshot
 - Product name / slug:
 - Deployment: desktop | LAN | SaaS:
+- Connectivity tier: standalone | office_server | cloud_sync | cloud_only (what happens when the main PC / internet / cloud is down):
+- Clients: Windows desktop | browser | mobile PWA; offline mobile actions (capture-only):
+- Branches (single/multi) and owners (single/multi, quorum rule):
+- Hosting region and cross-border review owner (cloud tiers):
 - Buyer / user / decision maker:
 - Country and language of first paid pilot:
 - Primary pain and current cost:

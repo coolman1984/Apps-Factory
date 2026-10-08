@@ -23,6 +23,9 @@ A product is not ready merely because a plan says "done." Each gate produces aud
 - Claims of "all tests passed" without test command/artifact, or ignoring failed browser runs.
 - Customer data/production credentials in public repo, screenshots, logs, CI artifacts.
 - Legal certification claimed without scope-specific independent evidence.
+- Sync tier: a duplicated/replayed change applied twice, a revoked user's offline change accepted, a rejected change dropped silently, or a hub restore that resurrects deleted data.
+- Several PCs writing one SQLite file over a network share.
+- Phone PWA holding unsynced records with no visible pending count.
 
 ## Evidence record (copy for each gate)
 ```

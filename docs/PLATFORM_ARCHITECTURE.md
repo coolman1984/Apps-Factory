@@ -1,5 +1,7 @@
 # Platform architecture and capability contracts
 
+Decision record: [ADR-0001](decisions/ADR-0001-architecture-and-connectivity-tiers.md) — modular monolith, default stack, connectivity tiers.
+
 ## Layers (no fake code reuse)
 ```text
 Apps Factory (governance/manifest/gates/standards)
@@ -7,6 +9,7 @@ Apps Factory (governance/manifest/gates/standards)
    ├─ Identity / authentication / organization / permissions
    ├─ Billing entitlement port OR signed offline license verification
    ├─ Audit, backups, migration, diagnostics, support-consent
+   ├─ Sync port (cloud_sync tier only): outbox, hub client, device enrollment, sync status
    ├─ Connector ports: email, SMS, payment, Excel/Word, AI (optional)
    └─ Product-owned domain modules
        ├─ Hessa: centre, attendance, school-year fees
@@ -25,6 +28,8 @@ Apps Factory (governance/manifest/gates/standards)
 - **Offline license** `verifySignedLicense({claims, signature}, publicKey) -> {valid, entitlement, expiry, devicePolicy}`; signing key exists only on vendor-side; prefer Ed25519 where supported, test clock-skew/offline-grace/machine replace.
 - **Data recovery** `backup() -> verifiedSnapshot`; `restore(snapshot, emptyTarget) -> integrityEvidence`; backup must be truly restorable, including roles, indexes and config.
 - **Support session** `authorizeSupport(customerApprover, scopes, expiresAt, ticket) -> oneTimeGrant`; deny when revoked/expired, separate vendor identity, visible customer indicator.
+- **Sync (cloud_sync)** `enqueue(change) -> changeId` in the same local transaction as the write; `push(batch) -> {accepted, quarantined, hubSeq}`; `pull(sinceHubSeq, scope) -> changes`; `status() -> {pending, lastSyncAt, conflicts, epoch}`. Envelope: [`factory/contracts/sync-envelope.schema.json`](../factory/contracts/sync-envelope.schema.json); rules: [CONNECTIVITY_AND_SYNC.md](CONNECTIVITY_AND_SYNC.md).
+- **Module rule:** a module owns its tables and exposes only its contract; tests run per module without booting the whole app (`ARCH-01`).
 
 ## Admin areas
 **Settings:** personal profile, locale, appearance, notifications, preferences.

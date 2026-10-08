@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Apps Factory sync change envelope (draft contract, protocol 1)",
+  "description": "Wire format for one change sent from a device to the cloud hub. Status: planned. See docs/CONNECTIVITY_AND_SYNC.md section 4.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "protocol_version",
+    "schema_version",
+    "change_id",
+    "org_id",
+    "device_id",
+    "actor_id",
+    "entity",
+    "entity_id",
+    "op",
+    "class",
+    "hlc",
+    "author_time",
+    "payload"
+  ],
+  "properties": {
+    "protocol_version": { "const": 1 },
+    "schema_version": { "type": "integer", "minimum": 1, "description": "Product data schema version that produced the payload" },
+    "change_id": { "type": "string", "format": "uuid", "description": "UUIDv7 generated on device; idempotency key" },
+    "org_id": { "type": "string", "format": "uuid" },
+    "branch_id": { "type": ["string", "null"], "format": "uuid" },
+    "device_id": { "type": "string", "format": "uuid" },
+    "actor_id": { "type": "string", "format": "uuid" },
+    "entity": { "type": "string", "pattern": "^[a-z][a-z0-9_]{1,63}$" },
+    "entity_id": { "type": "string", "format": "uuid" },
+    "op": { "enum": ["create", "update", "append", "tombstone", "request"] },
+    "class": { "enum": ["A_append_only", "B_field_merge", "C_hub_confirmed"], "description": "Class D (derived) is never synced" },
+    "hlc": { "type": "string", "pattern": "^[0-9]{13}-[0-9]{4}-[0-9a-f]{8}$", "description": "Hybrid logical clock: wall-ms, counter, node" },
+    "author_time": { "type": "string", "format": "date-time", "description": "Device claim; untrusted, checked against last sync and hub receive time" },
+    "base_version": { "type": ["integer", "null"], "minimum": 0, "description": "Required for class B updates" },
+    "fields": { "type": "array", "items": { "type": "string" }, "description": "Changed fields for class B" },
+    "payload": { "type": "object" },
+    "hub_seq": { "type": "integer", "minimum": 1, "description": "Set by the hub only" },
+    "received_at": { "type": "string", "format": "date-time", "description": "Set by the hub only" },
+    "hub_epoch": { "type": "integer", "minimum": 1, "description": "Set by the hub; bumped after a hub restore" }
+  }
+}
