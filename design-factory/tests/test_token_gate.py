@@ -19,8 +19,20 @@ class TokenGate(unittest.TestCase):
         css = ':root{--ink:#111111;--bg:#ffffff;--tap:40px}[data-theme="dark"]{--ink:#444444;--bg:#222222}'
         problems = token_gate.check(css, ["ink/bg"], {"tap": 44})
         self.assertEqual(len(problems), 2, problems)
-        self.assertTrue(any(p.startswith("dark") for p in problems))
+        self.assertTrue(any("dark" in p.split(":")[0] for p in problems), problems)
         self.assertTrue(any("--tap" in p for p in problems))
+
+    def test_every_colour_theme_is_checked_not_only_dark_names(self):
+        css = ':root{--ink:#111111;--bg:#ffffff}[data-theme="contrast"]{--ink:#cccccc}'
+        problems = token_gate.check(css, ["ink/bg"], {})
+        self.assertEqual(len(problems), 1, problems)
+        self.assertIn("contrast", problems[0])
+
+    def test_a_system_dark_media_query_does_not_overwrite_light(self):
+        css = ':root{--ink:#bbbbbb;--bg:#ffffff}@media (prefers-color-scheme: dark){:root{--ink:#eeeeee;--bg:#111111}}'
+        problems = token_gate.check(css, ["ink/bg"], {})
+        self.assertEqual(len(problems), 1, problems)
+        self.assertTrue(problems[0].startswith("light"), problems)
 
     def test_missing_token_is_a_failure_not_a_pass(self):
         self.assertTrue(token_gate.check(":root{--ink:#000000}", ["ink/bg"], {}))

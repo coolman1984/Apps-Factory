@@ -26,22 +26,39 @@ def contrast(a, b):
     return (max(a, b) + .05) / (min(a, b) + .05)
 
 
-def themes(css):
-    """{'light': {...}, 'dark:<selector>': {...}} of custom properties; comments removed."""
+def blocks(css):
+    """Yield (context, {prop: value}) for every rule that declares custom properties. Context is the chain of
+    at-rule preludes and the selector, so `@media (prefers-color-scheme: dark) { :root {…} }` stays separate from `:root`."""
     css = re.sub(r'/\*.*?\*/', '', css, flags=re.S)
-    light, out = {}, {}
-    for selector, body in re.findall(r'([^{}]+)\{([^{}]*)\}', css):
-        props = dict(re.findall(r'--([\w-]+)\s*:\s*([^;]+)', body + ';'))
-        selector = ' '.join(selector.split())
-        if not props:
-            continue
-        if selector == ':root':
+    stack, start = [], 0
+    for i, ch in enumerate(css):
+        if ch == '{':
+            stack.append(' '.join(css[start:i].split()))
+            start = i + 1
+        elif ch == '}':
+            body = css[start:i]
+            props = dict((k, v.strip()) for k, v in re.findall(r'--([\w-]+)\s*:\s*([^;]+)', body + ';'))
+            if props and stack:
+                yield ' '.join(stack), props
+            if stack:
+                stack.pop()
+            start = i + 1
+        elif ch == ';' and not stack:
+            start = i + 1  # a top-level statement such as @import
+
+
+def themes(css):
+    """{'light': {...}, '<context>': {...}}: the plain `:root` block is light; every other block that sets a colour is a
+    theme (dark, night, contrast, a system-dark media query…) checked merged over light."""
+    light, others = {}, []
+    for context, props in blocks(css):
+        if context == ':root':
             light.update(props)
-        elif re.search(r'dark|night', selector):
-            out['dark: ' + selector] = props
+        elif any(re.fullmatch(r'#[0-9a-fA-F]{6}', v) for v in props.values()):
+            others.append((context, props))
     result = {'light': light}
-    for name, props in out.items():
-        result[name] = {**light, **props}
+    for context, props in others:
+        result[context] = {**result.get(context, light), **props}
     return result
 
 
