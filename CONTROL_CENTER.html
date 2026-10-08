@@ -36,6 +36,8 @@ a{color:#3150d8}footer{max-width:1160px;margin:auto;padding:0 16px 26px;color:va
 <div><label for="name">اسم البرنامج</label><input id="name" required placeholder="مثال: إدارة صيانة" value="نظام جديد"></div>
 <div><label for="id">معرّف المشروع</label><input id="id" required pattern="[a-z][a-z0-9-]{2,48}" value="new-business-app"></div>
 <div><label for="mode">طريقة التشغيل</label><select id="mode"><option value="desktop">على جهاز واحد، بدون إنترنت</option><option value="lan">على شبكة الشركة</option><option value="saas">خدمة سحابية باشتراك</option></select></div>
+<div><label for="tier">الباقة: لو الجهاز الرئيسي أو النت وقع؟</label><select id="tier"></select><small id="tierHint"></small></div>
+<div><label for="sites">عدد الفروع</label><select id="sites"><option value="single">فرع واحد</option><option value="multi">أكثر من فرع</option></select></div>
 <div><label for="market">السوق الأول</label><select id="market"><option value="EG">مصر</option><option value="SA">السعودية</option><option value="AE">الإمارات</option><option value="EU">أوروبا</option><option value="US">الولايات المتحدة</option><option value="OTHER">سوق آخر</option></select></div>
 </div>
 <label for="buyer">مين العميل اللي هيدفع؟</label><input id="buyer" required placeholder="صاحب مصنع صغير أو مدير سنتر...">
@@ -45,6 +47,7 @@ a{color:#3150d8}footer{max-width:1160px;margin:auto;padding:0 16px 26px;color:va
 <div><label for="money">طريقة البيع</label><select id="money"><option value="subscription">اشتراك متجدد</option><option value="perpetual">ترخيص مرة واحدة</option><option value="hybrid">اشتراك + رسوم إضافية</option><option value="usage">حسب الاستخدام</option><option value="free">تجربة مجانية فقط</option></select></div>
 <div><label for="sensitivity">حساسية البيانات</label><select id="sensitivity"><option value="personal">بيانات أشخاص/موظفين</option><option value="ordinary">بيانات تشغيل عادية</option><option value="sensitive">بيانات حساسة</option><option value="regulated">بيانات طبية/مالية منظّمة</option></select></div>
 </div>
+<div class="options" role="group" aria-label="الأجهزة"><label class="option"><input id="cDesktop" type="checkbox" checked> برنامج ويندوز</label><label class="option"><input id="cBrowser" type="checkbox"> متصفح</label><label class="option"><input id="cMobile" type="checkbox"> موبايل (تطبيق ويب)</label><label class="option"><input id="owners" type="checkbox"> أكثر من مالك</label></div>
 <div class="options"><label class="option"><input id="ai" type="checkbox"> وكيل ذكي ينفّذ إجراءات</label><label class="option"><input id="finance" type="checkbox"> معاملات مالية فعلية</label><label class="option"><input id="regulated" type="checkbox"> رقابة قانونية متخصصة</label></div>
 <label for="features">الوظائف المقترحة (كل وظيفة في سطر)</label><textarea id="features" placeholder="العملاء&#10;الطلبات&#10;التقارير"></textarea>
 <div class="actions"><button type="submit">إنشاء مواصفات المشروع</button><button type="button" class="secondary" id="download">تنزيل ملف المواصفات</button><button type="button" class="secondary" id="copy">نسخ تعليمات الوكيل</button></div>
@@ -52,12 +55,15 @@ a{color:#3150d8}footer{max-width:1160px;margin:auto;padding:0 16px 26px;color:va
 </form>
 </section>
 <section>
-<h2>٢. قواعد المصنع الثابتة</h2><p class="note">٤٦ معيارًا حسب نوع البرنامج. القائمة الكاملة والتدقيق الآلي في ملفات المستودع.</p>
+<h2>٢. قواعد المصنع الثابتة</h2><p class="note">٨٨ معيارًا حسب نوع البرنامج والباقة. القائمة الكاملة والتدقيق الآلي في ملفات المستودع.</p>
 <div class="rule">🔐 إنشاء حساب مدير آمن، صلاحيات من الخادم، مفيش دخول سري للمطور.</div>
 <div class="rule">💳 مدة اشتراك معلنة، تجديد وإلغاء وفترة سماح وبيانات العميل متاحة للتصدير.</div>
 <div class="rule">🧾 سجل لكل تعديل مالي، ومنع التكرار ونسخ احتياطية قابلة للاسترجاع.</div>
 <div class="rule">🎨 تصميم موحّد، عربي وإنجليزي، دعم الموبايل وأخطاء مفهومة.</div>
 <div class="rule">📦 تثبيت وترقية مضمونة باختبار عملي على جهاز نظيف.</div>
+<div class="rule">🛡️ رخصة موقّعة، نسخة مترجمة وموقّعة، وتحديثات موقّعة مابتلمسش بيانات العميل أبدًا.</div>
+<div class="rule">🛟 زرار مساعدة وفحص ذاتي ودعم عن بعد بإذن العميل، كله بيوصل لبرج المراقبة.</div>
+<div class="rule">☁️ الباقة الأعلى: كل جهاز يشتغل أوفلاين ويتزامن، بصلاحية أوفلاين محدودة، ومفيش تغيير مرفوض يختفي.</div>
 <div class="rule">🌍 مراجعة قانون حماية البيانات حسب بلد العميل وطبيعة نشاطه.</div>
 <div class="rule">✅ لا إطلاق للبيع قبل اختبارات الأمان وتجربة عميل حقيقية.</div>
 <h3>ملف المواصفات الناتج</h3>
@@ -66,7 +72,7 @@ a{color:#3150d8}footer{max-width:1160px;margin:auto;padding:0 16px 26px;color:va
 <p><a href="FACTORY_CONSTITUTION.md">الدستور</a> · <a href="docs/MARKET_AND_STANDARDS.md">المعايير</a> · <a href="docs/REPOSITORY_AUDIT.md">مراجعة مشاريعك</a> · <a href="AGENTS.md">تعليمات الوكيل</a></p>
 </section>
 </main>
-<footer>نسخة تأسيسية ١.٠ • لا تعتبر ملف المواصفات تنفيذًا لبرنامج أو شهادة امتثال. أي اشتراكات أو حسابات عميل لازم تتنفّذ وتُختبر فعلًا.</footer>
+<footer>نسخة تأسيسية ١.١ • لا تعتبر ملف المواصفات تنفيذًا لبرنامج أو شهادة امتثال. أي اشتراكات أو حسابات عميل لازم تتنفّذ وتُختبر فعلًا.</footer>
 <script>
 (function(){
 "use strict";
@@ -74,14 +80,30 @@ var $=function(x){return document.getElementById(x)};
 var saved=null;
 var text=function(id){return $(id).value.trim()};
 var status=function(message){$("status").textContent=message};
+var TIERS={standalone:"جهاز واحد",office_server:"شبكة مكتب: لو الرئيسي اتقفل الباقي يقف",cloud_sync:"مزامنة سحابية: كل جهاز يكمل أوفلاين (الأعلى)",cloud_only:"سحابي بالكامل: محتاج نت"};
+var BY_MODE={desktop:["standalone","cloud_sync"],lan:["office_server","cloud_sync"],saas:["cloud_only","cloud_sync"]};
+function fillTiers(){
+var keep=$("tier").value,sel=$("tier");sel.innerHTML="";
+BY_MODE[text("mode")].forEach(function(t){var o=document.createElement("option");o.value=t;o.textContent=TIERS[t];sel.appendChild(o)});
+if(BY_MODE[text("mode")].indexOf(keep)>-1)sel.value=keep;hint();
+}
+function hint(){var c=text("tier")==="cloud_sync"||text("tier")==="cloud_only";
+$("tierHint").textContent=c?"الموبايل والفروع متاحين. الاستضافة ليها تكلفة شهرية ومحتاجة مراجعة قانونية لمكان البيانات.":"الموبايل والفروع محتاجين باقة سحابية.";}
+$("mode").addEventListener("change",fillTiers);$("tier").addEventListener("change",hint);fillTiers();
 function build(){
 if(!$("brief").reportValidity())return null;
 var mode=text("mode"), model=text("money"), paid=model!=="free";
+var tier=text("tier"), cloud=tier==="cloud_sync"||tier==="cloud_only";
+var clients=[["cDesktop","windows_desktop"],["cBrowser","browser"],["cMobile","mobile_pwa"]].filter(function(x){return $(x[0]).checked}).map(function(x){return x[1]});
+if(!clients.length){status("⚠️ اختار جهاز واحد على الأقل.");return null}
+if(!cloud&&(clients.indexOf("mobile_pwa")>-1||text("sites")==="multi")){status("⚠️ الموبايل وتعدد الفروع محتاجين باقة المزامنة السحابية أو السحابي بالكامل.");return null}
+var link={tier:tier,sites:text("sites"),clients:clients,multi_owner:$("owners").checked};
+if(tier==="cloud_sync")link.offline_grace_days=7;
 var data={
-schema_version:"1.0",id:text("id"),name:text("name"),deployment:mode,
+schema_version:"1.1",id:text("id"),name:text("name"),deployment:mode,connectivity:link,
 markets:[text("market")],buyer:text("buyer"),problem:text("problem"),
 core_journey:text("journey"),monetization:{
-model:model,entitlement_method:paid?(mode==="saas"?"cloud_entitlement":"manual_contract"):"none",
+model:model,entitlement_method:paid?(cloud?"cloud_entitlement":"manual_contract"):"none",
 expiry_data_access:"read_export_backup"
 },
 data:{sensitivity:text("sensitivity"),has_financial_ledger:$("finance").checked,
@@ -92,6 +114,7 @@ stage:"research",competitors:[],acceptance:["TODO: Define observable end-to-end 
 evidence:{market_review:"PENDING",privacy_review:"PENDING",security_review:"PENDING",clean_device_restore:"PENDING",core_user_acceptance:"PENDING"},
 control_evidence:{},features:text("features").split("\n").map(function(x){return x.trim()}).filter(Boolean),exclusions:[]
 };
+if(cloud)data.data.residency="TODO: hosting region decided by owner";
 saved=data;$("output").textContent=JSON.stringify(data,null,2);
 status("✅ تم تجهيز المواصفات كمسودة بحث فقط. المنافسون ودليل الاختبارات لسه محتاجين توثيق.");
 return data;
@@ -105,7 +128,7 @@ setTimeout(function(){URL.revokeObjectURL(u)},1000);status("📁 تم تجهيز
 });
 $("copy").addEventListener("click",function(){
 var data=build();if(!data)return;
-var prompt="اقرأ AGENTS.md وFACTORY_CONSTITUTION.md و docs/MARKET_AND_STANDARDS.md. ادرس السوق والمنافسين بمصادر حقيقية ثم ابنِ رحلة العميل الأساسية فقط. "+data.name+"، التشغيل: "+data.deployment+"، السوق: "+data.markets.join(",")+". الالتزام التام بقواعد الدخول والصلاحيات والاشتراكات والنسخ الاحتياطي والأمان بدون كلمات مرور ثابتة أو أبواب خلفية. اجمع الأدلة قبل الإطلاق. ملف المواصفات: "+JSON.stringify(data);
+var prompt="اقرأ AGENTS.md وFACTORY_CONSTITUTION.md و docs/CONNECTIVITY_AND_SYNC.md و docs/MARKET_AND_STANDARDS.md. الباقة: "+data.connectivity.tier+". ادرس السوق والمنافسين بمصادر حقيقية ثم ابنِ رحلة العميل الأساسية فقط. "+data.name+"، التشغيل: "+data.deployment+"، السوق: "+data.markets.join(",")+". الالتزام التام بقواعد الدخول والصلاحيات والاشتراكات والنسخ الاحتياطي والأمان بدون كلمات مرور ثابتة أو أبواب خلفية. اجمع الأدلة قبل الإطلاق. ملف المواصفات: "+JSON.stringify(data);
 if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(prompt).then(function(){status("✅ تم نسخ التعليمات؛ أرفق ملف المواصفات مع المستودع.")},function(){status("تعذّر النسخ تلقائيًا؛ انسخ محتوى المواصفات الظاهر.")})}
 else{status("النسخ غير متاح في هذا المتصفح؛ استخدم محتوى المواصفات الظاهر.")}
 });

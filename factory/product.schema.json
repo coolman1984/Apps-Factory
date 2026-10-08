@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "Apps Factory Product Contract v1",
+  "title": "Apps Factory Product Contract v1.1",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -22,7 +22,10 @@
   ],
   "properties": {
     "schema_version": {
-      "const": "1.0"
+      "enum": [
+        "1.0",
+        "1.1"
+      ]
     },
     "id": {
       "type": "string",
@@ -38,6 +41,61 @@
         "lan",
         "saas"
       ]
+    },
+    "connectivity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "tier",
+        "sites",
+        "clients",
+        "multi_owner"
+      ],
+      "description": "See docs/CONNECTIVITY_AND_SYNC.md. Required from schema_version 1.1.",
+      "properties": {
+        "tier": {
+          "enum": [
+            "standalone",
+            "office_server",
+            "cloud_sync",
+            "cloud_only"
+          ]
+        },
+        "sites": {
+          "enum": [
+            "single",
+            "multi"
+          ]
+        },
+        "clients": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "windows_desktop",
+              "browser",
+              "mobile_pwa"
+            ]
+          }
+        },
+        "multi_owner": {
+          "type": "boolean"
+        },
+        "offline_grace_days": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 60
+        },
+        "mobile_offline_actions": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 2
+          }
+        }
+      }
     },
     "markets": {
       "type": "array",
@@ -280,5 +338,21 @@
         "type": "string"
       }
     }
-  }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "schema_version": {
+            "const": "1.1"
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "connectivity"
+        ]
+      }
+    }
+  ]
 }

@@ -23,6 +23,14 @@ A product is not ready merely because a plan says "done." Each gate produces aud
 - Claims of "all tests passed" without test command/artifact, or ignoring failed browser runs.
 - Customer data/production credentials in public repo, screenshots, logs, CI artifacts.
 - Legal certification claimed without scope-specific independent evidence.
+- Sync tier: a duplicated/replayed change applied twice, a revoked user's offline change accepted, a rejected change dropped silently, or a hub restore that resurrects deleted data.
+- Several PCs writing one SQLite file over a network share.
+- Phone PWA holding unsynced records with no visible pending count.
+- Unsigned installer/EXE outside ADR-0004 stage A rules (vendor-installed or verified-updater only, Ed25519-signed, SHA-256 published); update applied without verifying the signed manifest and file hash.
+- Asking a customer to disable antivirus or trust a vendor root certificate.
+- An upgrade or uninstall that can overwrite or delete the customer database or settings.
+- Licence failure that hides, deletes or encrypts customer data; a signing private key inside the shipped build.
+- Remote/AI support action on a customer install without a live customer grant and audit entry.
 
 ## Evidence record (copy for each gate)
 ```

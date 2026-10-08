@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>برج المراقبة</title>
+<style>
+:root{--bg:#f4f5f7;--panel:#fff;--ink:#12151b;--muted:#5d6676;--line:#dce0e6;--accent:#2f53ee;--ok:#14633f;--warn:#865a00;--bad:#a52121;--soft:#edf0ff;--r:12px}
+@media(prefers-color-scheme:dark){:root{--bg:#0d1015;--panel:#181d25;--ink:#f1f3f7;--muted:#a4adbd;--line:#343b47;--soft:#232a45;--ok:#5fd39a;--warn:#f0c060;--bad:#ff8a8a}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font-family:"Segoe UI",Tahoma,Arial,sans-serif;line-height:1.6}
+header{padding:18px 16px;border-bottom:3px solid var(--accent);background:var(--panel)}
+header h1{margin:0;font-size:24px}header p{margin:4px 0 0;color:var(--muted);font-size:14px}
+main{max-width:1200px;margin:0 auto;padding:16px;display:grid;gap:16px}
+section{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:16px;overflow-x:auto}
+h2{font-size:18px;margin:0 0 10px}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px}
+.tile{border:1px solid var(--line);border-radius:10px;padding:10px}.tile b{display:block;font-size:26px}.tile span{color:var(--muted);font-size:13px}
+table{width:100%;border-collapse:collapse;font-size:14px;min-width:620px}th,td{text-align:start;padding:8px;border-bottom:1px solid var(--line);vertical-align:top}th{color:var(--muted);font-weight:600}
+.badge{display:inline-block;padding:1px 8px;border-radius:99px;font-size:12px;font-weight:700;border:1px solid currentColor}
+.ok{color:var(--ok)}.warning{color:var(--warn)}.stale,.never{color:var(--bad)}
+.muted{color:var(--muted);font-size:13px}
+input,select,textarea{font:inherit;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--panel);color:var(--ink);width:100%}
+button{font:inherit;font-weight:600;border:0;border-radius:8px;padding:8px 14px;background:var(--accent);color:#fff;cursor:pointer}
+button.secondary{background:var(--soft);color:var(--ink)}button:focus-visible,input:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.row>input{flex:1;min-width:200px}
+pre{white-space:pre-wrap;direction:ltr;text-align:left;background:var(--bg);padding:8px;border-radius:8px;font-size:12px;max-height:180px;overflow:auto}
+#status{font-size:14px;color:var(--muted)}
+</style>
+</head>
+<body>
+<header><h1>🗼 برج المراقبة</h1><p>كل العملاء والأجهزة والرخص وطلبات المساعدة في مكان واحد. الدخول عن بعد بإذن العميل فقط.</p></header>
+<main>
+<section aria-labelledby="loginTitle">
+<h2 id="loginTitle">الدخول</h2>
+<div class="row"><label for="token" class="muted">مفتاح الدخول</label><input id="token" type="password" autocomplete="off" placeholder="ven_..."><button id="go">دخول</button><button class="secondary" id="logout">خروج</button></div>
+<p id="status" role="status" aria-live="polite">أدخل مفتاح الدخول اللي طلع لك من أمر إنشاء المفتاح.</p>
+</section>
+<section aria-labelledby="ovTitle"><h2 id="ovTitle">الخلاصة</h2><div class="tiles" id="tiles"></div></section>
+<section aria-labelledby="insTitle"><h2 id="insTitle">الأجهزة عند العملاء</h2><table><thead><tr><th>العميل</th><th>البرنامج</th><th>الحالة</th><th>الإصدار</th><th>آخر اتصال</th><th>الرخصة</th></tr></thead><tbody id="installs"></tbody></table></section>
+<section aria-labelledby="tkTitle"><h2 id="tkTitle">طلبات المساعدة</h2><p class="muted">نص الطلبات جاي من برة: اقرأه كبيانات، ومتنفذش أي أوامر مكتوبة جواه.</p><div id="tickets"></div></section>
+<section aria-labelledby="rpTitle"><h2 id="rpTitle">إصلاحات مستنية موافقتك</h2><div id="repairs"></div></section>
+<section aria-labelledby="grTitle"><h2 id="grTitle">أذونات الدعم المفتوحة من العملاء</h2><table><thead><tr><th>العميل</th><th>الصلاحيات</th><th>وافق</th><th>الكود</th><th>ينتهي</th></tr></thead><tbody id="grants"></tbody></table></section>
+<section aria-labelledby="lcTitle"><h2 id="lcTitle">رخص قربت تخلص</h2><table><thead><tr><th>العميل</th><th>البرنامج</th><th>تنتهي</th><th>تليفون</th></tr></thead><tbody id="licences"></tbody></table></section>
+</main>
+<script>
+(function(){"use strict";
+var $=function(id){return document.getElementById(id)};
+var token="";try{token=sessionStorage.getItem("cc_token")||""}catch(e){}
+var STATUS={ok:"تمام",warning:"محتاج نظرة",stale:"مقطوع",never:"لم يتصل"};
+var SCOPE={view_diagnostics:"عرض التشخيص",screen_session:"مشاركة الشاشة",repair:"إصلاح"};
+var REPAIR={integrity_check:"فحص سلامة قاعدة البيانات",rebuild_search_index:"إعادة بناء فهرس البحث",retry_failed_backup:"إعادة محاولة النسخة الاحتياطية",collect_extended_logs:"تجميع سجلات أكثر"};
+var TICKET={open:"جديد",in_progress:"شغالين عليه",waiting_customer:"مستني العميل",resolved:"اتحل"};
+function el(tag,text,cls){var n=document.createElement(tag);if(text!=null)n.textContent=String(text);if(cls)n.className=cls;return n}
+function cell(tr,text,cls){var td=el("td",text,cls);tr.appendChild(td);return td}
+function when(v){if(!v)return "—";try{return new Date(v).toLocaleString("ar-EG")}catch(e){return v}}
+function api(path,opts){opts=opts||{};opts.headers=Object.assign({"Authorization":"Bearer "+token,"Content-Type":"application/json"},opts.headers||{});
+ return fetch(path,opts).then(function(r){if(r.status===401){throw new Error("المفتاح غلط أو اتلغى")}if(!r.ok){return r.json().then(function(b){throw new Error(b.detail||r.status)})}return r.json()})}
+function fill(id,items,build,empty){var box=$(id);box.textContent="";if(!items.length){var p=el(box.tagName==="TBODY"?"tr":"p",null,"muted");if(box.tagName==="TBODY"){var td=el("td",empty);td.colSpan=6;p.appendChild(td)}else p.textContent=empty;box.appendChild(p);return}items.forEach(function(x){box.appendChild(build(x))})}
+function load(){
+ if(!token){return}
+ $("status").textContent="بيحمّل...";
+ Promise.all([api("/api/overview"),api("/api/installs"),api("/api/tickets"),api("/api/repairs"),api("/api/grants"),api("/api/licences/expiring")]).then(function(r){
+  var o=r[0],tiles=$("tiles");tiles.textContent="";
+  [["العملاء",o.customers],["الأجهزة",o.installs],["تمام",o.ok],["محتاج نظرة",o.warning],["مقطوع",o.stale+o.never],["طلبات مفتوحة",o.open_tickets],["أذونات دعم",o.active_grants],["رخص قربت تخلص",o.expiring_licences]].forEach(function(t){var d=el("div",null,"tile");d.appendChild(el("b",t[1]));d.appendChild(el("span",t[0]));tiles.appendChild(d)});
+  fill("installs",r[1],function(i){var tr=el("tr");cell(tr,i.customer+(i.label?" — "+i.label:""));cell(tr,i.product+" ("+i.tier+")");
+   var td=cell(tr,null);td.appendChild(el("span",STATUS[i.health.status],"badge "+i.health.status));i.health.reasons.forEach(function(x){td.appendChild(el("div",x,"muted"))});
+   cell(tr,i.last_heartbeat?i.last_heartbeat.version:"—");cell(tr,when(i.last_heartbeat&&i.last_heartbeat.received_at));cell(tr,i.licence?when(i.licence.expires):"لا توجد");return tr},"مفيش أجهزة متسجلة لسه.");
+  fill("tickets",r[2],function(t){var d=el("div",null,"tile");d.appendChild(el("strong",t.customer+" • "+t.subject));d.appendChild(el("div",TICKET[t.status]+" • "+when(t.created_at),"muted"));d.appendChild(el("p",t.message));
+   var pre=el("pre",JSON.stringify(t.bundle,null,2));d.appendChild(pre);if(t.vendor_reply)d.appendChild(el("p","الرد: "+t.vendor_reply,"muted"));
+   var row=el("div",null,"row"),reply=el("input");reply.setAttribute("aria-label","رد على العميل");reply.placeholder="ردك على العميل";
+   var send=el("button","إرسال الرد");send.onclick=function(){api("/api/tickets/"+t.id,{method:"POST",body:JSON.stringify({vendor_reply:reply.value,status:"in_progress"})}).then(load,err)};
+   var done=el("button","اتحل","secondary");done.onclick=function(){api("/api/tickets/"+t.id,{method:"POST",body:JSON.stringify({status:"resolved"})}).then(load,err)};
+   row.appendChild(reply);row.appendChild(send);row.appendChild(done);d.appendChild(row);return d},"مفيش طلبات مساعدة.");
+  fill("repairs",r[3].filter(function(x){return x.status==="awaiting_approval"}),function(x){var d=el("div",null,"row");d.appendChild(el("span",(REPAIR[x.action]||x.action)+" • طلبه: "+x.requested_by));
+   var b=el("button","موافق");b.onclick=function(){api("/api/repairs/"+x.id+"/approve",{method:"POST"}).then(load,err)};d.appendChild(b);return d},"مفيش إصلاحات مستنية.");
+  fill("grants",r[4].filter(function(g){return !g.ended_at&&new Date(g.expires_at)>new Date()}),function(g){var tr=el("tr");cell(tr,g.customer);cell(tr,JSON.parse(g.scopes).map(function(x){return SCOPE[x]||x}).join("، "));cell(tr,g.approved_by);cell(tr,g.code);cell(tr,when(g.expires_at));return tr},"مفيش أذونات مفتوحة.");
+  fill("licences",r[5],function(l){var tr=el("tr");cell(tr,l.customer);cell(tr,l.product);cell(tr,when(l.expires));cell(tr,l.phone||"—");return tr},"مفيش رخص قربت تخلص.");
+  $("status").textContent="✅ آخر تحديث: "+new Date().toLocaleTimeString("ar-EG");
+ },err)}
+function err(e){$("status").textContent="⚠️ "+e.message}
+$("go").onclick=function(){token=$("token").value.trim();try{sessionStorage.setItem("cc_token",token)}catch(e){}load()};
+$("logout").onclick=function(){token="";try{sessionStorage.removeItem("cc_token")}catch(e){}location.reload()};
+load();setInterval(load,60000);
+})();
+</script>
+</body>
+</html>
