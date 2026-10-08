@@ -1,0 +1,23 @@
+[submodule "design-factory/upstream/ui-ux-pro-max"]
+	path = design-factory/upstream/ui-ux-pro-max
+	url = https://github.com/nextlevelbuilder/ui-ux-pro-max-skill.git
+
+[submodule "design-factory/upstream/tabler"]
+	path = design-factory/upstream/tabler
+	url = https://github.com/tabler/tabler.git
+
+[submodule "design-factory/upstream/anthropic-skills"]
+	path = design-factory/upstream/anthropic-skills
+	url = https://github.com/anthropics/skills.git
+
+[submodule "design-factory/upstream/vercel-agent-skills"]
+	path = design-factory/upstream/vercel-agent-skills
+	url = https://github.com/vercel-labs/agent-skills.git
+
+[submodule "design-factory/upstream/shadcn-ui"]
+	path = design-factory/upstream/shadcn-ui
+	url = https://github.com/shadcn-ui/ui.git
+
+[submodule "design-factory/upstream/webawesome"]
+	path = design-factory/upstream/webawesome
+	url = https://github.com/shoelace-style/webawesome.git
