@@ -6,6 +6,9 @@
 3. factory/controls.json → factory/product.schema.json → templates/*
 4. docs/DELIVERY_GATES.md, docs/ADOPTION_PLAN.md and docs/BUILD_PLAN.md
 
+## Visual/UI work • Design Factory (mandatory)
+When task contains UI, UX, dashboard, website, page, frontend, visual design, redesign, RTL, accessibility, components, screenshot or CSS: **first read** `design-factory/AGENTS.md`, `design-factory/DESIGN_CONSTITUTION.md`, `design-factory/WORKFLOW.md`, `design-factory/QA_CHECKLIST.md` and the current app `DESIGN.md` if present. Source selection and vendor licensing: `design-factory/UPSTREAMS.md`. Prefer `design-factory/core/tokens.css` and `core/components.css` for vanilla apps; choose ONE kit (Tabler OR Web Awesome OR shadcn for React). Require browser QA and evidence; never invent screenshot verification. For a ready-to-open sample see `design-factory/reference/index.html`.
+
 ## Task classification
 - **New product:** perform cited market research, jurisdiction/customer/risk discovery, define the single paid core journey and cut deferred features; get owner approval for business assumptions that materially change price, liability or sensitive-data handling.
 - **Existing product:** audit before altering. Preserve working design, real records, backwards compatibility and migrations. Don't overwrite main or copy older shared code into it.
