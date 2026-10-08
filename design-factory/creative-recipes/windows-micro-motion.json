@@ -1,0 +1,34 @@
+{
+  "schema_version": "1.0",
+  "id": "windows-micro-motion",
+  "profile": "essential",
+  "target": "desktop",
+  "use_case": "Administration pages and small local business apps",
+  "engine": "css-waapi",
+  "layers": [
+    {
+      "id": "content",
+      "depth": 0
+    }
+  ],
+  "timeline": {
+    "duration_ms": 180,
+    "trigger": "state-change",
+    "loop": false
+  },
+  "accessibility": {
+    "reduced_motion": "static",
+    "keyboard": true,
+    "rtl": true
+  },
+  "perf": {
+    "webgl": false,
+    "external_runtime": false,
+    "max_simultaneously_animated": 4
+  },
+  "acceptance": [
+    "Buttons accessible without motion",
+    "Focus never lost during transition",
+    "Empty/loading/error states remain readable"
+  ]
+}
