@@ -1,0 +1,26 @@
+/* Licence Studio: the factory design system (af-ui) plus a few studio pieces. */
+.icon-sprite-note { display: none; }
+.gate { min-height: 100dvh; display: grid; place-items: center; padding: var(--s-6); }
+.gate .card { inline-size: min(460px, 100%); padding: var(--s-8); display: grid; gap: var(--s-4); }
+.gate h1 { font-size: var(--fs-2xl); }
+.code-out { font-family: ui-monospace, Consolas, 'Courier New', monospace; direction: ltr; text-align: start; font-size: 1.05rem; line-height: 1.9;
+  letter-spacing: .06em; padding: var(--s-4); border-radius: var(--r-md); background: var(--surface-3); border: 1px dashed var(--line-2);
+  word-break: break-all; user-select: all; }
+.device-in { font-family: ui-monospace, Consolas, monospace; letter-spacing: .2em; font-size: 1.5rem; text-align: center; direction: ltr; text-transform: uppercase; }
+.preview-line { display: flex; gap: var(--s-2); align-items: center; flex-wrap: wrap; padding: var(--s-3) var(--s-4); border-radius: var(--r-md); background: var(--volt-soft); color: var(--ink); }
+.status-active { background: var(--ok-soft); color: var(--ok); } .status-grace { background: var(--warn-soft); color: var(--warn); }
+.status-expired { background: var(--bad-soft); color: var(--bad); } .status-not_started { background: var(--info-soft); color: var(--info); }
+.mono { font-family: ui-monospace, Consolas, monospace; direction: ltr; unicode-bidi: isolate; }
+pre.snippet { margin: 0; padding: var(--s-4); border-radius: var(--r-md); background: var(--surface-3); overflow-x: auto; direction: ltr; text-align: start; font-size: var(--fs-sm); }
+.toggle-row { display: flex; align-items: center; justify-content: space-between; gap: var(--s-4); padding: var(--s-3) 0; border-block-end: 1px solid var(--line); }
+.page-head h1 { font-size: var(--fs-xl); }
+.stat-line { display: flex; justify-content: space-between; gap: var(--s-3); padding: var(--s-2) 0; border-block-end: 1px solid var(--line); }
+.timeline { display: grid; max-block-size: 60vh; overflow: auto; }
+.timeline .ev { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: var(--s-3); padding: var(--s-2) 0; align-items: center; border-block-end: 1px solid var(--line); }
+.watch-item { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: var(--s-3); align-items: center; padding: var(--s-4); border-radius: var(--r-lg);
+  background: var(--surface); border: 1px solid var(--line); box-shadow: var(--shadow-1); }
+.watch-item .ic { inline-size: 42px; block-size: 42px; border-radius: 14px; display: grid; place-items: center; background: var(--info-soft); color: var(--info); }
+.watch-item.warn .ic { background: var(--warn-soft); color: var(--warn); }
+.card h2 { margin-block-end: var(--s-3); }
+@media (max-width: 760px) { .watch-item { grid-template-columns: 1fr; } }
+.two { align-items: start; }
