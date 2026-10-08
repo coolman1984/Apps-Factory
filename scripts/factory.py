@@ -10,15 +10,15 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 MODES = {"desktop", "lan", "saas"}
 SCHEMA_VERSIONS = {"1.0", "1.1"}
-TIERS = {"standalone", "office_server", "cloud_sync", "cloud_only"}
+TIERS = {"standalone", "office_server", "office_mesh", "cloud_sync", "cloud_only"}
 CLOUD_TIERS = {"cloud_sync", "cloud_only"}
 TIERS_BY_MODE = {"desktop": {"standalone", "cloud_sync"},
-                 "lan": {"office_server", "cloud_sync"},
+                 "lan": {"office_server", "office_mesh", "cloud_sync"},
                  "saas": {"cloud_only", "cloud_sync"}}
 DEFAULT_TIER = {"desktop": "standalone", "lan": "office_server", "saas": "cloud_only"}
 DEFAULT_CLIENTS = {"desktop": ["windows_desktop"], "lan": ["windows_desktop", "browser"], "saas": ["browser"]}
 CLIENTS = {"windows_desktop", "browser", "mobile_pwa"}
-PROFILES = {"desktop", "lan", "saas", "paid", "ai", "regulated", "sync", "mobile", "multi_site", "multi_owner",
+PROFILES = {"desktop", "lan", "saas", "paid", "ai", "regulated", "sync", "mesh", "mobile", "multi_site", "multi_owner",
             "windows"}
 MARKETS = {"EG", "SA", "AE", "EU", "US", "OTHER"}
 PAID = {"subscription", "perpetual", "usage", "hybrid"}
@@ -56,6 +56,8 @@ def profiles(product):
     link = connectivity(product)
     if link["tier"] == "cloud_sync":
         enabled.update({"sync", "saas"})  # the hub is a hosted multi-tenant service
+    if link["tier"] == "office_mesh":
+        enabled.add("mesh")  # every office PC holds a full replica and keeps working alone
     if "mobile_pwa" in link["clients"]:
         enabled.add("mobile")
     if "windows_desktop" in link["clients"]:
@@ -115,7 +117,9 @@ def advisories(product):
     notes = []
     if link["tier"] == "office_server":
         notes.append("office_server: when the main PC is off, other devices cannot write. "
-                     "Say so in the contract or offer cloud_sync.")
+                     "Say so in the contract or offer office_mesh / cloud_sync.")
+    if link["tier"] == "office_mesh":
+        notes.append("office_mesh: every joined PC works alone and merges later; conflicts need an administrator's decision (MESH-01).")
     if link["tier"] in CLOUD_TIERS and product["data"].get("has_personal_data"):
         notes.append("Personal data leaves the premises: privacy_review must cover hosting region "
                      "and cross-border transfer before any pilot.")

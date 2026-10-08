@@ -86,7 +86,7 @@ class FactoryTests(unittest.TestCase):
         return factory.load(ROOT / "examples/multi-branch-reference.json")
 
     def test_legacy_schema_10_still_valid(self):
-        p = factory.load(ROOT / "examples/hessa-product.json")
+        p = factory.load(ROOT / "examples/trip-orders-product.json")
         p["schema_version"] = "1.0"
         del p["connectivity"]
         errors, selected = factory.valid_product(p)
@@ -103,8 +103,8 @@ class FactoryTests(unittest.TestCase):
         ids = {c["id"] for c in factory.valid_product(self.reference())[1]}
         for cid in ("SYNC-05", "SYNC-12", "TEN-01", "MOB-03", "SITE-02", "OWN-01", "BIZ-06"):
             self.assertIn(cid, ids)
-        office = {c["id"] for c in factory.valid_product(factory.load(ROOT / "examples/hessa-product.json"))[1]}
-        self.assertFalse(any(c.startswith(("SYNC-", "MOB-", "OWN-", "SITE-")) for c in office))
+        office = {c["id"] for c in factory.valid_product(factory.load(ROOT / "examples/trip-orders-product.json"))[1]}
+        self.assertFalse(any(c.startswith(("SYNC-", "MOB-", "OWN-", "SITE-", "MESH-")) for c in office))
         self.assertTrue({"ARCH-02", "ARCH-03", "OPS-06"}.issubset(office))
 
     def test_tier_must_fit_deployment(self):
@@ -159,7 +159,7 @@ class FactoryTests(unittest.TestCase):
         notes = " ".join(factory.advisories(self.reference()))
         self.assertIn("leaves the premises", notes)
         self.assertIn("iOS", notes)
-        office = " ".join(factory.advisories(factory.load(ROOT / "examples/hessa-product.json")))
+        office = " ".join(factory.advisories(factory.load(ROOT / "examples/trip-orders-product.json")))
         self.assertIn("cannot write", office)
 
     def test_scaffold_cloud_sync_tier(self):
@@ -198,6 +198,16 @@ class FactoryTests(unittest.TestCase):
     def test_control_center_is_not_releasable_yet(self):
         errors, _ = factory.valid_product(factory.load(ROOT / "examples/vendor-control-center.json"), release=True)
         self.assertTrue(any("hosting region" in e for e in errors))
+
+    def test_office_mesh_tier(self):
+        p = factory.load(ROOT / "examples/hessa-product.json")
+        errors, selected = factory.valid_product(p)
+        self.assertEqual(errors, [])
+        ids = {c["id"] for c in selected}
+        self.assertTrue({"MESH-01", "SYNC-03", "SYNC-12"}.issubset(ids))
+        self.assertFalse({"SYNC-01", "SYNC-13", "TEN-01"} & ids)          # no cloud hub in a mesh
+        p["deployment"] = "desktop"
+        self.assertTrue(any("does not fit" in e for e in factory.valid_product(p)[0]))
 
     def test_every_control_profile_is_known(self):
         for c in factory.catalog():

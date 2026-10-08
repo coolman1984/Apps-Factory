@@ -57,6 +57,7 @@
           "enum": [
             "standalone",
             "office_server",
+            "office_mesh",
             "cloud_sync",
             "cloud_only"
           ]

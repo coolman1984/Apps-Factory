@@ -1,7 +1,7 @@
 {
-  "catalog_version": "1.4.0",
+  "catalog_version": "1.6.0",
   "updated": "2026-10-08",
-  "policy": "Required-if-applicable, never auto-certifies an implementation. Profiles: desktop, lan, saas, paid, ai, regulated, sync, mobile, multi_site, multi_owner, windows. Connectivity tier cloud_sync activates sync and saas.",
+  "policy": "Required-if-applicable, never auto-certifies an implementation. Profiles: desktop, lan, saas, paid, ai, regulated, sync, mesh, mobile, multi_site, multi_owner, windows. Connectivity tier cloud_sync activates sync and saas.",
   "references": [
     "https://owasp.org/projects/asvs",
     "https://csrc.nist.gov/pubs/sp/800/218/final",
@@ -698,7 +698,8 @@
       "slug": "entity-merge-classes",
       "category": "sync",
       "profiles": [
-        "sync"
+        "sync",
+        "mesh"
       ],
       "requirement": "Every synced entity classified A append-only / B field-merge / C hub-confirmed / D derived, with tested merge rule; money balances derived only",
       "acceptance_evidence": "Entity class table and merge tests per class",
@@ -710,7 +711,8 @@
       "slug": "exactly-once-apply",
       "category": "sync",
       "profiles": [
-        "sync"
+        "sync",
+        "mesh"
       ],
       "requirement": "At-least-once delivery, idempotent apply by change_id, resumable batches, safe crash mid-batch",
       "acceptance_evidence": "Duplicate/reorder/kill-mid-batch simulation results",
@@ -722,7 +724,8 @@
       "slug": "causal-ordering",
       "category": "sync",
       "profiles": [
-        "sync"
+        "sync",
+        "mesh"
       ],
       "requirement": "Ordering by hybrid logical clock or hub sequence, never device wall clock alone; author time bounded and flagged",
       "acceptance_evidence": "Clock-skew simulation",
@@ -746,7 +749,8 @@
       "slug": "device-lifecycle",
       "category": "sync",
       "profiles": [
-        "sync"
+        "sync",
+        "mesh"
       ],
       "requirement": "Admin-approved device enrollment, per-device key, revocation, lost-device runbook, local encryption where feasible",
       "acceptance_evidence": "Enroll/revoke/lost-device drill",
@@ -758,7 +762,8 @@
       "slug": "scoped-replication",
       "category": "sync",
       "profiles": [
-        "sync"
+        "sync",
+        "mesh"
       ],
       "requirement": "Devices receive only their org/branch/role scope; restricted fields never replicated; role change re-scopes and purges",
       "acceptance_evidence": "Device data inspection after role change",
@@ -770,7 +775,8 @@
       "slug": "version-skew",
       "category": "sync",
       "profiles": [
-        "sync"
+        "sync",
+        "mesh"
       ],
       "requirement": "Protocol and payload versions; hub supports N and N-1; older clients read-only with update prompt; upcasters tested",
       "acceptance_evidence": "Mixed-version fleet test",
@@ -782,7 +788,8 @@
       "slug": "sync-visibility",
       "category": "sync",
       "profiles": [
-        "sync"
+        "sync",
+        "mesh"
       ],
       "requirement": "Per-device pending count, last successful sync, conflicts and stale-device alerts visible to user and owner",
       "acceptance_evidence": "UI screenshots plus stale-device alert test",
@@ -794,7 +801,8 @@
       "slug": "deletion-propagation",
       "category": "sync",
       "profiles": [
-        "sync"
+        "sync",
+        "mesh"
       ],
       "requirement": "Tombstones and legal erasure propagate to every replica including offline ones on reconnect; outstanding replicas tracked",
       "acceptance_evidence": "Erasure-while-offline test",
@@ -806,7 +814,8 @@
       "slug": "replicas-not-backup",
       "category": "sync",
       "profiles": [
-        "sync"
+        "sync",
+        "mesh"
       ],
       "requirement": "Point-in-time hub backup, scheduled export and local main-PC backup; hub restore bumps epoch so restored-away data is not resurrected",
       "acceptance_evidence": "Hub restore drill with stale devices",
@@ -818,7 +827,8 @@
       "slug": "partition-test-suite",
       "category": "sync",
       "profiles": [
-        "sync"
+        "sync",
+        "mesh"
       ],
       "requirement": "Deterministic simulation of partition, duplicate, reorder, clock skew, concurrent offline edits, kill mid-sync and version skew runs in CI",
       "acceptance_evidence": "CI artifact of the 12-case suite in docs/CONNECTIVITY_AND_SYNC.md",
@@ -1272,6 +1282,144 @@
       ],
       "requirement": "Read-only, temp files only, no personal data or money in reports, every run logged on both sides",
       "acceptance_evidence": "Report review and log entries",
+      "required_if_applies": true,
+      "implementation_status": "planned"
+    },
+    {
+      "id": "MESH-01",
+      "slug": "office-mesh-topology",
+      "category": "sync",
+      "profiles": [
+        "mesh"
+      ],
+      "requirement": "Office mesh: each joined PC keeps a full signed append-only history and works alone; one administrator PC is the authority for accounts and devices; PCs join only through a short admin-opened window; operations two PCs can do at once use deterministic IDs; conflicts wait for an administrator's decision",
+      "acceptance_evidence": "Partition test with two PCs editing offline, reconnect, identical fingerprint, conflict decided by admin",
+      "required_if_applies": true,
+      "implementation_status": "planned"
+    },
+    {
+      "id": "WATCH-01",
+      "slug": "owner-watch",
+      "category": "governance",
+      "profiles": [
+        "desktop",
+        "lan",
+        "saas"
+      ],
+      "requirement": "Owner watch rules over the product's own signed records (reversals, drawer differences, unpaid attendance, discounts, price changes, deletions, after-hours, denied attempts), each reviewed by an administrator with a note",
+      "acceptance_evidence": "Rule tests per pattern and a reviewed alert",
+      "required_if_applies": true,
+      "implementation_status": "planned"
+    },
+    {
+      "id": "LOG-01",
+      "slug": "activity-forensics",
+      "category": "security",
+      "profiles": [
+        "desktop",
+        "lan",
+        "saas"
+      ],
+      "requirement": "Administrator-only log of pages, clicks and saves, never typed values",
+      "acceptance_evidence": "Log sample without typed values",
+      "required_if_applies": true,
+      "implementation_status": "planned"
+    },
+    {
+      "id": "DATA-07",
+      "slug": "dated-prices",
+      "category": "data",
+      "profiles": [
+        "desktop",
+        "lan",
+        "saas"
+      ],
+      "requirement": "Price changes start on a chosen day and never reprice earlier periods; only the server writes price history",
+      "acceptance_evidence": "Old month unchanged after a raise",
+      "required_if_applies": true,
+      "implementation_status": "planned"
+    },
+    {
+      "id": "DATA-08",
+      "slug": "never-block-front-desk",
+      "category": "data",
+      "profiles": [
+        "desktop",
+        "lan",
+        "saas"
+      ],
+      "requirement": "The front desk records first and flags later; a rule never stops the queue unless data would be lost or money duplicated",
+      "acceptance_evidence": "Browser test of a flagged-not-blocked case",
+      "required_if_applies": true,
+      "implementation_status": "planned"
+    },
+    {
+      "id": "SEC-07",
+      "slug": "local-web-hardening",
+      "category": "security",
+      "profiles": [
+        "desktop",
+        "lan",
+        "saas"
+      ],
+      "requirement": "Strict CSP, Origin and Host checks, proxy headers never treated as this PC, spreadsheet formula neutralisation",
+      "acceptance_evidence": "Negative tests per item",
+      "required_if_applies": true,
+      "implementation_status": "planned"
+    },
+    {
+      "id": "IAM-07",
+      "slug": "links-and-recovery",
+      "category": "identity",
+      "profiles": [
+        "desktop",
+        "lan",
+        "saas"
+      ],
+      "requirement": "Personal sign-in links for phone helpers (never admin); administrator recovery only with a vendor-signed one-time code",
+      "acceptance_evidence": "Link cannot get admin; recovery code single-use",
+      "required_if_applies": true,
+      "implementation_status": "planned"
+    },
+    {
+      "id": "MSG-01",
+      "slug": "ban-safe-messaging",
+      "category": "operations",
+      "profiles": [
+        "desktop",
+        "lan",
+        "saas"
+      ],
+      "requirement": "Messages to customers' clients one by one through the user's own app, never bulk automation; official API only with consent and a daily cap",
+      "acceptance_evidence": "Cap and consent tests",
+      "required_if_applies": true,
+      "implementation_status": "planned"
+    },
+    {
+      "id": "UX-06",
+      "slug": "dashboard-advisor-quick-actions",
+      "category": "ux",
+      "profiles": [
+        "desktop",
+        "lan",
+        "saas"
+      ],
+      "requirement": "Dashboard shows ranked do-this-now items and a quick-actions panel to every daily form, each one click away",
+      "acceptance_evidence": "Browser test opening every quick action",
+      "required_if_applies": true,
+      "implementation_status": "planned"
+    },
+    {
+      "id": "UX-07",
+      "slug": "basic-menu-first",
+      "category": "ux",
+      "profiles": [
+        "desktop",
+        "lan",
+        "saas"
+      ],
+      "requirement": "First-version menu shows only the sold core; extra pages switched on in settings",
+      "acceptance_evidence": "Menu test with extras off and on",
       "required_if_applies": true,
       "implementation_status": "planned"
     }

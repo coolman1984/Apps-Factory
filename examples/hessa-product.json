@@ -4,7 +4,7 @@
   "name": "حِصّة",
   "deployment": "lan",
   "connectivity": {
-    "tier": "office_server",
+    "tier": "office_mesh",
     "sites": "single",
     "clients": [
       "windows_desktop",

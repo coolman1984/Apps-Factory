@@ -8,6 +8,7 @@ Decision record: [ADR-0001](decisions/ADR-0001-architecture-and-connectivity-tie
 |---|---|---|---|---|---|
 | `standalone` | app off | works | no | no | no |
 | `office_server` | other PCs **cannot write** (stated in contract) | office works | only inside office Wi-Fi, online, no offline install | no | no |
+| `office_mesh` (proven in Hessa) | other PCs keep working on their full copy | every PC works alone and merges on reconnect | only inside office Wi-Fi, online | no | no |
 | `cloud_sync` | other devices keep working | every device works alone and queues | installable PWA, declared offline actions | yes | live view + actions by permission |
 | `cloud_only` | n/a | app unavailable | online PWA | yes | yes |
 
