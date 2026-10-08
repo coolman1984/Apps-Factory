@@ -26,11 +26,15 @@ what one has and the other lacks, and what was done about it. Reviewed from the 
 | Help in polished Egyptian Arabic, "Solve a problem" + "Guide me" (`HELP-01..04`) | **Done** (PR on Teachers, 761 texts) |
 | No welcome slideshow; daylight + system font (`HELP-05`, ADR-0005) | **Done** (Teachers PR #23) |
 | Contact support, self-check, consented support window, safe repairs (`SUP-01..04`, `AI-04`) | **Done** (Teachers PR #22) |
-| Hidden diagnostics probe (`DIAG-01..03`) | Partly: data check, backup, error list run under the support window; network/sync/test-restore probes **next** |
+| Hidden diagnostics probe (`DIAG-01..03`) | **Done** in Hessa 1.5.0: `deep_diagnosis` (data, test restore in a temp folder, ports, sync, licence, disk, errors) under the support window |
 | Signed update channel with rollback (`REL-02/03`) | Hessa has upgrade safety copies and refuses newer data; the in-app signed updater is **open** (LAUNCH_SCOPE says not a first-pilot dependency) |
 | Authenticode (`REL-01`, ADR-0004 stage A) | Stage A: vendor installs; customer guide **to add** to Hessa docs |
 | UUIDv7 ids (`ARCH-03`) | Hessa uses random ids + deterministic ids + PC letter on numbers — **equivalent**, kept |
 | Org/branch scope (`ARCH-02`) | Single centre by design; becomes a decision only when a multi-branch Hessa is sold |
+
+## B2. Lesson from the first release review
+The owner found dashboard figures spilling out of their cards in a picture; every browser test had passed because none measured
+layout. New control `UX-08`: a measured layout sweep (Hessa `tests/test_layout_overflow.py`, proven to fail on the old styling).
 
 ## C. Review of money and data rules against the constitution
 Checked in the source: balances are computed (`center.balances`, `domain.account`), receipts and expenses are append-only with

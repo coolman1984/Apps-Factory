@@ -1,6 +1,6 @@
 # Apps Factory | مصنع التطبيقات 🏭
 
-**Version:** 0.3.0 foundation + connectivity tiers + protection/updates/support • **Status:** standards, specs and one shared package (`af-license`); not a deployable authenticated SaaS. The licence package is unit-tested, not yet field-verified inside a product.
+**Version:** 0.4.0 foundation + connectivity tiers + protection/updates/support • **Status:** standards, specs and one shared package (`af-license`); not a deployable authenticated SaaS. The licence package is unit-tested, not yet field-verified inside a product.
 
 مستودع القواعد الموحدة اللي كل تطبيق تجاري جديد عندك يبدأ منه: بحث السوق، تصميم ثابت، إدارة وصلاحيات، اشتراكات وتراخيص، خصوصية، أمان، بيانات، نسخ احتياطي، اختبار، تشغيل ودعم. **التخصص فقط بيتغير، القاعدة لا تُنسخ عشوائيًا.**
 

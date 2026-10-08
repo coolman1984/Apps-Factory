@@ -34,6 +34,7 @@ REPAIR_ALLOWLIST = {  # tested, non-destructive actions only (AI-04); never shel
     "rebuild_search_index": "إعادة بناء فهرس البحث",
     "retry_failed_backup": "إعادة محاولة النسخة الاحتياطية",
     "collect_extended_logs": "تجميع سجلات أكثر للتشخيص",
+    "deep_diagnosis": "فحص شامل للجهاز (البيانات، تجربة استرجاع نسخة، الشبكة، المزامنة، الرخصة)",
 }
 HEARTBEAT_STALE_HOURS = 26
 BACKUP_STALE_HOURS = 48
