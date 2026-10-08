@@ -1,0 +1,55 @@
+{
+  "schema_version": "1.0",
+  "id": "hessa-centre",
+  "name": "حِصّة",
+  "deployment": "lan",
+  "markets": [
+    "EG"
+  ],
+  "buyer": "Owner of one small tutoring centre in Egypt",
+  "problem": "Attendance, collections and student balances are fragmented across paper and files.",
+  "core_journey": "Create student, enroll, check in, collect and reverse fee, close cash, export and restore.",
+  "monetization": {
+    "model": "subscription",
+    "entitlement_method": "manual_contract",
+    "expiry_data_access": "read_export_backup"
+  },
+  "data": {
+    "sensitivity": "personal",
+    "has_financial_ledger": true,
+    "has_personal_data": true,
+    "backup_restore_plan": "Independent restore on another clean Windows PC is a field acceptance gate.",
+    "retention_policy": "Customer decision and Egypt PDPL legal review pending"
+  },
+  "addons": {
+    "ai_agents": false,
+    "regulated_overlay": false
+  },
+  "stage": "pilot_candidate",
+  "competitors": [],
+  "acceptance": [
+    "Receipt cannot be duplicated on retry and correction is an auditable reversal.",
+    "Receptionist cannot read restricted student data or administration screens.",
+    "Balances and users survive restore to a clean PC."
+  ],
+  "evidence": {
+    "market_review": "PENDING customer competitor study",
+    "privacy_review": "PENDING region-specific legal review",
+    "security_review": "PENDING exact candidate negative checks",
+    "clean_device_restore": "PENDING field drill",
+    "core_user_acceptance": "PENDING"
+  },
+  "features": [
+    "students",
+    "attendance",
+    "fees",
+    "cash-shift",
+    "reports",
+    "role-matrix",
+    "local-backup"
+  ],
+  "exclusions": [
+    "parent-cloud-links",
+    "ai-exam-tools"
+  ]
+}
