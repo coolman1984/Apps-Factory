@@ -1,0 +1,223 @@
+{
+  "schema_version": "2.0",
+  "checked_date": "2026-10-08",
+  "governance": "Exact gitlinks are source references, NOT automatically distributed dependencies or verified production integrations.",
+  "sources": [
+    {
+      "id": "motion",
+      "repo": "motiondivision/motion",
+      "commit": "55eb6bbd5f861785592992b6b8bed2cf81fe9103",
+      "category": "motion",
+      "license": "MIT",
+      "scope": "vanilla-and-react",
+      "policy": "preferred for site/UI motions; runtime only if explicitly selected",
+      "fetch_mode": "optional-pinned-submodule",
+      "integration_status": "linked-reference-not-executed",
+      "supply_chain_gate": "Verify release, licenses for actual files/assets, CVEs, size, reduced-motion and test in target product before including."
+    },
+    {
+      "id": "lucide",
+      "repo": "lucide-icons/lucide",
+      "commit": "a04f228cd01185e09c188b7227b9600c08c565ec",
+      "category": "icons",
+      "license": "ISC with inherited Feather MIT",
+      "scope": "all",
+      "policy": "preferred icon vocabulary; ship only selected optimized SVGs and notices",
+      "fetch_mode": "optional-pinned-submodule",
+      "integration_status": "linked-reference-not-executed",
+      "supply_chain_gate": "Verify release, licenses for actual files/assets, CVEs, size, reduced-motion and test in target product before including."
+    },
+    {
+      "id": "lenis",
+      "repo": "darkroomengineering/lenis",
+      "commit": "bc152f90d7c9b04ef372718350e2f616f3c706b2",
+      "category": "scroll",
+      "license": "MIT",
+      "scope": "marketing-web",
+      "policy": "optional for story pages only; avoid business tables and disable under reduced motion",
+      "fetch_mode": "optional-pinned-submodule",
+      "integration_status": "linked-reference-not-executed",
+      "supply_chain_gate": "Verify release, licenses for actual files/assets, CVEs, size, reduced-motion and test in target product before including."
+    },
+    {
+      "id": "lottie-web",
+      "repo": "airbnb/lottie-web",
+      "commit": "bede03d25d232826e0c9dca1733d542d8a7754fb",
+      "category": "vector-playback",
+      "license": "MIT",
+      "scope": "all",
+      "policy": "optional JSON animation playback; asset author licence must be checked",
+      "fetch_mode": "optional-pinned-submodule",
+      "integration_status": "linked-reference-not-executed",
+      "supply_chain_gate": "Verify release, licenses for actual files/assets, CVEs, size, reduced-motion and test in target product before including."
+    },
+    {
+      "id": "dotlottie-web",
+      "repo": "LottieFiles/dotlottie-web",
+      "commit": "d8a4e9e2cf76740b7b3848257f962b38d71aa71a",
+      "category": "vector-playback",
+      "license": "MIT",
+      "scope": "all",
+      "policy": "alternative playback runtime; choose either dotlottie or lottie-web per app",
+      "fetch_mode": "optional-pinned-submodule",
+      "integration_status": "linked-reference-not-executed",
+      "supply_chain_gate": "Verify release, licenses for actual files/assets, CVEs, size, reduced-motion and test in target product before including."
+    },
+    {
+      "id": "three-js",
+      "repo": "mrdoob/three.js",
+      "commit": "e9a8a1264c58150907230122ac17f5760a1ebab1",
+      "category": "3d",
+      "license": "MIT",
+      "scope": "3d-marketing-and-editors",
+      "policy": "optional WebGL; avoid heavy 3D on ordinary admin screens",
+      "fetch_mode": "optional-pinned-submodule",
+      "integration_status": "linked-reference-not-executed",
+      "supply_chain_gate": "Verify release, licenses for actual files/assets, CVEs, size, reduced-motion and test in target product before including."
+    },
+    {
+      "id": "react-three-fiber",
+      "repo": "pmndrs/react-three-fiber",
+      "commit": "d604b18bbda025d9ca682efb322cc76b99350e52",
+      "category": "3d-react",
+      "license": "MIT",
+      "scope": "react-only",
+      "policy": "adapter for existing React not plain HTML",
+      "fetch_mode": "optional-pinned-submodule",
+      "integration_status": "linked-reference-not-executed",
+      "supply_chain_gate": "Verify release, licenses for actual files/assets, CVEs, size, reduced-motion and test in target product before including."
+    },
+    {
+      "id": "pixi-js",
+      "repo": "pixijs/pixijs",
+      "commit": "2f01671aa654edefb8a6a8013d3b28c1a65c1813",
+      "category": "2d-canvas",
+      "license": "MIT",
+      "scope": "interactive-and-cinematic",
+      "policy": "optional 2D canvas scenes; test GPU/CPU and fallback",
+      "fetch_mode": "optional-pinned-submodule",
+      "integration_status": "linked-reference-not-executed",
+      "supply_chain_gate": "Verify release, licenses for actual files/assets, CVEs, size, reduced-motion and test in target product before including."
+    },
+    {
+      "id": "rive-runtime",
+      "repo": "rive-app/rive-runtime",
+      "commit": "dce52972ec2c8c9e4a03b0f49a59b4e5e0f43c97",
+      "category": "state-animation",
+      "license": "MIT runtime; editor/assets separate rights",
+      "scope": "all",
+      "policy": "optional interactive state animation; no automatic editor licence",
+      "fetch_mode": "optional-pinned-submodule",
+      "integration_status": "linked-reference-not-executed",
+      "supply_chain_gate": "Verify release, licenses for actual files/assets, CVEs, size, reduced-motion and test in target product before including."
+    },
+    {
+      "id": "motion-canvas",
+      "repo": "motion-canvas/motion-canvas",
+      "commit": "7b91435c301d530351dcf5ebb91dd139c002e405",
+      "category": "video-timeline",
+      "license": "MIT metadata; recheck packages",
+      "scope": "video-only",
+      "policy": "optional video motion graphics outside shipped app",
+      "fetch_mode": "optional-pinned-submodule",
+      "integration_status": "linked-reference-not-executed",
+      "supply_chain_gate": "Verify release, licenses for actual files/assets, CVEs, size, reduced-motion and test in target product before including."
+    },
+    {
+      "id": "theatre",
+      "repo": "theatre-js/theatre",
+      "commit": "6ea82b938ea49609489f6377ded693ccc6ee8f5b",
+      "category": "keyframe-editor",
+      "license": "mixed Apache-2.0 core/AGPL-3.0 studio",
+      "scope": "authoring-only",
+      "policy": "RESTRICTED: do not bundle studio or distribute derivative without legal review",
+      "fetch_mode": "optional-pinned-submodule",
+      "integration_status": "linked-reference-not-executed",
+      "supply_chain_gate": "Verify release, licenses for actual files/assets, CVEs, size, reduced-motion and test in target product before including."
+    },
+    {
+      "id": "magic-ui",
+      "repo": "magicuidesign/magicui",
+      "commit": "cdb348cb4c72a9b54b554d8617801e479fbc8714",
+      "category": "creative-components",
+      "license": "MIT root; check component assets",
+      "scope": "react-only",
+      "policy": "examples/creative UI for React, never blindly replace functional components",
+      "fetch_mode": "optional-pinned-submodule",
+      "integration_status": "linked-reference-not-executed",
+      "supply_chain_gate": "Verify release, licenses for actual files/assets, CVEs, size, reduced-motion and test in target product before including."
+    },
+    {
+      "id": "auto-animate",
+      "repo": "formkit/auto-animate",
+      "commit": "06882a8e69ba9bc8456d8f2ae6010f697fd7a37c",
+      "category": "micro-motion",
+      "license": "MIT",
+      "scope": "all",
+      "policy": "simple list animations; choose as alternative to Motion for light apps",
+      "fetch_mode": "optional-pinned-submodule",
+      "integration_status": "linked-reference-not-executed",
+      "supply_chain_gate": "Verify release, licenses for actual files/assets, CVEs, size, reduced-motion and test in target product before including."
+    },
+    {
+      "id": "iconify",
+      "repo": "iconify/iconify",
+      "commit": "48826b359b57266206f254c27849869ce6d00280",
+      "category": "icons",
+      "license": "MIT framework, per-pack varying licence",
+      "scope": "all",
+      "policy": "optional indexing/search; never bundle arbitrary icon sets without licence audit",
+      "fetch_mode": "optional-pinned-submodule",
+      "integration_status": "linked-reference-not-executed",
+      "supply_chain_gate": "Verify release, licenses for actual files/assets, CVEs, size, reduced-motion and test in target product before including."
+    },
+    {
+      "id": "owner-animation",
+      "repo": "coolman1984/Animation",
+      "commit": "bff8ab37ece0cae0eeba10bb1d2fe4bf08cde6da",
+      "category": "owner-film-engine",
+      "license": "owner repository; confirm third-party assets/engines",
+      "scope": "video-only",
+      "policy": "reuse deterministic native composer, brand kit, QA, reverse-engineering lab; app-specific adaptation required",
+      "fetch_mode": "optional-pinned-submodule",
+      "integration_status": "linked-reference-not-executed",
+      "supply_chain_gate": "Verify release, licenses for actual files/assets, CVEs, size, reduced-motion and test in target product before including."
+    },
+    {
+      "id": "owner-slide-forge",
+      "repo": "coolman1984/The-Slide-Show",
+      "commit": "90fbfa5057cd1c1563fbb2c112c6d798318b98ab",
+      "category": "owner-slide-engine",
+      "license": "owner repository; verify third-party licence",
+      "scope": "presentations",
+      "policy": "reuse layered offline HTML slideshow schemas/themes and validator",
+      "fetch_mode": "optional-pinned-submodule",
+      "integration_status": "linked-reference-not-executed",
+      "supply_chain_gate": "Verify release, licenses for actual files/assets, CVEs, size, reduced-motion and test in target product before including."
+    },
+    {
+      "id": "owner-promo-video",
+      "repo": "coolman1984/promo-video-generator",
+      "commit": "9cb936aadce7f06015ea9aaef630483fda88cc34",
+      "category": "owner-video-reference",
+      "license": "MIT repo; appears based on upstream visser23; verify attribution",
+      "scope": "video-only",
+      "policy": "deterministic seek(t), Chrome frames + FFmpeg, useful alternate film pipeline",
+      "fetch_mode": "optional-pinned-submodule",
+      "integration_status": "linked-reference-not-executed",
+      "supply_chain_gate": "Verify release, licenses for actual files/assets, CVEs, size, reduced-motion and test in target product before including."
+    }
+  ],
+  "excluded_or_conditional": [
+    {
+      "repo": "remotion-dev/remotion",
+      "reason": "Commercial company licensing and restrictions on derivative redistribution; research-only until reviewed.",
+      "url": "https://github.com/remotion-dev/remotion/blob/main/LICENSE.md"
+    },
+    {
+      "repo": "greensock/GSAP",
+      "reason": "Evaluate current commercial terms and plugin licensing independently; Motion is the default for new projects.",
+      "url": "https://github.com/greensock/GSAP"
+    }
+  ]
+}
