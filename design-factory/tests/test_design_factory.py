@@ -87,4 +87,20 @@ class DesignTests(unittest.TestCase):
                      "core/components.css","reference/index.html","reference/app.js"):
             self.assertTrue((DESIGN/path).exists(),path)
 
+    def test_installer_is_dry_run_and_never_overwrites(self):
+        import tempfile
+        import sys
+        sys.path.insert(0,str(DESIGN/"scripts"))
+        import install
+        with tempfile.TemporaryDirectory() as directory:
+            target=Path(directory)
+            install.execute(target,apply=False)
+            self.assertFalse((target/"DESIGN_FACTORY.md").exists())
+            install.execute(target,apply=True)
+            token=target/"design-system/af-tokens.css"
+            self.assertTrue(token.exists())
+            token.write_text("customer-owned custom file",encoding="utf-8")
+            install.execute(target,apply=True)
+            self.assertEqual(token.read_text(encoding="utf-8"),"customer-owned custom file")
+
 if __name__=="__main__":unittest.main()
