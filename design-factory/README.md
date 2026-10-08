@@ -2,6 +2,9 @@
 
 **A working, offline-first visual-system starter plus audited upstream references.** This does **not** certify pixel-perfect quality without screenshot inspection. App business logic, security, login, licensing and backups remain owned by the existing Apps Factory contracts.
 
+## Original offline icon-making lab
+Open [Icon Studio](icon-studio/index.html): 14 controlled, original scalable vector glyphs with size/weight/color controls and local SVG download. [Core icons](core/af-icons.js) can be directly reused in small HTML products. For 1600+ general-purpose symbols use a selected/attributed Lucide package, **not** a runtime import of entire source trees.
+
 ## Creative Factory v2 extension
 - [Live offline cinematic layer lab](creative-lab/index.html) with original depth composition, timeline scrub, playback/pause, reduced-motion, RTL/LTR and scene export.
 - [Creative architecture](CREATIVE_ARCHITECTURE.md), [creative agent playbook](CREATIVE_AGENT_PLAYBOOK.md) and [reusable recipes](creative-recipes/).
