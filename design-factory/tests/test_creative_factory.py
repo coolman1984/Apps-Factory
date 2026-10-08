@@ -36,7 +36,7 @@ class CreativeFactoryTests(unittest.TestCase):
             x=subprocess.run(["git","ls-files","--stage","--",p],cwd=ROOT,capture_output=True,text=True,check=True)
             self.assertIn("160000 "+s["commit"],x.stdout)
             self.assertIn("linked-reference-not-executed",s["integration_status"])
-            self.assertIn("licence",s["supply_chain_gate"].lower())
+            self.assertTrue("license" in s["supply_chain_gate"].lower() or "licence" in s["supply_chain_gate"].lower())
 
     def test_all_recipes_and_profiles(self):
         spec=json.loads((D/"creative-recipes/schema.json").read_text(encoding="utf-8"))
