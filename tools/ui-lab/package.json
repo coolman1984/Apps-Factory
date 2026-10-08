@@ -1,0 +1,12 @@
+{
+  "name": "af-ui-lab",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Apps Factory UI Lab: speed, smoothness, layout and accessibility of a product's pages, measured against budgets.",
+  "type": "module",
+  "bin": { "ui-lab": "probe.mjs" },
+  "dependencies": {
+    "axe-core": "4.10.3",
+    "playwright": "1.56.1"
+  }
+}

@@ -1,6 +1,6 @@
 # Apps Factory | مصنع التطبيقات 🏭
 
-**Version:** 0.4.0 foundation + connectivity tiers + protection/updates/support • **Status:** standards, specs and one shared package (`af-license`); not a deployable authenticated SaaS. The licence package is unit-tested, not yet field-verified inside a product.
+**Version:** 0.5.0 — adds licence codes + Licence Studio (MCP), the Showroom design system (`af-ui`), the UI Lab (performance + accessibility) and the factory knowledge base • **Status:** standards, specs and tested shared pieces; first product built on them: [الستور](https://github.com/coolman1984/Store). Nothing here is field-verified yet.
 
 مستودع القواعد الموحدة اللي كل تطبيق تجاري جديد عندك يبدأ منه: بحث السوق، تصميم ثابت، إدارة وصلاحيات، اشتراكات وتراخيص، خصوصية، أمان، بيانات، نسخ احتياطي، اختبار، تشغيل ودعم. **التخصص فقط بيتغير، القاعدة لا تُنسخ عشوائيًا.**
 
@@ -13,6 +13,13 @@
 - اختبار جاهزية بيع **يُفشل المسودات عمدًا**: `python scripts/factory.py check test-app.json --release`
 - اختبارات أداة المصنع: `python -m unittest discover -s tests -v`
 - اختبارات قطعة الرخص: `cd packages/af-license && pip install -r requirements.txt && python -m unittest discover -s tests -v`
+
+## الجديد في 0.5 ✨
+- 🔑 **برنامج الأكواد** [apps/licence-studio](apps/licence-studio/README.md): يطلع كود تجربة ١٤ يوم مربوط بجهاز واحد، بشاشة واضحة، والوكيل يتصل بيه بـ MCP.
+- 🎨 **نظام التصميم** [packages/af-ui](packages/af-ui/README.md) • [القواعد](docs/DESIGN_SYSTEM.md)
+- ⚡ **قسم السرعة** [tools/ui-lab](tools/ui-lab/README.md) • [المعيار](docs/PERFORMANCE_STANDARD.md) — ✅ **قسم الجودة** [docs/QUALITY_SYSTEM.md](docs/QUALITY_SYSTEM.md)
+- 🧠 **مخزن المعرفة** [docs/knowledge](docs/knowledge/README.md): خريطة المستودعات، خريطة القدرات، الدروس، مشاريع مشهورة نعتمد عليها.
+- 🤖 مهارات جاهزة للوكيل في `.claude/skills/`.
 
 ## ابدأ من هنا
 1. اقرأ [تعليمات الوكيل](AGENTS.md) و[دستور المصنع](FACTORY_CONSTITUTION.md).

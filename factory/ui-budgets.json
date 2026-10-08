@@ -1,0 +1,22 @@
+{
+  "version": "ui-budgets/1 (2026-10-08)",
+  "why": "Shop PCs are old and phones are mid-range. Budgets are measured with the CPU throttled ×4 on a cold load of each page. Sources: web.dev Core Web Vitals thresholds (LCP 2.5 s, INP 200 ms, CLS 0.1) and the RAIL frame budget (60 fps = 16.7 ms; we fail above 33 ms p95 = below 30 fps under throttling). Frames are vsync-quantised (16.7 ms = 60 fps, 33.4 ms = 30 fps): under ×4 throttling with software rendering the bar is 'never below 30 fps for 95% of frames, and at least 65% of frames at 60 fps'. Measured noise between runs is about ±5 fps, so a page must pass twice before a budget is tightened.",
+  "cpu_throttle": 4,
+  "page": {
+    "fcp_ms": 1800,
+    "lcp_ms": 2500,
+    "cls": 0.1,
+    "tbt_ms": 300,
+    "inp_ms": 200,
+    "frame_p95_ms": 34,
+    "dropped_ratio": 0.35,
+    "dom_nodes": 3000,
+    "heap_mb": 60,
+    "a11y_serious": 0
+  },
+  "bundle": {
+    "js_kb": 300,
+    "css_kb": 80,
+    "font_kb": 200
+  }
+}

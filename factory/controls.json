@@ -1436,6 +1436,90 @@
       "acceptance_evidence": "Sweep run on the release commit, and proof it fails on a known overflow",
       "required_if_applies": true,
       "implementation_status": "planned"
+    },
+    {
+      "id": "UX-09",
+      "slug": "design-system",
+      "category": "ux",
+      "profiles": [
+        "desktop",
+        "lan",
+        "saas"
+      ],
+      "requirement": "Pages use the factory design system (packages/af-ui): tokens only (no colours or sizes in views), layered surfaces, Readex Pro/Alexandria or a documented brand pair, motion from the motion kit with reduced-motion honoured, logical CSS for RTL",
+      "acceptance_evidence": "Static page checks (no inline styles, no left/right CSS, no hex colours in views) + screenshot set in light/dark/RTL/LTR",
+      "required_if_applies": true,
+      "implementation_status": "implemented"
+    },
+    {
+      "id": "PERF-01",
+      "slug": "measured-speed",
+      "category": "experience",
+      "profiles": [
+        "desktop",
+        "lan",
+        "saas"
+      ],
+      "requirement": "Every main page is measured by tools/ui-lab on a cold load with the CPU throttled x4 at phone and PC widths and stays within factory/ui-budgets.json (FCP, LCP, CLS, TBT, INP, frame p95, dropped frames, DOM, heap, JS size)",
+      "acceptance_evidence": "ui-lab REPORT.md on the release commit with 'All pages within budget'",
+      "required_if_applies": true,
+      "implementation_status": "implemented"
+    },
+    {
+      "id": "PERF-02",
+      "slug": "old-pc-smoothness",
+      "category": "experience",
+      "profiles": [
+        "desktop",
+        "lan",
+        "saas"
+      ],
+      "requirement": "No decorative effect may cost a frame on an old PC: backdrop blur, large shadows, fixed gradients and 3D tilt are measured; an effect that pushes p95 frame time over budget is removed or made static",
+      "acceptance_evidence": "UI Lab before/after numbers recorded in the product history",
+      "required_if_applies": true,
+      "implementation_status": "planned"
+    },
+    {
+      "id": "A11Y-01",
+      "slug": "no-serious-a11y",
+      "category": "experience",
+      "profiles": [
+        "desktop",
+        "lan",
+        "saas"
+      ],
+      "requirement": "axe-core reports zero serious or critical findings on every main page in both languages; text contrast at least 4.5:1, every control named, scrollable regions reachable by keyboard",
+      "acceptance_evidence": "ui-lab accessibility column = 0 on the release commit",
+      "required_if_applies": true,
+      "implementation_status": "implemented"
+    },
+    {
+      "id": "QA-01",
+      "slug": "quality-gate-report",
+      "category": "delivery",
+      "profiles": [
+        "desktop",
+        "lan",
+        "saas"
+      ],
+      "requirement": "A release candidate carries one quality report: unit, API/role-denial, static page checks, browser journeys, layout sweep, UI Lab, licence gate, and the field checks still pending, each with the exact command and result",
+      "acceptance_evidence": "docs/QUALITY_SYSTEM.md checklist filled for the candidate commit",
+      "required_if_applies": true,
+      "implementation_status": "planned"
+    },
+    {
+      "id": "LIC-01",
+      "slug": "device-bound-trial-codes",
+      "category": "licensing",
+      "profiles": [
+        "desktop",
+        "lan",
+        "saas"
+      ],
+      "requirement": "Trial and paid entitlements are Ed25519 licence codes from apps/licence-studio (af-license codes v1): tied to the customer's device code, dated, verified offline with public keys only; expiry switches to read/export/backup, never deletes or hides data; clock rollback is detected",
+      "acceptance_evidence": "Product test: code for another PC refused, expired code refused, clock-back locks writes, reads/export/backup still work",
+      "required_if_applies": true,
+      "implementation_status": "implemented"
     }
   ]
 }
