@@ -4,6 +4,14 @@
 
 مستودع القواعد الموحدة اللي كل تطبيق تجاري جديد عندك يبدأ منه: بحث السوق، تصميم ثابت، إدارة وصلاحيات، اشتراكات وتراخيص، خصوصية، أمان، بيانات، نسخ احتياطي، اختبار، تشغيل ودعم. **التخصص فقط بيتغير، القاعدة لا تُنسخ عشوائيًا.**
 
+## لوحة تشغيل المصنع
+- [افتح لوحة إنشاء مواصفات برنامج جديد](CONTROL_CENTER.html) بعد تنزيل الملف أو استنساخ المشروع. الصفحة محلية، لا ترسل بيانات.
+- اختبار القواعد: `python scripts/factory.py doctor`
+- إنشاء وصف: `python scripts/factory.py new --id test-app --name "نظام تجريبي" --mode lan --market EG --output test-app.json`
+- فحص مسودة: `python scripts/factory.py check test-app.json`
+- اختبار جاهزية بيع **يُفشل المسودات عمدًا**: `python scripts/factory.py check test-app.json --release`
+- اختبارات أداة المصنع: `python -m unittest discover -s tests -v`
+
 ## ابدأ من هنا
 1. اقرأ [تعليمات الوكيل](AGENTS.md) و[دستور المصنع](FACTORY_CONSTITUTION.md).
 2. افتح [دليل الدراسة](docs/MARKET_AND_STANDARDS.md) و[مراجعة 30 مشروع](docs/REPOSITORY_AUDIT.md).

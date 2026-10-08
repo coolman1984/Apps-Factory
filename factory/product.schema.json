@@ -1,0 +1,284 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Apps Factory Product Contract v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "id",
+    "name",
+    "deployment",
+    "markets",
+    "buyer",
+    "problem",
+    "core_journey",
+    "monetization",
+    "data",
+    "addons",
+    "stage",
+    "competitors",
+    "acceptance",
+    "evidence"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "1.0"
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{2,48}$"
+    },
+    "name": {
+      "type": "string",
+      "minLength": 2
+    },
+    "deployment": {
+      "enum": [
+        "desktop",
+        "lan",
+        "saas"
+      ]
+    },
+    "markets": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "enum": [
+          "EG",
+          "SA",
+          "AE",
+          "EU",
+          "US",
+          "OTHER"
+        ]
+      }
+    },
+    "buyer": {
+      "type": "string",
+      "minLength": 5
+    },
+    "problem": {
+      "type": "string",
+      "minLength": 10
+    },
+    "core_journey": {
+      "type": "string",
+      "minLength": 15
+    },
+    "monetization": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "model",
+        "entitlement_method",
+        "expiry_data_access"
+      ],
+      "properties": {
+        "model": {
+          "enum": [
+            "subscription",
+            "perpetual",
+            "usage",
+            "hybrid",
+            "free"
+          ]
+        },
+        "entitlement_method": {
+          "enum": [
+            "offline_signed",
+            "cloud_entitlement",
+            "manual_contract",
+            "none"
+          ]
+        },
+        "expiry_data_access": {
+          "const": "read_export_backup"
+        },
+        "billing_provider": {
+          "type": "string"
+        }
+      }
+    },
+    "data": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sensitivity",
+        "has_financial_ledger",
+        "has_personal_data",
+        "backup_restore_plan"
+      ],
+      "properties": {
+        "sensitivity": {
+          "enum": [
+            "ordinary",
+            "personal",
+            "sensitive",
+            "regulated"
+          ]
+        },
+        "has_financial_ledger": {
+          "type": "boolean"
+        },
+        "has_personal_data": {
+          "type": "boolean"
+        },
+        "backup_restore_plan": {
+          "type": "string"
+        },
+        "retention_policy": {
+          "type": "string"
+        },
+        "residency": {
+          "type": "string"
+        }
+      }
+    },
+    "addons": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "ai_agents",
+        "regulated_overlay"
+      ],
+      "properties": {
+        "ai_agents": {
+          "type": "boolean"
+        },
+        "regulated_overlay": {
+          "type": "boolean"
+        }
+      }
+    },
+    "stage": {
+      "enum": [
+        "research",
+        "prototype",
+        "pilot_candidate",
+        "field_accepted",
+        "production"
+      ]
+    },
+    "competitors": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "name",
+          "url",
+          "checked_on",
+          "region",
+          "pricing_status"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string",
+            "format": "uri"
+          },
+          "checked_on": {
+            "type": "string",
+            "format": "date"
+          },
+          "region": {
+            "type": "string"
+          },
+          "pricing_status": {
+            "enum": [
+              "verified",
+              "not_public",
+              "unknown"
+            ]
+          },
+          "price_notes": {
+            "type": "string"
+          },
+          "differentiator": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "acceptance": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "minLength": 10
+      }
+    },
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "market_review",
+        "privacy_review",
+        "security_review",
+        "clean_device_restore",
+        "core_user_acceptance"
+      ],
+      "properties": {
+        "market_review": {
+          "type": "string"
+        },
+        "privacy_review": {
+          "type": "string"
+        },
+        "security_review": {
+          "type": "string"
+        },
+        "clean_device_restore": {
+          "type": "string"
+        },
+        "core_user_acceptance": {
+          "type": "string"
+        },
+        "last_approved_by": {
+          "type": "string"
+        }
+      }
+    },
+    "control_evidence": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "required": [
+          "status",
+          "proof"
+        ],
+        "properties": {
+          "status": {
+            "enum": [
+              "planned",
+              "implemented",
+              "verified",
+              "field_accepted"
+            ]
+          },
+          "proof": {
+            "type": "string"
+          },
+          "reviewed_by": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "features": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "exclusions": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}

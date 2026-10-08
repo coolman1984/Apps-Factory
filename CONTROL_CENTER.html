@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>مصنع التطبيقات | لوحة بدء مشروع</title>
+<style>
+:root{--bg:#f4f5f7;--panel:#fff;--ink:#12151b;--muted:#616b7a;--line:#dce0e6;--blue:#344ced;--soft:#edf0ff;--radius:12px}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font-family:"Segoe UI",Tahoma,Arial,sans-serif;line-height:1.65}
+header{background:#101318;color:#f7f8fa;padding:29px max(20px,calc((100vw - 1160px)/2));border-bottom:3px solid var(--blue)}
+header h1{font-size:clamp(26px,4vw,40px);font-weight:600;margin:0}
+header p{color:#b8c0ce;max-width:790px;margin:8px 0}
+main{max-width:1160px;margin:25px auto;padding:0 16px 40px;display:grid;grid-template-columns:1.45fr 1fr;gap:18px;align-items:start}
+section{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:22px;box-shadow:0 4px 18px #14171e08}
+h2{font-size:21px;margin:0 0 6px}h3{font-size:16px;margin:19px 0 10px}.note{color:var(--muted);font-size:14px;margin:4px 0 15px}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+label{display:block;font-weight:600;font-size:13px;margin:12px 0 5px}input:not([type=checkbox]),select,textarea{width:100%;font:inherit;font-size:14px;background:#fff;color:#15191f;border:1px solid #bfc6d3;border-radius:7px;padding:9px 11px;outline-offset:2px}input:focus,select:focus,textarea:focus{outline:2px solid var(--blue)}textarea{min-height:74px;resize:vertical}
+small{color:var(--muted);font-size:12px}.options{display:flex;flex-wrap:wrap;gap:13px;margin:14px 0}.option{display:flex;align-items:center;gap:8px;font-weight:500;font-size:13px;margin:0}
+button{border:0;border-radius:7px;padding:10px 15px;background:var(--blue);color:#fff;cursor:pointer;font:inherit;font-weight:600}button.secondary{background:var(--soft);color:#202a75}button:focus-visible{outline:3px solid #8390ff}
+.actions{display:flex;flex-wrap:wrap;gap:9px;margin-top:15px}
+#output{direction:ltr;text-align:left;white-space:pre-wrap;word-break:break-word;background:#101820;color:#e8f0ff;border-radius:8px;padding:14px;min-height:240px;font:12px/1.6 ui-monospace,Consolas,monospace;max-height:530px;overflow:auto}
+.rule{border-bottom:1px solid var(--line);padding:10px 0;font-size:14px}.rule:last-child{border:0}
+.status{font-size:13px;color:#0a6343;font-weight:600;margin-top:9px}
+a{color:#3150d8}footer{max-width:1160px;margin:auto;padding:0 16px 26px;color:var(--muted);font-size:13px}
+@media(max-width:850px){main{grid-template-columns:1fr}header{padding:24px 18px}.grid{grid-template-columns:1fr}}
+@media(prefers-color-scheme:dark){:root{--bg:#0d1015;--panel:#181d25;--ink:#f1f3f7;--muted:#a4adbd;--line:#343b47;--soft:#2a3153}input:not([type=checkbox]),select,textarea{background:#151a22;color:#f1f3f7;border-color:#596071}button.secondary{color:#eef1ff}}
+</style>
+</head>
+<body>
+<header><h1>🏭 مصنع التطبيقات</h1><p>فكرة جديدة تدخل، ومواصفات عمل احترافية تطلع. نفس معايير الأمان والإدارة والتسليم، من غير ما نفرض نفس شكل الشاشات على كل الأنشطة.</p></header>
+<main>
+<section>
+<h2>١. عرّف البرنامج الجديد</h2><p class="note">الصفحة بتنشئ ملف مواصفات وتعليمات للوكيل البرمجي. مش بتبني أو تؤمّن برنامج جاهز للبيع لوحدها.</p>
+<form id="brief">
+<div class="grid">
+<div><label for="name">اسم البرنامج</label><input id="name" required placeholder="مثال: إدارة صيانة" value="نظام جديد"></div>
+<div><label for="id">معرّف المشروع</label><input id="id" required pattern="[a-z][a-z0-9-]{2,48}" value="new-business-app"></div>
+<div><label for="mode">طريقة التشغيل</label><select id="mode"><option value="desktop">على جهاز واحد، بدون إنترنت</option><option value="lan">على شبكة الشركة</option><option value="saas">خدمة سحابية باشتراك</option></select></div>
+<div><label for="market">السوق الأول</label><select id="market"><option value="EG">مصر</option><option value="SA">السعودية</option><option value="AE">الإمارات</option><option value="EU">أوروبا</option><option value="US">الولايات المتحدة</option><option value="OTHER">سوق آخر</option></select></div>
+</div>
+<label for="buyer">مين العميل اللي هيدفع؟</label><input id="buyer" required placeholder="صاحب مصنع صغير أو مدير سنتر...">
+<label for="problem">إيه المشكلة الغالية اللي هنحلها؟</label><textarea id="problem" required placeholder="التكلفة الحالية، الوقت الضايع، الأخطاء..."></textarea>
+<label for="journey">رحلة العميل الأساسية من أول إدخال لحد النتيجة</label><textarea id="journey" required placeholder="يعمل طلب ← يراجعه ← يصدر مستند ← يحفظ ويرجع البيانات"></textarea>
+<div class="grid">
+<div><label for="money">طريقة البيع</label><select id="money"><option value="subscription">اشتراك متجدد</option><option value="perpetual">ترخيص مرة واحدة</option><option value="hybrid">اشتراك + رسوم إضافية</option><option value="usage">حسب الاستخدام</option><option value="free">تجربة مجانية فقط</option></select></div>
+<div><label for="sensitivity">حساسية البيانات</label><select id="sensitivity"><option value="personal">بيانات أشخاص/موظفين</option><option value="ordinary">بيانات تشغيل عادية</option><option value="sensitive">بيانات حساسة</option><option value="regulated">بيانات طبية/مالية منظّمة</option></select></div>
+</div>
+<div class="options"><label class="option"><input id="ai" type="checkbox"> وكيل ذكي ينفّذ إجراءات</label><label class="option"><input id="finance" type="checkbox"> معاملات مالية فعلية</label><label class="option"><input id="regulated" type="checkbox"> رقابة قانونية متخصصة</label></div>
+<label for="features">الوظائف المقترحة (كل وظيفة في سطر)</label><textarea id="features" placeholder="العملاء&#10;الطلبات&#10;التقارير"></textarea>
+<div class="actions"><button type="submit">إنشاء مواصفات المشروع</button><button type="button" class="secondary" id="download">تنزيل ملف المواصفات</button><button type="button" class="secondary" id="copy">نسخ تعليمات الوكيل</button></div>
+<p id="status" class="status" role="status" aria-live="polite">ابدأ ببيانات المشروع. كل المتطلبات الناقصة هتفضل واضحة ومعلّمة كغير مكتملة.</p>
+</form>
+</section>
+<section>
+<h2>٢. قواعد المصنع الثابتة</h2><p class="note">٤٦ معيارًا حسب نوع البرنامج. القائمة الكاملة والتدقيق الآلي في ملفات المستودع.</p>
+<div class="rule">🔐 إنشاء حساب مدير آمن، صلاحيات من الخادم، مفيش دخول سري للمطور.</div>
+<div class="rule">💳 مدة اشتراك معلنة، تجديد وإلغاء وفترة سماح وبيانات العميل متاحة للتصدير.</div>
+<div class="rule">🧾 سجل لكل تعديل مالي، ومنع التكرار ونسخ احتياطية قابلة للاسترجاع.</div>
+<div class="rule">🎨 تصميم موحّد، عربي وإنجليزي، دعم الموبايل وأخطاء مفهومة.</div>
+<div class="rule">📦 تثبيت وترقية مضمونة باختبار عملي على جهاز نظيف.</div>
+<div class="rule">🌍 مراجعة قانون حماية البيانات حسب بلد العميل وطبيعة نشاطه.</div>
+<div class="rule">✅ لا إطلاق للبيع قبل اختبارات الأمان وتجربة عميل حقيقية.</div>
+<h3>ملف المواصفات الناتج</h3>
+<pre id="output">اضغط «إنشاء مواصفات المشروع» لعرض ملف بصيغة قابلة للاستخدام مع أي وكيل برمجي.</pre>
+<p class="note">المصنع مش بيجمع أو يرفع البيانات دي لأي موقع. التحميل والنسخ بيتموا على جهازك فقط.</p>
+<p><a href="FACTORY_CONSTITUTION.md">الدستور</a> · <a href="docs/MARKET_AND_STANDARDS.md">المعايير</a> · <a href="docs/REPOSITORY_AUDIT.md">مراجعة مشاريعك</a> · <a href="AGENTS.md">تعليمات الوكيل</a></p>
+</section>
+</main>
+<footer>نسخة تأسيسية ١.٠ • لا تعتبر ملف المواصفات تنفيذًا لبرنامج أو شهادة امتثال. أي اشتراكات أو حسابات عميل لازم تتنفّذ وتُختبر فعلًا.</footer>
+<script>
+(function(){
+"use strict";
+var $=function(x){return document.getElementById(x)};
+var saved=null;
+var text=function(id){return $(id).value.trim()};
+var status=function(message){$("status").textContent=message};
+function build(){
+if(!$("brief").reportValidity())return null;
+var mode=text("mode"), model=text("money"), paid=model!=="free";
+var data={
+schema_version:"1.0",id:text("id"),name:text("name"),deployment:mode,
+markets:[text("market")],buyer:text("buyer"),problem:text("problem"),
+core_journey:text("journey"),monetization:{
+model:model,entitlement_method:paid?(mode==="saas"?"cloud_entitlement":"manual_contract"):"none",
+expiry_data_access:"read_export_backup"
+},
+data:{sensitivity:text("sensitivity"),has_financial_ledger:$("finance").checked,
+has_personal_data:text("sensitivity")!=="ordinary",
+backup_restore_plan:"TODO: Rehearse backup and restore on a second clean device"},
+addons:{ai_agents:$("ai").checked,regulated_overlay:$("regulated").checked||text("sensitivity")==="regulated"},
+stage:"research",competitors:[],acceptance:["TODO: Define observable end-to-end user acceptance"],
+evidence:{market_review:"PENDING",privacy_review:"PENDING",security_review:"PENDING",clean_device_restore:"PENDING",core_user_acceptance:"PENDING"},
+control_evidence:{},features:text("features").split("\n").map(function(x){return x.trim()}).filter(Boolean),exclusions:[]
+};
+saved=data;$("output").textContent=JSON.stringify(data,null,2);
+status("✅ تم تجهيز المواصفات كمسودة بحث فقط. المنافسون ودليل الاختبارات لسه محتاجين توثيق.");
+return data;
+}
+$("brief").addEventListener("submit",function(e){e.preventDefault();build()});
+$("download").addEventListener("click",function(){
+var data=build();if(!data)return;
+var blob=new Blob([JSON.stringify(data,null,2)+"\n"],{type:"application/json;charset=utf-8"});
+var u=URL.createObjectURL(blob),a=document.createElement("a");a.href=u;a.download=data.id+".json";document.body.appendChild(a);a.click();a.remove();
+setTimeout(function(){URL.revokeObjectURL(u)},1000);status("📁 تم تجهيز ملف المواصفات للتحميل؛ لا تضع فيه أسرارًا أو بيانات عملاء حقيقية.")
+});
+$("copy").addEventListener("click",function(){
+var data=build();if(!data)return;
+var prompt="اقرأ AGENTS.md وFACTORY_CONSTITUTION.md و docs/MARKET_AND_STANDARDS.md. ادرس السوق والمنافسين بمصادر حقيقية ثم ابنِ رحلة العميل الأساسية فقط. "+data.name+"، التشغيل: "+data.deployment+"، السوق: "+data.markets.join(",")+". الالتزام التام بقواعد الدخول والصلاحيات والاشتراكات والنسخ الاحتياطي والأمان بدون كلمات مرور ثابتة أو أبواب خلفية. اجمع الأدلة قبل الإطلاق. ملف المواصفات: "+JSON.stringify(data);
+if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(prompt).then(function(){status("✅ تم نسخ التعليمات؛ أرفق ملف المواصفات مع المستودع.")},function(){status("تعذّر النسخ تلقائيًا؛ انسخ محتوى المواصفات الظاهر.")})}
+else{status("النسخ غير متاح في هذا المتصفح؛ استخدم محتوى المواصفات الظاهر.")}
+});
+})();
+</script>
+</body></html>

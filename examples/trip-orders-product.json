@@ -1,0 +1,55 @@
+{
+  "schema_version": "1.0",
+  "id": "trip-orders",
+  "name": "أوامر التشغيل",
+  "deployment": "lan",
+  "markets": [
+    "EG"
+  ],
+  "buyer": "Dispatcher and owner of one SME transport office",
+  "problem": "Trip kilometers, review and billing reports rely on manual documents and uncontrolled corrections.",
+  "core_journey": "Create trip, record time and kilometers, approve corrections, export consistent monthly report and restore.",
+  "monetization": {
+    "model": "subscription",
+    "entitlement_method": "manual_contract",
+    "expiry_data_access": "read_export_backup"
+  },
+  "data": {
+    "sensitivity": "personal",
+    "has_financial_ledger": false,
+    "has_personal_data": true,
+    "backup_restore_plan": "Office backup and restore to another clean Windows PC.",
+    "retention_policy": "Agree in contract and data law review."
+  },
+  "addons": {
+    "ai_agents": false,
+    "regulated_overlay": false
+  },
+  "stage": "pilot_candidate",
+  "competitors": [],
+  "acceptance": [
+    "Office-only trip is approved with authorization enforced at server.",
+    "Corrections appear in history; exports match the displayed totals.",
+    "A second clean PC restore recovers trips, users and reports."
+  ],
+  "evidence": {
+    "market_review": "PENDING",
+    "privacy_review": "PENDING",
+    "security_review": "PENDING target Windows",
+    "clean_device_restore": "PENDING",
+    "core_user_acceptance": "PENDING"
+  },
+  "features": [
+    "trip",
+    "vehicle",
+    "driver",
+    "review",
+    "report",
+    "excel-import"
+  ],
+  "exclusions": [
+    "driver-photos-and-gateway",
+    "ocr",
+    "gps"
+  ]
+}

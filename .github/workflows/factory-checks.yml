@@ -1,0 +1,32 @@
+name: Factory standards and manifest checks
+on:
+  push:
+    branches: [main, "feat/**"]
+  pull_request:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Compile factory CLI
+        run: python -m py_compile scripts/factory.py
+      - name: Check catalog and schema
+        run: python scripts/factory.py doctor
+      - name: Validate examples (specification only)
+        run: |
+          python scripts/factory.py check examples/hessa-product.json
+          python scripts/factory.py check examples/trip-orders-product.json
+      - name: Unit tests
+        run: python -m unittest discover -s tests -v
+      - name: Assert release remains blocked until evidence exists
+        run: |
+          if python scripts/factory.py check examples/hessa-product.json --release; then
+            echo "ERROR: research/pilot example improperly passed commercial release gate" >&2
+            exit 1
+          fi
