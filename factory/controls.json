@@ -1,0 +1,629 @@
+{
+  "catalog_version": "1.0.0",
+  "updated": "2026-10-08",
+  "policy": "Required-if-applicable, never auto-certifies an implementation. Profiles: desktop, lan, saas, paid, ai, regulated.",
+  "references": [
+    "https://owasp.org/projects/asvs",
+    "https://csrc.nist.gov/pubs/sp/800/218/final",
+    "https://www.w3.org/TR/WCAG22/",
+    "https://www.pdpc.gov.eg/"
+  ],
+  "controls": [
+    {
+      "id": "PRO-01",
+      "slug": "buyer-persona",
+      "category": "market",
+      "profiles": [
+        "desktop",
+        "lan",
+        "saas"
+      ],
+      "requirement": "Describe the real economic buyer and five user jobs",
+      "acceptance_evidence": "G0 competitor/source and customer evidence",
+      "required_if_applies": true,
+      "implementation_status": "planned"
+    },
+    {
+      "id": "PRO-02",
+      "slug": "single-paid-journey",
+      "category": "market",
+      "profiles": [
+        "desktop",
+        "lan",
+        "saas"
+      ],
+      "requirement": "One paid vertical slice, observable success/failure and exclusions",
+      "acceptance_evidence": "G1 written acceptance test",
+      "required_if_applies": true,
+      "implementation_status": "planned"
+    },
+    {
+      "id": "PRO-03",
+      "slug": "competitor-research",
+      "category": "market",
+      "profiles": [
+        "desktop",
+        "lan",
+        "saas"
+      ],
+      "requirement": "Compare available regional/world competitors with dates and price/feature links",
+      "acceptance_evidence": "G0 dated research; UNKNOWN where inaccessible",
+      "required_if_applies": true,
+      "implementation_status": "planned"
+    },
+    {
+      "id": "PRO-04",
+      "slug": "commercial-terms",
+      "category": "market",
+      "profiles": [
+        "desktop",
+        "lan",
+        "saas"
+      ],
+      "requirement": "Scope, pricing model, trial, support limit, cancellation and customer handoff",
+      "acceptance_evidence": "G7 signed quote/terms",
+      "required_if_applies": true,
+      "implementation_status": "planned"
+    },
+    {
+      "id": "UX-01",
+      "slug": "design-system",
+      "category": "experience",
+      "profiles": [
+        "desktop",
+        "lan",
+        "saas"
+      ],
+      "requirement": "Shared tokens/navigation/table/form/error-state specifications",
+      "acceptance_evidence": "G2 design tokens and responsive screenshots",
+      "required_if_applies": true,
+      "implementation_status": "planned"
+    },
+    {
+      "id": "UX-02",
+      "slug": "language-direction",
+      "category": "experience",
+      "profiles": [
+        "desktop",
+        "lan",
+        "saas"
+      ],
+      "requirement": "Market-appropriate Arabic/English/RTL/LTR and locale/currency/time formats",
+      "acceptance_evidence": "G4 browser both directions",
+      "required_if_applies": true,
+      "implementation_status": "planned"
+    },
+    {
+      "id": "UX-03",
+      "slug": "accessible-interaction",
+      "category": "experience",
+      "profiles": [
+        "desktop",
+        "lan",
+        "saas"
+      ],
+      "requirement": "Keyboard, focus order, labels, errors, contrast, WCAG 2.2 AA target for web UI",
+      "acceptance_evidence": "G4 a11y audits and manual keyboard journey",
+      "required_if_applies": true,
+      "implementation_status": "planned"
+    },
+    {
+      "id": "UX-04",
+      "slug": "operator-feedback",
+      "category": "experience",
+      "profiles": [
+        "desktop",
+        "lan",
+        "saas"
+      ],
+      "requirement": "Loading/empty/saving/saved/error/denied/offline/retry states",
+      "acceptance_evidence": "G4 actual browser journey and failure injection",
+      "required_if_applies": true,
+      "implementation_status": "planned"
+    },
+    {
+      "id": "UX-05",
+      "slug": "help-onboarding",
+      "category": "experience",
+      "profiles": [
+        "desktop",
+        "lan",
+        "saas"
+      ],
+      "requirement": "First-run guided sample and direct user help",
+      "acceptance_evidence": "G6 user succeeds with no developer",
+      "required_if_applies": true,
+      "implementation_status": "planned"
+    },
+    {
+      "id": "IAM-01",
+      "slug": "first-run-admin",
+      "category": "identity",
+      "profiles": [
+        "desktop",
+        "lan",
+        "saas"
+      ],
+      "requirement": "Create unique admin at first run, secure recovery",
+      "acceptance_evidence": "G4 first-run and replay tests",
+      "required_if_applies": true,
+      "implementation_status": "planned"
+    },
+    {
+      "id": "IAM-02",
+      "slug": "secure-passwords",
+      "category": "identity",
+      "profiles": [
+        "desktop",
+        "lan",
+        "saas"
+      ],
+      "requirement": "Adaptive salted storage, login throttling and session revocation",
+      "acceptance_evidence": "G4 auth negative tests",
+      "required_if_applies": true,
+      "implementation_status": "planned"
+    },
+    {
+      "id": "IAM-03",
+      "slug": "server-authorization",
+      "category": "identity",
+      "profiles": [
+        "desktop",
+        "lan",
+        "saas"
+      ],
+      "requirement": "Deny-by-default on endpoints, object, field and export",
+      "acceptance_evidence": "G4 forced wrong-role API tests",
+      "required_if_applies": true,
+      "implementation_status": "planned"
+    },
+    {
+      "id": "IAM-04",
+      "slug": "admin-console",
+      "category": "identity",
+      "profiles": [
+        "desktop",
+        "lan",
+        "saas"
+      ],
+      "requirement": "Customer users/roles and company profile with server checks",
+      "acceptance_evidence": "G6 owner admin walkthrough",
+      "required_if_applies": true,
+      "implementation_status": "planned"
+    },
+    {
+      "id": "IAM-05",
+      "slug": "vendor-support",
+      "category": "identity",
+      "profiles": [
+        "desktop",
+        "lan",
+        "saas"
+      ],
+      "requirement": "Customer-approved temporary vendor session scoped/revocable/logged",
+      "acceptance_evidence": "G4 approval/revocation negative tests",
+      "required_if_applies": true,
+      "implementation_status": "planned"
+    },
+    {
+      "id": "IAM-06",
+      "slug": "no-default-credentials",
+      "category": "identity",
+      "profiles": [
+        "desktop",
+        "lan",
+        "saas"
+      ],
+      "requirement": "Production rejects static demo credentials or shortcuts",
+      "acceptance_evidence": "G4 production-mode negative test",
+      "required_if_applies": true,
+      "implementation_status": "planned"
+    },
+    {
+      "id": "DATA-01",
+      "slug": "data-inventory",
+      "category": "data",
+      "profiles": [
+        "desktop",
+        "lan",
+        "saas"
+      ],
+      "requirement": "Classify private/finance/health/children data, ownership and retention",
+      "acceptance_evidence": "G1 data map and sign-off",
+      "required_if_applies": true,
+      "implementation_status": "planned"
+    },
+    {
+      "id": "DATA-02",
+      "slug": "auditable-writes",
+      "category": "data",
+      "profiles": [
+        "desktop",
+        "lan",
+        "saas"
+      ],
+      "requirement": "Record writer, time and correction; never silent hard-delete of financial history",
+      "acceptance_evidence": "G4 audit and reverse operation checks",
+      "required_if_applies": true,
+      "implementation_status": "planned"
+    },
+    {
+      "id": "DATA-03",
+      "slug": "retry-safe-writes",
+      "category": "data",
+      "profiles": [
+        "desktop",
+        "lan",
+        "saas"
+      ],
+      "requirement": "Idempotency on create/payment/import/retry and concurrent edits",
+      "acceptance_evidence": "G4 duplicate/race scenario",
+      "required_if_applies": true,
+      "implementation_status": "planned"
+    },
+    {
+      "id": "DATA-04",
+      "slug": "consistent-reports",
+      "category": "data",
+      "profiles": [
+        "desktop",
+        "lan",
+        "saas"
+      ],
+      "requirement": "UI/exports totals agree with source; locale-safe dates/currency",
+      "acceptance_evidence": "G4 reconciled golden fixtures",
+      "required_if_applies": true,
+      "implementation_status": "planned"
+    },
+    {
+      "id": "DATA-05",
+      "slug": "verified-backup",
+      "category": "data",
+      "profiles": [
+        "desktop",
+        "lan",
+        "saas"
+      ],
+      "requirement": "Verified backup and independent clean-machine restore",
+      "acceptance_evidence": "G6 backup + different PC restore proof",
+      "required_if_applies": true,
+      "implementation_status": "planned"
+    },
+    {
+      "id": "DATA-06",
+      "slug": "safe-migrations",
+      "category": "data",
+      "profiles": [
+        "desktop",
+        "lan",
+        "saas"
+      ],
+      "requirement": "Schema/version change rehearsed, no silent data loss",
+      "acceptance_evidence": "G5 downgrade and rollback test",
+      "required_if_applies": true,
+      "implementation_status": "planned"
+    },
+    {
+      "id": "SEC-01",
+      "slug": "appsec-threats",
+      "category": "security",
+      "profiles": [
+        "desktop",
+        "lan",
+        "saas"
+      ],
+      "requirement": "Threat model for entrypoints, dependencies and trust boundaries",
+      "acceptance_evidence": "G2 reviewer accepted threat scenarios",
+      "required_if_applies": true,
+      "implementation_status": "planned"
+    },
+    {
+      "id": "SEC-02",
+      "slug": "secrets-protection",
+      "category": "security",
+      "profiles": [
+        "desktop",
+        "lan",
+        "saas"
+      ],
+      "requirement": "No secrets in repository/browser/logs and safe rotation",
+      "acceptance_evidence": "G4 scan + secret-handling tests",
+      "required_if_applies": true,
+      "implementation_status": "planned"
+    },
+    {
+      "id": "SEC-03",
+      "slug": "injection-defense",
+      "category": "security",
+      "profiles": [
+        "desktop",
+        "lan",
+        "saas"
+      ],
+      "requirement": "Validate input, output escape, prepared queries, file path control, CSRF where relevant",
+      "acceptance_evidence": "G4 targeted negative tests",
+      "required_if_applies": true,
+      "implementation_status": "planned"
+    },
+    {
+      "id": "SEC-04",
+      "slug": "transport-session",
+      "category": "security",
+      "profiles": [
+        "desktop",
+        "lan",
+        "saas"
+      ],
+      "requirement": "Appropriate TLS/loopback/LAN trust, secure cookies or tokens, timeout",
+      "acceptance_evidence": "G4 deployment-mode attack checks",
+      "required_if_applies": true,
+      "implementation_status": "planned"
+    },
+    {
+      "id": "SEC-05",
+      "slug": "dependency-supply-chain",
+      "category": "security",
+      "profiles": [
+        "desktop",
+        "lan",
+        "saas"
+      ],
+      "requirement": "Lock deps, license inventory, SCA, release build provenance",
+      "acceptance_evidence": "G5 CI evidence/SBOM where applicable",
+      "required_if_applies": true,
+      "implementation_status": "planned"
+    },
+    {
+      "id": "SEC-06",
+      "slug": "security-response",
+      "category": "security",
+      "profiles": [
+        "desktop",
+        "lan",
+        "saas"
+      ],
+      "requirement": "Vulnerability contact, patch policy, redacted logs, response owner",
+      "acceptance_evidence": "G7 operational docs",
+      "required_if_applies": true,
+      "implementation_status": "planned"
+    },
+    {
+      "id": "BIZ-01",
+      "slug": "entitlement",
+      "category": "licensing",
+      "profiles": [
+        "paid"
+      ],
+      "requirement": "Features/seat/device limits authorized on trusted backend or verified local licence",
+      "acceptance_evidence": "G4 tampered-client/expiry test",
+      "required_if_applies": true,
+      "implementation_status": "planned"
+    },
+    {
+      "id": "BIZ-02",
+      "slug": "grace-renew",
+      "category": "licensing",
+      "profiles": [
+        "paid"
+      ],
+      "requirement": "Visible trial/active/grace/expired/renew/cancel states",
+      "acceptance_evidence": "G4 state transition tests",
+      "required_if_applies": true,
+      "implementation_status": "planned"
+    },
+    {
+      "id": "BIZ-03",
+      "slug": "customer-data-access",
+      "category": "licensing",
+      "profiles": [
+        "paid"
+      ],
+      "requirement": "No destructive lock; retain export/backup under expired plan",
+      "acceptance_evidence": "G4 expired account export and backup test",
+      "required_if_applies": true,
+      "implementation_status": "planned"
+    },
+    {
+      "id": "BIZ-04",
+      "slug": "license-signature",
+      "category": "licensing",
+      "profiles": [
+        "paid"
+      ],
+      "requirement": "Signed local licences; public verification key; private key off device",
+      "acceptance_evidence": "G4 tamper and offline grace test",
+      "required_if_applies": true,
+      "implementation_status": "planned"
+    },
+    {
+      "id": "BIZ-05",
+      "slug": "billing-events",
+      "category": "licensing",
+      "profiles": [
+        "paid"
+      ],
+      "requirement": "Verified provider webhook and idempotent reconciliation",
+      "acceptance_evidence": "G4 duplicate, replay, bad-signature test",
+      "required_if_applies": true,
+      "implementation_status": "planned"
+    },
+    {
+      "id": "OPS-01",
+      "slug": "versioned-release",
+      "category": "delivery",
+      "profiles": [
+        "desktop",
+        "lan",
+        "saas"
+      ],
+      "requirement": "Exact source->artifact SHA, changelog and rollback",
+      "acceptance_evidence": "G5 release proof",
+      "required_if_applies": true,
+      "implementation_status": "planned"
+    },
+    {
+      "id": "OPS-02",
+      "slug": "target-environment",
+      "category": "delivery",
+      "profiles": [
+        "desktop",
+        "lan",
+        "saas"
+      ],
+      "requirement": "Installer or hosted deployment proven on clean target environment",
+      "acceptance_evidence": "G5/G6 field log",
+      "required_if_applies": true,
+      "implementation_status": "planned"
+    },
+    {
+      "id": "OPS-03",
+      "slug": "incident-recovery",
+      "category": "delivery",
+      "profiles": [
+        "desktop",
+        "lan",
+        "saas"
+      ],
+      "requirement": "Recovery plan, support ownership, rollback and retention",
+      "acceptance_evidence": "G7 tested drill",
+      "required_if_applies": true,
+      "implementation_status": "planned"
+    },
+    {
+      "id": "OPS-04",
+      "slug": "test-matrix",
+      "category": "delivery",
+      "profiles": [
+        "desktop",
+        "lan",
+        "saas"
+      ],
+      "requirement": "Unit/integration/browser/security, negative/permission/migration/recovery",
+      "acceptance_evidence": "G4 linked passing evidence",
+      "required_if_applies": true,
+      "implementation_status": "planned"
+    },
+    {
+      "id": "OPS-05",
+      "slug": "safe-agent-changes",
+      "category": "delivery",
+      "profiles": [
+        "desktop",
+        "lan",
+        "saas"
+      ],
+      "requirement": "Expected repo/branch before write; PR+review; no force-push",
+      "acceptance_evidence": "G4 PR source and changes review",
+      "required_if_applies": true,
+      "implementation_status": "planned"
+    },
+    {
+      "id": "TEN-01",
+      "slug": "tenant-isolation",
+      "category": "tenancy",
+      "profiles": [
+        "saas"
+      ],
+      "requirement": "Queries, files, caches, jobs, exports, AI retrieval scoped to verified tenant",
+      "acceptance_evidence": "G4 cross-tenant adversarial tests",
+      "required_if_applies": true,
+      "implementation_status": "planned"
+    },
+    {
+      "id": "TEN-02",
+      "slug": "hosted-operations",
+      "category": "tenancy",
+      "profiles": [
+        "saas"
+      ],
+      "requirement": "Hosted backups, monitoring, health checks, quotas, secret isolation",
+      "acceptance_evidence": "G5 hosted staging evidence",
+      "required_if_applies": true,
+      "implementation_status": "planned"
+    },
+    {
+      "id": "LAN-01",
+      "slug": "network-boundary",
+      "category": "local-network",
+      "profiles": [
+        "lan"
+      ],
+      "requirement": "Allowed LAN interfaces, session and private network controls",
+      "acceptance_evidence": "G4 remote/wrong-origin checks",
+      "required_if_applies": true,
+      "implementation_status": "planned"
+    },
+    {
+      "id": "LAN-02",
+      "slug": "disconnect-recovery",
+      "category": "local-network",
+      "profiles": [
+        "lan"
+      ],
+      "requirement": "Interrupted peer/network and safe conflict/replay handling",
+      "acceptance_evidence": "G4 network cut + rejoin test",
+      "required_if_applies": true,
+      "implementation_status": "planned"
+    },
+    {
+      "id": "AI-01",
+      "slug": "tool-allowlist",
+      "category": "agentic",
+      "profiles": [
+        "ai"
+      ],
+      "requirement": "Agent tool access limited and auditable to current actor/org",
+      "acceptance_evidence": "G4 untrusted prompt attempts to escalate",
+      "required_if_applies": true,
+      "implementation_status": "planned"
+    },
+    {
+      "id": "AI-02",
+      "slug": "human-approval",
+      "category": "agentic",
+      "profiles": [
+        "ai"
+      ],
+      "requirement": "Explicit approval for irreversible money/customer/destructive actions",
+      "acceptance_evidence": "G4 negative tool action under injection",
+      "required_if_applies": true,
+      "implementation_status": "planned"
+    },
+    {
+      "id": "AI-03",
+      "slug": "source-provenance",
+      "category": "agentic",
+      "profiles": [
+        "ai"
+      ],
+      "requirement": "Source traceability, no fabricated success/evidence",
+      "acceptance_evidence": "G4 verified citations/data replay",
+      "required_if_applies": true,
+      "implementation_status": "planned"
+    },
+    {
+      "id": "REG-01",
+      "slug": "regional-review",
+      "category": "compliance",
+      "profiles": [
+        "regulated"
+      ],
+      "requirement": "Legal applicability, jurisdiction, data transfer, qualified reviewer",
+      "acceptance_evidence": "G7 human legal review",
+      "required_if_applies": true,
+      "implementation_status": "planned"
+    },
+    {
+      "id": "REG-02",
+      "slug": "sensitive-data-extra",
+      "category": "compliance",
+      "profiles": [
+        "regulated"
+      ],
+      "requirement": "Explicit retention/access/rights/encryption, audit and independent security review",
+      "acceptance_evidence": "G7 signed risk acceptance",
+      "required_if_applies": true,
+      "implementation_status": "planned"
+    }
+  ]
+}
