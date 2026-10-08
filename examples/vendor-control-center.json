@@ -35,7 +35,7 @@
     "ai_agents": true,
     "regulated_overlay": false
   },
-  "stage": "research",
+  "stage": "prototype",
   "competitors": [],
   "acceptance": [
     "A help request from a customer app appears with a redacted bundle the customer previewed before sending.",
@@ -51,7 +51,36 @@
     "clean_device_restore": "PENDING",
     "core_user_acceptance": "PENDING"
   },
-  "control_evidence": {},
+  "control_evidence": {
+    "SUP-01": {
+      "status": "implemented",
+      "proof": "apps/control-center tests (15) on branch ccr-1f89d847-fic531; not deployed"
+    },
+    "SUP-03": {
+      "status": "implemented",
+      "proof": "apps/control-center tests (15) on branch ccr-1f89d847-fic531; not deployed"
+    },
+    "SUP-04": {
+      "status": "implemented",
+      "proof": "apps/control-center tests (15) on branch ccr-1f89d847-fic531; not deployed"
+    },
+    "AI-04": {
+      "status": "implemented",
+      "proof": "apps/control-center tests (15) on branch ccr-1f89d847-fic531; not deployed"
+    },
+    "IAM-05": {
+      "status": "implemented",
+      "proof": "apps/control-center tests (15) on branch ccr-1f89d847-fic531; not deployed"
+    },
+    "DATA-02": {
+      "status": "implemented",
+      "proof": "apps/control-center tests (15) on branch ccr-1f89d847-fic531; not deployed"
+    },
+    "ARCH-03": {
+      "status": "implemented",
+      "proof": "apps/control-center tests (15) on branch ccr-1f89d847-fic531; not deployed"
+    }
+  },
   "features": [
     "install-registry",
     "licence-desk",

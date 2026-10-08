@@ -1,5 +1,5 @@
 {
-  "catalog_version": "1.2.0",
+  "catalog_version": "1.3.0",
   "updated": "2026-10-08",
   "policy": "Required-if-applicable, never auto-certifies an implementation. Profiles: desktop, lan, saas, paid, ai, regulated, sync, mobile, multi_site, multi_owner, windows. Connectivity tier cloud_sync activates sync and saas.",
   "references": [
@@ -1024,8 +1024,8 @@
       "profiles": [
         "windows"
       ],
-      "requirement": "Installer and executables Authenticode-signed with timestamp under one publisher identity; version info set; no UPX packing",
-      "acceptance_evidence": "Signature check on the downloaded artifact",
+      "requirement": "Trust stage recorded (ADR-0004): stage A ships unsigned only when installed by the vendor or via the verified updater, with Ed25519-signed installer/updates and published SHA-256; stage C requires Authenticode signing with timestamp under one publisher identity. Version info set; no UPX packing",
+      "acceptance_evidence": "Release record naming the stage; signature or SHA-256 check on the delivered artifact",
       "required_if_applies": true,
       "implementation_status": "planned"
     },
@@ -1134,6 +1134,18 @@
       ],
       "requirement": "AI agents reach customer data only through the vendor control center: read by default, repo changes via PR and human merge, customer-side repair only from a tested allowlist under live grant, vendor approval and audit; tickets/logs treated as untrusted input",
       "acceptance_evidence": "Prompt-injection ticket test and denied out-of-grant repair action",
+      "required_if_applies": true,
+      "implementation_status": "planned"
+    },
+    {
+      "id": "REL-05",
+      "slug": "customer-pc-safety",
+      "category": "release",
+      "profiles": [
+        "windows"
+      ],
+      "requirement": "Installation never asks the customer to disable antivirus, add broad exclusions or trust a vendor root certificate; false positives are submitted to Microsoft; Smart App Control handled with the customer owner's consent",
+      "acceptance_evidence": "Install checklist signed off on a clean Windows 11 PC",
       "required_if_applies": true,
       "implementation_status": "planned"
     }

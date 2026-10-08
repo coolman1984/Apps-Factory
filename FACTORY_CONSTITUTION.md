@@ -60,4 +60,5 @@
 - Hand-written cryptography, signing keys in a repository/CI/customer build, or one key for both licences and updates.
 - Customer databases inside the program folder; an installer or uninstaller that can delete customer data.
 - Permanent unattended remote passwords by default; AI agents with shell or SQL access to customer machines.
+- Asking customers to disable antivirus, add broad exclusions or install our root certificate to make an unsigned build run.
 - Claiming unsupported compliance/security certifications.

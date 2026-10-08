@@ -24,6 +24,7 @@
 10. Return: what changed, exact commit/PR, tests actually run, checks skipped, field checks pending, and next commercial decision.
 
 ## Shared packages available now
+- `apps/control-center`: Vendor Control Center (registry, heartbeats, tickets, consented grants, allowlisted repairs, licence desk). AI agents use its `agent` token: read and request only.
 - `packages/af-license`: signed licences and update manifests (Ed25519 via `cryptography`). Use it instead of any copied signing file. Private keys never enter a repository, CI secret or build.
 
 ## Credentials and owner support

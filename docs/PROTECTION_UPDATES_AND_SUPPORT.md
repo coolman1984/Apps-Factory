@@ -12,7 +12,7 @@ No software protection is unbreakable. The goal is to make copying **inconvenien
 | L2 Activation | Offline: app shows a request code (device fingerprint) → vendor returns a signed licence via WhatsApp/e-mail. Online (cloud tiers): activation and seat count on the hub | free | one licence on many PCs |
 | L3 Compiled build | Commercial builds compiled with **Nuitka** (Apache-2.0, free core) instead of shipping Python bytecode; no `.py` sources, debug off, no secrets inside the binary | free | casual one-line patching of Python files |
 | L4 Tamper evidence | Signed hash list of our own files checked at start; clock-rollback guard (latest time seen stored in the DB) | free | clumsy patching, turning the PC clock back to stay in trial |
-| L5 Code signing | Authenticode-signed installer and EXE with timestamp, same publisher name every release | ~€ per year (see §6) | "unknown publisher" warnings; modified copies lose our signature |
+| L5 Code signing | Stage A (now): our own Ed25519 signature on installer and updates + published SHA-256, installed by us; stage C: Authenticode certificate ([ADR-0004](decisions/ADR-0004-windows-trust-without-certificate.md)) | free now, ~€ per year later | tampered installers/updates (now); "unknown publisher" warnings (later) |
 | L6 Business | Customer name shown in the header and on receipts; updates and support only for valid licences; fair price; cloud features live on the hub | free | silent resale; a cracked copy gets no updates/support/cloud |
 
 **Never:** hand-written crypto; trusting the algorithm field in a file; a hidden kill switch; deleting, hiding or encrypting customer data when a licence fails (expiry = read/export/backup mode, constitution §7–8); spyware; claiming "uncrackable".
@@ -73,7 +73,7 @@ The AI agent (Claude or any strong agent) connects to the **Vendor Control Cente
 ## 6. What still costs money (the honest minimum)
 | Item | Why no free path | Indicative cost (verify) |
 |---|---|---|
-| Authenticode code-signing certificate | Windows/SmartScreen trust; Azure Artifact Signing (~$9.99/month) accepts individuals only in the US/Canada and organizations in the EU/UK | Certum Standard Code Signing in the cloud listed around €189 (validity now ≤ 460 days per certificate); check Egyptian eligibility and identity verification route |
+| Authenticode code-signing certificate (**deferred**, ADR-0004 stage C) | Windows/SmartScreen trust; Azure Artifact Signing (~$9.99/month) accepts individuals only in the US/Canada and organizations in the EU/UK | Certum Standard Code Signing in the cloud listed around €189 (validity now ≤ 460 days per certificate); check Egyptian eligibility and identity verification route |
 | Small server for the Control Center, GlitchTip, RustDesk relay | they must be reachable 24/7 | a small VPS, roughly $5–10/month class; free tiers are fine for trials only |
 | Domain name | HTTPS origin for PWA, updates and support | small yearly fee |
 Even signed builds can trigger SmartScreen until reputation builds: sign every release with the same identity, keep version info, avoid UPX packing, prefer one-folder builds, and submit false positives to Microsoft.

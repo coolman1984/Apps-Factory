@@ -31,6 +31,8 @@
 | مزامنة سحابية (الأعلى) | `cloud_sync` | كل جهاز يكمل أوفلاين ويتزامن بعدين، موبايل وفروع وملاك متعددين |
 | سحابي بالكامل | `cloud_only` | مش فارقة، بس محتاج نت |
 
+🗼 **برج المراقبة (النسخة الأولى شغالة):** [apps/control-center](apps/control-center/README.md) • ✍️ **البداية من غير شهادة ويندوز:** [القرار](docs/decisions/ADR-0004-windows-trust-without-certificate.md) و[دليل التركيب للعميل](templates/CUSTOMER_INSTALL_GUIDE_AR.md)
+
 🛡️ **الحماية والتحديث والدعم:** رخص موقّعة (قطعة جاهزة في `packages/af-license`)، نسخ مترجمة وموقّعة، تحديثات موقّعة مابتلمسش بيانات العميل، وبرج مراقبة للعملاء والأعطال والدعم عن بعد بإذن العميل. [التفاصيل](docs/PROTECTION_UPDATES_AND_SUPPORT.md) • [مواصفات برج المراقبة](examples/vendor-control-center.json)
 
 📌 [خطة البناء](docs/BUILD_PLAN.md) • [قرار المعمارية ADR-0001](docs/decisions/ADR-0001-architecture-and-connectivity-tiers.md) • [قواعد المزامنة](docs/CONNECTIVITY_AND_SYNC.md) • [مثال الباقة الأعلى](examples/multi-branch-reference.json)
