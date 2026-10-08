@@ -28,8 +28,8 @@ try{
     assert.equal(await page.locator("#profileName").textContent(),"CINEMATIC");
   });
   await test("deterministic seek and manual scrub",async()=>{
-    await page.locator("#intensity").fill("80");
-    await page.locator("#time").fill("1650");
+    await page.locator("#intensity").evaluate(el=>{el.value="80";el.dispatchEvent(new Event("input",{bubbles:true}))});
+    await page.locator("#time").evaluate(el=>{el.value="1650";el.dispatchEvent(new Event("input",{bubbles:true}))});
     const a=await page.evaluate(()=>{window.__AF_CREATIVE__.seek(2500);return document.querySelector('[data-depth="0.88"]').getAttribute("style")});
     const b=await page.evaluate(()=>{window.__AF_CREATIVE__.seek(2500);return document.querySelector('[data-depth="0.88"]').getAttribute("style")});
     assert.equal(a,b);
