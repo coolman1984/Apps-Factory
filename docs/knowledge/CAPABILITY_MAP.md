@@ -4,7 +4,7 @@ Status words follow the constitution: `planned` → `implemented` → `verified`
 
 | Capability | Where | Status | Use it for |
 |---|---|---|---|
-| Product specification gate | `scripts/factory.py new/check/doctor`, `factory/product.schema.json`, `controls.json` (114 controls) | implemented | Every new product starts with a manifest (`examples/al-store-product.json`) |
+| Product specification gate | `scripts/factory.py new/check/doctor`, `factory/product.schema.json`, `controls.json` (116 controls) | implemented | Every new product starts with a manifest (`examples/al-store-product.json`) |
 | Signed licences (JSON documents) | `packages/af-license` core | implemented | Paid editions, update manifests |
 | **Licence codes** (144-char, device-bound, Ed25519) | `packages/af-license/af_license/codes.py` + stdlib verifier `ed25519_verify.py`, vendored by `scripts/vendor_licence.py` | implemented, cross-tested with Al-Store | 14-day trials that cannot be passed to another PC |
 | **Licence Studio** (برنامج الأكواد) | `apps/licence-studio` — encrypted key, issue/verify/list, agent requests, audit, WhatsApp hand-off | implemented | The owner makes codes; agents check and request |
@@ -16,12 +16,15 @@ Status words follow the constitution: `planned` → `implemented` → `verified`
 | Office mesh sync | Hessa `server/sync.py` | implemented in Hessa | Products whose PCs must keep working alone |
 | The Watch / owner's eye | Hessa `journal`/watch, Al-Store `server/reports.py::watch` | implemented in 2 products | Money-leak detection |
 | Help standard (Guide me / Solve a problem, Egyptian Arabic) | `docs/HELP_AND_GUIDANCE_STANDARD.md`, `Store/web/i18n/help-*.js` | implemented | Every product |
-| Compiled Windows build + installer | Hessa `tools/build_windows.py` (Nuitka) + Inno Setup, BAMS installer, Atrium installer | implemented per product, not shared yet | Next shared piece |
+| Compiled Windows build + installer | `templates/windows-installer` (from Al-Store: Nuitka + Inno Setup + smoke test + workflow); Hessa, BAMS, Atrium have their own | **verified** on a real Windows runner (Al-Store, Actions run 3); clean-PC install by a person still pending | Every Windows product |
+| Junk-input robustness test | Al-Store `tests/test_fuzz.py` (control QA-02) | verified in Al-Store; found 20+ crashes and 6 real bugs | Every product with write routes |
+| Product → Control Center heartbeat | Al-Store `server/support.py` (opt-in, exact fields, secrets outside the DB); contract-tested against the Control Center model | implemented, contract-tested | SUP-01/04 in every product |
+| Barcode on receipts + sticker labels | Al-Store `web/js/barcode.js` (Code 128 SVG, decoded by a scanner library in the check) | verified in Al-Store | Any shop product |
 | Chrome DevTools automation | `opening-nerp-tcode` (G-MES), Store UI Lab uses CDP for throttling | verified in production automation | Testing, RPA, measurement |
 | Windows desktop automation via accessibility | `win-agent-desktop` | implemented | Agents testing desktop apps |
 | Promo films from real screens | `Animation` studio + `promo-video-generator` | implemented | Marketing each product (capture with UI Lab screenshots or `lib/app-capture.mjs`) |
 | WebGPU visual effects | `shaders` fork | external | Marketing pages only |
 
 ## Gaps (honest)
-Shared Windows installer + embedded Python; signed update channel used by a product; product ↔ Control Center heartbeat library;
+Signed update channel used by a product; a shared (not copied) heartbeat client library; support grant/repair UI in products;
 ETA e-receipt integration (Egypt); a shared sync package extracted from Hessa; field-verified anything.
