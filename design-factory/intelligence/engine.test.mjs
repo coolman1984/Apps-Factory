@@ -1,0 +1,10 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {sources,validate,recommend,report} from './engine.mjs';
+test('registry is valid',()=>assert.deepEqual(validate(),[]));
+test('rejects duplicate ids',()=>assert.match(validate([...sources,sources[0]]).join(),/duplicate/));
+test('rejects invalid URLs',()=>assert.match(validate([{...sources[0],url:'javascript:alert(1)'},...sources.slice(1)]).join(),/invalid URL/));
+test('unverified source remains disabled',()=>assert.equal(sources.find(s=>s.id==='inspora').enabled,false));
+test('POS references include real UX',()=>assert.ok(recommend('pos').some(s=>s.id==='mobbin')));
+test('video references include motion',()=>assert.ok(recommend('video').some(s=>s.id==='movez')));
+test('report discloses offline limits',()=>assert.ok(report('app').limitations.some(s=>s.includes('No website'))));
