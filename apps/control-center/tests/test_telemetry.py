@@ -13,6 +13,7 @@ import unittest
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from unittest import mock
+from urllib.parse import urlparse
 
 APP = Path(__file__).resolve().parents[1]
 ROOT = APP.parents[1]
@@ -325,8 +326,9 @@ class FanOut(Base):
                 self.assertEqual(status["telegram"], "sent")
                 self.assertEqual(status["linkedin"], "unsupported", "never faked, never a public post")
                 self.assertEqual(status["email"], "sent", "LinkedIn's limit does not block the others")
-                self.assertTrue(any("api.telegram.org" in u for u, _ in posts))
-                self.assertFalse(any("linkedin" in u for u, _ in posts))
+                hosts = {urlparse(u).hostname for u, _ in posts}
+                self.assertIn("api.telegram.org", hosts)
+                self.assertFalse(any(h.endswith("linkedin.com") for h in hosts))
         finally:
             for k in list(os.environ):
                 if k.startswith(("CC_SMTP", "CC_ALERT", "CC_WA_", "CC_TG_", "CC_LINKEDIN")):
