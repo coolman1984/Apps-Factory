@@ -36,8 +36,8 @@ TOOLS = [
     {'name': 'get_code', 'description': 'One issued code by its serial (8 hex characters).', 'inputSchema': {**S(serial=STR), 'required': ['serial']}},
     {'name': 'verify_code', 'description': 'Check a code a customer pasted: valid?, state, terms, and whether this studio issued it. '
      'Give the device code for a full check.', 'inputSchema': {**S(code=STR, product=STR, device=STR), 'required': ['code', 'product']}},
-    {'name': 'request_code', 'description': 'Ask the owner to approve a code (any edition). The owner sees it on the Requests page.',
-     'inputSchema': {**S(product=STR, device=STR, customer=STR, phone=STR, edition={'type': 'string', 'enum': ['trial', 'standard', 'pro']},
+    {'name': 'request_code', 'description': 'Ask the owner to approve a trial, monthly, lifetime or legacy code. Paid codes need owner approval.',
+     'inputSchema': {**S(product=STR, device=STR, customer=STR, phone=STR, edition={'type': 'string', 'enum': ['trial', 'monthly', 'lifetime', 'standard', 'pro']},
                          days=INT, note=STR), 'required': ['product', 'customer']}},
     {'name': 'issue_trial_code', 'description': 'Issue a trial code tied to a device code (max 14 days). Works only if the owner '
      'allowed agents to issue trials and the studio is unlocked; otherwise it becomes a request for the owner.',
