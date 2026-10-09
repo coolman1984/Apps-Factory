@@ -12,8 +12,8 @@ Docs diet (review item A12). Agents and people read three files, not 27. No code
 
 | File | Where it went |
 |---|---|
-| `FACTORY_CONSTITUTION.md` | `docs/archive/` (essentials in `RULES.md`; decisions in `DECISIONS.md`) |
-| `docs/OPEN_POINTS.md` | `docs/archive/` (merged into `DECISIONS.md`) |
+| `FACTORY_CONSTITUTION.md` | `docs/archive/` (essentials in `RULES.md`; decisions in `DECISIONS.md`); a 3-line redirect stub stays at the old path because Store/CLAUDE.md names it |
+| `docs/OPEN_POINTS.md` | `docs/archive/` (merged into `DECISIONS.md`); a 3-line redirect stub stays at the old path because `alerts.py` and the relay README name it |
 | `docs/MARKET_AND_STANDARDS.md` | `docs/archive/` |
 | `docs/REPOSITORY_AUDIT.md` | `docs/archive/` (see `docs/knowledge/REPO_MAP.md`) |
 | `docs/COMMERCIAL_PLATFORM_BENCHMARK.md` | `docs/archive/` |
