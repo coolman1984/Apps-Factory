@@ -1,4 +1,4 @@
-# af-license v0.1.0 • signed licences and update manifests
+# af-license v0.3.0 • signed licences, trial/monthly/perpetual codes and update manifests
 
 **Status:** `implemented` (unit-tested here). Not yet `verified` inside a shipped product or field-accepted.
 Controls: `BIZ-04`, `PROT-02`, `PROT-04`, `REL-02`. Spec: [docs/PROTECTION_UPDATES_AND_SUPPORT.md](../../docs/PROTECTION_UPDATES_AND_SUPPORT.md).
