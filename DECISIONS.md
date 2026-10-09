@@ -4,6 +4,14 @@ Dated owner decisions, newest first. Only decisions recorded in the repository a
 
 ## Decided
 
+### 2026-10-09 — Integrated Pixel Plus execution plan, Telegram approvals and partner modules
+- **Approved direction:** local-first Egyptian small-business software, modular product + four connectivity/packaging plans; no enterprise complexity or automatic cloud spending. [Execution roadmap](docs/PIXEL_PLUS_EXECUTION_ROADMAP_2026.md) gives sequence and honest delivery statuses.
+- **Owner Telegram activation journey requested:** Store sends a minimal consented 14-day trial request; owner approves/denies in a private Telegram chat; local trusted Licence Studio signs device-bound code with its offline encrypted key; only requester receives/verifies code, owner receives the code for manual offline fallback. **Approval/signing and device delivery are NOT implemented.** No remote bot/cloud signing key and no charge/issue of paid code without verified human payment authorization. See [activation design](docs/TELEGRAM_APPROVED_ACTIVATION.md).
+- **Rafaa direction:** included small factual/role-limited radar in suitable products and optional deeper monthly/perpetual growth-finance add-on. It reuses Accounting-sys, and all legal rule updates must cite official current sources plus professional sign-off; no misleading promise of replacing legal professionals. [Proposal](docs/RAFAA_GROWTH_DECISION_ADDON_PROPOSAL.md) merged for research, **no functionality or prices approved as delivered**.
+- **Pixel Plus × Sanad Business Advisory direction:** optional human consulting/coaching service sold separately, with explicit customer opt-in and least-privilege data access. Exact sales/commission/support/privacy terms remain **OPEN** pending owner's Sunday 2026-10-11 briefing. [Partner plan](docs/PIXEL_PLUS_SANAD_PARTNER_OPERATING_MODEL.md).
+- **Priority:** Store pilot and Windows/data field acceptance first; Telegram activation and off-device encrypted backup before broader commercial claims; demo/visual QA, Rafaa and showroom in phased PRs. Independent review agent vs implementation agent; only green tests and evidence permit merge.
+
+
 ### 2026-10-09 — Al-Store activation kinds
 - The owner asked for three kinds of activation code: a **14-day trial**, a **monthly subscription** and a **permanent activation**. A permanent code is device-bound and never ends. The Studio defaults for a monthly code are 30 days + 3 grace days. The owner can change both in the Studio.
 - Prices are **not** decided here (still open below).
