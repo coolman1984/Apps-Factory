@@ -1,8 +1,10 @@
+> Reference spec. Living rules: [RULES.md](../RULES.md); parts: [PARTS.md](../PARTS.md).
+
 # Customer patch pipeline and the customer Telegram bot (design only)
 
 Status: **design, no code yet**. Recorded 2026-10-09 (Cairo); owner decisions taken at 09:11–09:13.
 Builds on [PRIVACY_TELEMETRY_STANDARD.md](PRIVACY_TELEMETRY_STANDARD.md) (events, consent, relay, Control Center) and
-[OPEN_POINTS.md](OPEN_POINTS.md).
+[DECISIONS.md](../DECISIONS.md).
 
 ## 1. Scope
 
@@ -48,7 +50,7 @@ Rules:
   - The owner decided all customer delivery stays free, so this option is **rejected (no payment)**. It is not an open point.
 - **No automated WhatsApp to customers.** This is the anti-ban rule MSG-01: one message at a time, sent by a person.
 - **Owner alerts** go to Telegram + email + dashboard. Telegram is a **core** channel (decided 09:26), on as soon as it is
-  configured. The WhatsApp owner-alert open point is **superseded by Telegram** (see §7 and [OPEN_POINTS.md](OPEN_POINTS.md)).
+  configured. The WhatsApp owner-alert open point is **superseded by Telegram** (see §7 and [DECISIONS.md](../DECISIONS.md)).
 
 ### 3.1 In-app notice: proposed contract
 

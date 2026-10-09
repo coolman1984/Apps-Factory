@@ -55,7 +55,7 @@ Each lesson comes from a real history file. A rule that caught a real bug outran
 ## Licence codes (factory, this session)
 - Two processes created two install IDs because each test used a new temp folder → the device code differed. Share the data folder; the device code is part of the contract and must be stable.
 - The verifier must be stdlib-only so a product does not need `cryptography`; a test checks the vendored copy is byte-identical to the package.
-- Locked ≠ hostage: an expired product still reads, exports and backs up (constitution: never hold customer data).
+- Locked ≠ hostage: an expired product still reads, exports and backs up (RULES.md, BIZ-03: never hold customer data).
 
 ## Films and motion (Animation repo CRAFT / QUALITY_PLAYBOOK)
 - Every motion has a cause; blur only while moving; exact rest state; no looping decoration on working screens.

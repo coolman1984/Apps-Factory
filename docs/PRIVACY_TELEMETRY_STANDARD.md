@@ -1,3 +1,5 @@
+> Reference spec. Living rules: [RULES.md](../RULES.md); parts: [PARTS.md](../PARTS.md).
+
 # Consent, telemetry and problem reports (af-consent, af-telemetry)
 
 - **Decision:** [ADR-0007](decisions/ADR-0007-consent-telemetry-feedback.md).
@@ -104,4 +106,4 @@ The manifest records this:
   - Alert text carries rule names, counts and ids, never customer records. A problem report goes out as its ticket number, category, page and a dashboard link. The customer's own words stay on the dashboard.
   - Alerts are queued while events are stored, and sent afterwards by a background sender, outside the database lock. A slow mail server never freezes the dashboard.
 
-Open cost and verification points for the relay and the alert channels are listed in [OPEN_POINTS.md](OPEN_POINTS.md).
+Open cost and verification points for the relay and the alert channels are listed in [DECISIONS.md](../DECISIONS.md).

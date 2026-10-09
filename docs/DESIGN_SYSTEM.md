@@ -1,8 +1,11 @@
+> Reference spec. Living rules: [RULES.md](../RULES.md); parts: [PARTS.md](../PARTS.md).
+
 # Factory design system — "Showroom" (af-ui v0.1) 🎨
 
 **Status:** `implemented` in one product (Al-Store 1.0) and the Licence Studio; shared as `packages/af-ui`. Control `UX-09`.
-It upgrades [UX_DESIGN_STANDARD.md](UX_DESIGN_STANDARD.md) (which stays the rulebook for states, forms and RTL) with a concrete,
-measured visual language. A product may re-brand the tokens; it may not drop the rules below.
+It is the one rulebook for the look, the states, the forms and RTL (§9 holds the rules of the retired UX standard, now in
+[docs/archive](archive/UX_DESIGN_STANDARD.md)). A product may re-brand the tokens; it may not drop the rules below.
+Browser tooling and visual QA live in [design-factory](../design-factory/README.md) (tokens in `design-factory/core/`).
 
 ## 1. The idea in one line
 A calm floor, cards that sit at clear heights, one bright action per screen, and motion that always has a cause.
@@ -52,4 +55,17 @@ dialog / side panel / bottom sheet / command palette (focus trap, Esc, return fo
 ## 8. How to adopt in a new product
 Copy `packages/af-ui/{css,fonts,img}` (or serve it, as the Licence Studio does), re-brand tokens in `tokens.css` only, build pages
 with the classes above, run `tests/test_frontend.py`-style static checks and the UI Lab. Changes to af-ui itself need two consumer
-products checked before a version bump (UX_DESIGN_STANDARD "component contract").
+products checked before a version bump (§9 "Component contract").
+
+## 9. States, forms, shell and RTL (merged from the retired UX standard)
+**Goal:** products feel like one quality brand, but each expert workflow is shaped by its user. Standardise tokens, meanings, states, forms and controls, not every business dashboard.
+- **Shell:** sidebar or rail on desktop, phone menu or bottom dock when the task flow needs it; top bar with context, search, role, language, user menu and connection state. For canvas, 3D or editor products, keep the shell small and give the canvas priority.
+- **Page header:** a human title, what the person can do here, one clear primary action, optional contextual help.
+- **Tables:** readable sticky headers, an explicit count, search, sort, filters, server paging, clear export meaning, keyboard navigation.
+- **Forms:** visible labels, grouped fields, required or optional, inline validation, a save state, no double submit, confirmation for risky actions, undo or reversal where it makes sense.
+- **Dashboards:** only measures that drive a decision, with date, filters and source; no decorative charts.
+- **Empty and error states:** an empty page says why and offers one next action; a connection error offers retry; "denied" explains the role and never leaks restricted records.
+- **Responsive:** check phone, tablet and desktop, 200% zoom, touch targets, keyboard-only and screen-reader basics.
+- **Arabic and English:** mirror RTL properly (do not rotate charts, numeric codes or logos); Arabic line height built for reading; date, currency and number formats per market; strings come from message catalogues (tests cover parity and truncation); contrast and focus rings stay consistent; save, load and error messages use live regions.
+- **Motion and disclosure:** motion explains navigation or state and honours reduced motion; advanced admin pages stay hidden until relevant, but the server still enforces every permission; help is plain language checked with real operators; onboard with isolated demo data and one 3-step goal, not a tour of 60 buttons.
+- **Component contract:** for every shared component write its behaviour, tokens, error and empty states, RTL and dark behaviour, keyboard semantics, accessibility test, owner and version. Review changes on two example apps before publishing as shared.

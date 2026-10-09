@@ -1,3 +1,5 @@
+> Reference spec. Living rules: [RULES.md](../RULES.md); parts: [PARTS.md](../PARTS.md).
+
 # Access and administration standard: people, profiles, pages and permissions
 
 **Status:** `implemented` as a gate (`packages/af-access`, tested). Source of the pattern: **BAMS** (`coolman1984/Mr.Ayman-HR`,

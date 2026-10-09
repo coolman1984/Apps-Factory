@@ -1,3 +1,5 @@
+> Reference spec. Living rules: [RULES.md](../RULES.md); parts: [PARTS.md](../PARTS.md).
+
 # Hidden diagnostics probe
 
 Controls: `DIAG-01` … `DIAG-03`. Builds on [PROTECTION_UPDATES_AND_SUPPORT.md](PROTECTION_UPDATES_AND_SUPPORT.md) and `apps/control-center`.

@@ -1,3 +1,5 @@
+> Reference spec. Living rules: [RULES.md](../RULES.md); parts: [PARTS.md](../PARTS.md).
+
 # Mandatory adversarial test stories
 
 These are examples of tests to implement per actual attack surface. They do **not** assert that tests or security code have been executed inside Apps-Factory.

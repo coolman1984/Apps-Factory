@@ -1,3 +1,5 @@
+> Reference spec. Living rules: [RULES.md](../RULES.md); parts: [PARTS.md](../PARTS.md).
+
 # Connectivity tiers and offline-first cloud sync
 
 Decision record: [ADR-0001](decisions/ADR-0001-architecture-and-connectivity-tiers.md). Controls: `ARCH-*`, `SYNC-*`, `MOB-*`, `SITE-*`, `OWN-*`, `BIZ-06`, `OPS-06` in `factory/controls.json`.
@@ -33,10 +35,10 @@ A customer moves up a tier by configuration + device enrollment. `ARCH-02/03` ma
 |---|---|---|---|
 | **A. Append-only event** | receipt issued, payment, reversal, attendance mark, trip log | always allowed | union; dedupe by `change_id`; corrections are new reversal events |
 | **B. Field-mergeable record** | student/customer profile, notes, contact data | allowed | per-field last-writer-wins by HLC; losing value kept in audit and shown in conflict log |
-| **C. Hub-confirmed** | capacity/seat limits, stock below zero, legal/tax numbers, cash-shift close, role/permission/plan changes, hard deletes, data-region change | blocked, **or** recorded as *pending confirmation* that may be rejected | hub decides; rejection creates visible compensating task, never silent |
+| **C. Hub-confirmed** | capacity/seat limits, stock below zero, official tax numbers, cash-shift close, role/permission/plan changes, hard deletes, data-region change | blocked, **or** recorded as *pending confirmation* that may be rejected | hub decides; rejection creates visible compensating task, never silent |
 | **D. Derived** | balances, totals, dashboards, reports | computed locally | never synced as truth; recomputed from A/B |
 
-Money: balances are always class D derived from class A ledger events. No offline edit of a closed shift. Internal document numbers are device-safe (`<prefix>-<device code>-<sequence>`); any legally regulated number (e.g. tax e-receipt) is class C and needs legal review — **UNKNOWN** until reviewed per market.
+Money: balances are always class D derived from class A ledger events. No offline edit of a closed shift. Internal document numbers are device-safe (`<prefix>-<device code>-<sequence>`); any officially numbered document (e.g. tax e-receipt) is class C and its rules are **UNKNOWN** until checked per market.
 
 ## 4. Change envelope (wire contract)
 Draft contract: [`factory/contracts/sync-envelope.schema.json`](../factory/contracts/sync-envelope.schema.json). Every change carries: `change_id` (UUIDv7, idempotency), `org_id`, `branch_id`, `device_id`, `actor_id`, `entity`, `entity_id`, `op`, `class`, `hlc` (hybrid logical clock), `author_time` (device claim, untrusted), `schema_version`, `protocol_version`, `base_version` for class B, and `payload`. The hub adds `hub_seq` and `received_at`.
@@ -53,9 +55,9 @@ Draft contract: [`factory/contracts/sync-envelope.schema.json`](../factory/contr
 
 ## 6. Versions, deletions, backups
 - **Version skew (`SYNC-08`):** hub accepts protocol N and N-1; older clients go read-only with an "update" message. Event upcasters convert old payloads. Mixed-version fleets are tested.
-- **Deletes (`SYNC-10`):** tombstones; legal erasure is a hub command that offline devices execute on reconnect; hub tracks replicas still holding erased data.
+- **Deletes (`SYNC-10`):** tombstones; erasure is a hub command that offline devices execute on reconnect; hub tracks replicas still holding erased data.
 - **Replicas are not backups (`SYNC-11`):** a bad delete syncs everywhere. Hub point-in-time backups + scheduled export + main-PC local backup. After a hub restore the hub bumps an **epoch**; devices on an older epoch upload their outbox to quarantine for review, then re-bootstrap, so restored-away data is not resurrected.
-- **Exit right:** each site can export its full scope locally even if the vendor/hub is gone (constitution §8).
+- **Exit right:** each site can export its full scope locally even if the vendor/hub is gone (BIZ-03 in RULES.md).
 
 ## 7. Mobile PWA realities (`MOB-*`)
 - Needs a trusted **HTTPS** origin for install + offline (service worker). Office LAN IPs do not provide that → mobile requires a cloud tier.
@@ -78,7 +80,7 @@ Deterministic simulation in CI, plus one field drill:
 6. Class-C capacity oversold by two offline devices → one rejected with visible compensation.
 7. Client N-2 connects → read-only + update prompt, no corruption.
 8. Hub restored from backup → epoch bump, no resurrection.
-9. Legal erasure while a phone is offline → purged on reconnect.
+9. Erasure while a phone is offline → purged on reconnect.
 10. 30 days offline device exceeds grace → read/export only.
 11. Upgrade a customer from `office_server` to `cloud_sync` → all records keep IDs and history.
 12. Power cut on the main PC during sync and during backup → consistent.

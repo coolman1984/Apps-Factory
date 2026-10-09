@@ -2,7 +2,7 @@
 
 - **Date:** 2026-10-08
 - **Status:** ACCEPTED by owner as the factory default (session decision, 2026-10-08). Library-level picks marked *spike* below stay **pending evidence**.
-- **Scope:** every new product manifest using `schema_version` 1.1. Existing products migrate only through `docs/ADOPTION_PLAN.md`.
+- **Scope:** every new product manifest using `schema_version` 1.1. Existing products migrate only through `docs/archive/ADOPTION_PLAN.md`.
 
 ## Context
 The owner's apps (Teachers/Hessa, Yousef-Transportation, rest-house management, HR-System, Business-Template, 3D-Modeling) repeat the same capabilities in different copies: login/permissions (3 diverging copies), device sync (3 similar engines), backup (3 apps), a byte-identical signing file, and 3 storage engines. The owner wants a "Meccano" factory: small independent pieces with one standard plug, and **commercial tiers** from one PC up to multi-branch, multi-owner, offline-capable cloud sync with phones.
@@ -42,13 +42,13 @@ Rules enforced by `scripts/factory.py`:
 - `cloud_sync` requires `offline_grace_days` (bounded offline authority) and `data.residency`; it activates `sync` **and** `saas` controls (the hub is a hosted multi-tenant service).
 
 ## Decision 4 — Hybrid factory product
-Mechano libraries **plus** an optional ready base app (shell, login, users, roles, settings, backup, licence, sync status). The base app is **extracted from Hessa after its pilot works**, not designed in a vacuum. A capability becomes shared only after two products consume it with cross-product tests (constitution §18).
+Mechano libraries **plus** an optional ready base app (shell, login, users, roles, settings, backup, licence, sync status). The base app is **extracted from Hessa after its pilot works**, not designed in a vacuum. A capability becomes shared only after two products consume it with cross-product tests (rule: shared only after two products consume it).
 
 ## Consequences
 - Upgrading a customer from `office_server` to `cloud_sync` must not require re-keying or rewriting records (proved by a migration test in the pilot).
 - Offline-capable mobile means some validation also exists in TypeScript. Mitigation: mobile offline is **capture-only** for declared actions; the hub re-validates everything; shared rule vectors run against both implementations.
 - Cloud tier has recurring hosting cost; it is a paid tier. "Free" applies to app-store fees and open-source tooling, not to hosting.
-- Personal data leaving the premises (cloud tiers) triggers privacy/transfer legal review before any pilot (Egypt Law 151/2020 + Executive Regulations; children's data in tutoring centres needs explicit review).
+- Personal data leaving the premises (cloud tiers) needs the owner's decision on where data is stored and consent first, before any pilot (children's data in tutoring centres needs extra care).
 
 ## Open owner decisions (not decided here)
 1. Cloud provider, hosting region and monthly budget ceiling per customer.

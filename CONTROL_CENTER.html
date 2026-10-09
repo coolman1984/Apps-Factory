@@ -69,7 +69,7 @@ a{color:#3150d8}footer{max-width:1160px;margin:auto;padding:0 16px 26px;color:va
 <h3>ملف المواصفات الناتج</h3>
 <pre id="output">اضغط «إنشاء مواصفات المشروع» لعرض ملف بصيغة قابلة للاستخدام مع أي وكيل برمجي.</pre>
 <p class="note">المصنع مش بيجمع أو يرفع البيانات دي لأي موقع. التحميل والنسخ بيتموا على جهازك فقط.</p>
-<p><a href="FACTORY_CONSTITUTION.md">الدستور</a> · <a href="docs/MARKET_AND_STANDARDS.md">المعايير</a> · <a href="docs/REPOSITORY_AUDIT.md">مراجعة مشاريعك</a> · <a href="AGENTS.md">تعليمات الوكيل</a></p>
+<p><a href="RULES.md">القواعد</a> · <a href="PARTS.md">القطع المشتركة</a> · <a href="DECISIONS.md">القرارات</a> · <a href="AGENTS.md">تعليمات الوكيل</a></p>
 </section>
 </main>
 <footer>نسخة تأسيسية ١.١ • لا تعتبر ملف المواصفات تنفيذًا لبرنامج أو شهادة امتثال. أي اشتراكات أو حسابات عميل لازم تتنفّذ وتُختبر فعلًا.</footer>
@@ -128,7 +128,7 @@ setTimeout(function(){URL.revokeObjectURL(u)},1000);status("📁 تم تجهيز
 });
 $("copy").addEventListener("click",function(){
 var data=build();if(!data)return;
-var prompt="اقرأ AGENTS.md وFACTORY_CONSTITUTION.md و docs/CONNECTIVITY_AND_SYNC.md و docs/MARKET_AND_STANDARDS.md. الباقة: "+data.connectivity.tier+". ادرس السوق والمنافسين بمصادر حقيقية ثم ابنِ رحلة العميل الأساسية فقط. "+data.name+"، التشغيل: "+data.deployment+"، السوق: "+data.markets.join(",")+". الالتزام التام بقواعد الدخول والصلاحيات والاشتراكات والنسخ الاحتياطي والأمان بدون كلمات مرور ثابتة أو أبواب خلفية. اجمع الأدلة قبل الإطلاق. ملف المواصفات: "+JSON.stringify(data);
+var prompt="اقرأ AGENTS.md وRULES.md وPARTS.md و docs/CONNECTIVITY_AND_SYNC.md. الباقة: "+data.connectivity.tier+". ادرس السوق والمنافسين بمصادر حقيقية ثم ابنِ رحلة العميل الأساسية فقط. "+data.name+"، التشغيل: "+data.deployment+"، السوق: "+data.markets.join(",")+". الالتزام التام بقواعد الدخول والصلاحيات والاشتراكات والنسخ الاحتياطي والأمان بدون كلمات مرور ثابتة أو أبواب خلفية. اجمع الأدلة قبل الإطلاق. ملف المواصفات: "+JSON.stringify(data);
 if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(prompt).then(function(){status("✅ تم نسخ التعليمات؛ أرفق ملف المواصفات مع المستودع.")},function(){status("تعذّر النسخ تلقائيًا؛ انسخ محتوى المواصفات الظاهر.")})}
 else{status("النسخ غير متاح في هذا المتصفح؛ استخدم محتوى المواصفات الظاهر.")}
 });

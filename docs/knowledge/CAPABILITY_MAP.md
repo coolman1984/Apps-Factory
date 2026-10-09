@@ -1,6 +1,6 @@
 # Capability map 🧰 — what the factory can do today, and where it lives
 
-Status words follow the constitution: `planned` → `implemented` → `verified` → `field_accepted`.
+Status words follow RULES.md: `planned` → `implemented` → `verified` → `field_accepted`.
 
 | Capability | Where | Status | Use it for |
 |---|---|---|---|
