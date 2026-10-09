@@ -74,14 +74,14 @@ and tests the runtime rules with forced wrong-role API calls (role-denial tests,
 
 `python packages/af-access/af_access.py matrix catalogue.json ar` prints the matrix for the owner's review.
 
-## 5. Adoption
+## 5. Adoption (2026-10-09)
 
-| Product | Before | After this standard |
+| Product | Before | Result |
 |---|---|---|
 | BAMS (reference) | Full model | Exported as `packages/af-access/examples/bams-catalogue.json`; passes the gate |
-| Hessa (Teachers) | Full BAMS model + teacher scope | Gate in tests; findings fixed |
-| Trip Orders (Yousef) | Full BAMS model | Gate in tests; findings fixed |
-| Al-Store | Four fixed roles in code + per-person extra/removed ticks | Editable profiles, administrator group, page permissions, lock-out guard, permission changes in the audit, gate in tests |
+| Hessa (Teachers) | Full BAMS model + teacher scope | Gate in `tests/test_access_gate.py`: no finding. Added *Who can do what* |
+| Trip Orders (Yousef) | Full BAMS model, copied earlier than Hessa | Gate found: ready-made profiles had no Arabic names; a new person was saved under the wrong profile name (Hessa had fixed it, Trip Orders not); "Money" sat in Pages but opens no page. All fixed; *Who can do what* added |
+| Al-Store | Four fixed roles in code + per-person extra/removed ticks | 1.1.0: editable profiles, page permissions for Products/Stock/Customers enforced on the server, administrator group, **lock-out bug fixed** (removing a tick from the only owner locked the shop out), audit of ticks added/removed, *Who can do what*; gate in `tests/test_access.py` |
 
 ## Sources
 - OWASP ASVS 5.0, chapter V8 Authorization — https://github.com/OWASP/ASVS/blob/master/5.0/en/0x17-V8-Authorization.md

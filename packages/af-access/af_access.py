@@ -125,15 +125,19 @@ def check(cat):
         if pid in seen_ids:
             bad('profile-duplicate', str(pid), 'Two profiles share an id.')
         seen_ids.add(pid)
-        for lang, name in (_labels(pr) or {'en': pr.get('name', '')}).items():
+        names = _labels(pr) or {'en': pr.get('name', '')}
+        for lang in langs:
+            if not str(names.get(lang) or '').strip():
+                bad('label-missing', f'profile {pid}:{lang}', 'Every ready-made profile needs a name in every language.')
+        for lang, name in names.items():
             key = (lang, str(name).strip().lower())
+            if not key[1]:
+                continue
             if key[1] in RESERVED_PROFILE_NAMES:
                 bad('profile-reserved-name', str(pid), '"Custom" means "own set of ticks"; a profile cannot be called that.')
             if key in seen_names:
                 bad('profile-duplicate', str(pid), f'Same name as profile "{seen_names[key]}".')
             seen_names[key] = pid
-        if not (_labels(pr) or pr.get('name')):
-            bad('label-missing', f'profile {pid}', 'A profile needs a name.')
         held = set(pr.get('perms', []))
         for x in sorted(held - known):
             bad('profile-unknown-perm', str(pid), f'"{x}" is not a permission.')

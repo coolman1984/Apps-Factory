@@ -46,25 +46,26 @@ class Catalogue(unittest.TestCase):
         self.assertEqual(A.check(tiny()), [])
 
     def test_each_rule_fires(self):
-        cases = {
-            'perm-id': lambda c: c['groups'][1]['permissions'][0].update(id='Sales Return'),
-            'perm-duplicate': lambda c: c['groups'][1]['permissions'].append(copy.deepcopy(c['groups'][1]['permissions'][0])),
-            'perm-kind': lambda c: c['groups'][1]['permissions'][1].update(kind='secret'),
-            'label-missing': lambda c: c['groups'][1]['permissions'][1]['labels'].pop('ar'),
-            'requires-unknown': lambda c: c['groups'][1]['permissions'][0].update(requires=['nope.view']),
-            'admin-group': lambda c: c['groups'][2].update(admin=False),
-            'manage-not-admin': lambda c: c.update(manage='cost.view'),
-            'manage-missing': lambda c: c.update(manage='people.manage'),
-            'page-unguarded': lambda c: c['pages'].update(sales=[]),
-            'page-unknown-perm': lambda c: c['pages'].update(sales=['sales.see']),
-            'locked-profile': lambda c: c['profiles'][0]['perms'].remove('cost.view'),
-            'profile-unknown-perm': lambda c: c['profiles'][1]['perms'].append('ghost.do'),
-            'profile-duplicate': lambda c: c['profiles'].append(dict(c['profiles'][1], id='cashier2')),
-            'profile-reserved-name': lambda c: c['profiles'][1]['labels'].update(en='Custom'),
-            'profile-missing-requires': lambda c: c['profiles'][1]['perms'].remove('sales.view'),
-            'no-work-profile': lambda c: c['profiles'][1]['perms'].append('users.manage'),
-        }
-        for code, breaks in cases.items():
+        cases = [
+            ('perm-id', lambda c: c['groups'][1]['permissions'][0].update(id='Sales Return')),
+            ('perm-duplicate', lambda c: c['groups'][1]['permissions'].append(copy.deepcopy(c['groups'][1]['permissions'][0]))),
+            ('perm-kind', lambda c: c['groups'][1]['permissions'][1].update(kind='secret')),
+            ('label-missing', lambda c: c['groups'][1]['permissions'][1]['labels'].pop('ar')),
+            ('requires-unknown', lambda c: c['groups'][1]['permissions'][0].update(requires=['nope.view'])),
+            ('admin-group', lambda c: c['groups'][2].update(admin=False)),
+            ('manage-not-admin', lambda c: c.update(manage='cost.view')),
+            ('manage-missing', lambda c: c.update(manage='people.manage')),
+            ('page-unguarded', lambda c: c['pages'].update(sales=[])),
+            ('page-unknown-perm', lambda c: c['pages'].update(sales=['sales.see'])),
+            ('locked-profile', lambda c: c['profiles'][0]['perms'].remove('cost.view')),
+            ('profile-unknown-perm', lambda c: c['profiles'][1]['perms'].append('ghost.do')),
+            ('profile-duplicate', lambda c: c['profiles'].append(dict(c['profiles'][1], id='cashier2'))),
+            ('label-missing', lambda c: c['profiles'][1]['labels'].pop('ar')),
+            ('profile-reserved-name', lambda c: c['profiles'][1]['labels'].update(en='Custom')),
+            ('profile-missing-requires', lambda c: c['profiles'][1]['perms'].remove('sales.view')),
+            ('no-work-profile', lambda c: c['profiles'][1]['perms'].append('users.manage')),
+        ]
+        for code, breaks in cases:
             with self.subTest(code=code):
                 cat = tiny()
                 breaks(cat)
