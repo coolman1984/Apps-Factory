@@ -311,5 +311,13 @@ class VendoredCopies(unittest.TestCase):
                                      f'{dest} is stale: run python scripts/vendor_telemetry.py <product repo>')
 
 
+class FingerprintShape(unittest.TestCase):
+    def test_fingerprint_is_letters_only(self):
+        for n in range(3000):
+            fp, _ = T.Telemetry.fingerprint(type("E%d" % n, (Exception,), {})())
+            self.assertRegex(fp, r"^[a-p]{16}$")
+            T.clean_data(T.TAXONOMY, "err.server", {"code": "E", "fingerprint": fp, "where": "a:b"})
+
+
 if __name__ == '__main__':
     unittest.main()

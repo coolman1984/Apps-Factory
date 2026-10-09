@@ -50,6 +50,9 @@ TAXONOMY = _taxonomy()
 
 ID_RE = re.compile(r'^[A-Za-z0-9][A-Za-z0-9_.:\-/]{0,79}$')
 LONG_DIGITS = re.compile(r'\d{8,}')
+# Fingerprints are hex hashes written with letters only (0-9 -> g-p), so a hash can never look like a long number and
+# be refused by the LONG_DIGITS rule (a phone or national-id guard).
+HEX_LETTERS = str.maketrans('0123456789', 'ghijklmnop')
 LIMITS = {'max_events': 5000, 'max_bytes': 5 * 1024 * 1024, 'max_age_days': 30, 'batch_bytes': 256 * 1024,
           'feedback_chars': 2000, 'sent_log': 200, 'backoff_min_s': 60, 'backoff_max_s': 6 * 3600}
 ENVS = {'real', 'practice'}
@@ -295,7 +298,8 @@ class Telemetry:
         frames = traceback.extract_tb(exc.__traceback__) if exc.__traceback__ else []
         own = [f for f in frames if root is None or str(f.filename).startswith(str(root))] or frames
         parts = [type(exc).__name__] + [f'{Path(f.filename).stem}:{f.name}' for f in own[-6:]]
-        return hashlib.sha256('|'.join(parts).encode()).hexdigest()[:16], (parts[-1] if len(parts) > 1 else parts[0])
+        digest = hashlib.sha256('|'.join(parts).encode()).hexdigest()[:16].translate(HEX_LETTERS)
+        return digest, (parts[-1] if len(parts) > 1 else parts[0])
 
     def capture(self, exc, where=None, status=500, root=None):
         """err.server for an exception: type, fingerprint and module:function only - never the message text."""

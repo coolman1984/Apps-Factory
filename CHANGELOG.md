@@ -12,6 +12,7 @@ Factory versions (the `README.md` version line). The control catalogue has its o
   - firm limits enforced in code: allowlisted IDs and counts only, a never-collect list, and `PrivacyError`;
   - pseudonymous per-person references, consent gating, and a purge when consent is declined or withdrawn;
   - error capture without message text;
+  - error fingerprints written with letters only (hex digits 0-9 mapped to g-p), so a hash can never look like a long number and be refused by the long-digit privacy guard;
   - problem reports with redaction, a preview, a digest check, and no consent needed;
   - a bounded outbox with hourly merge;
   - signed gzip batches with backoff;

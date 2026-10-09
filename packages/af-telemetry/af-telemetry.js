@@ -29,7 +29,8 @@
   function hash(s) {   // FNV-1a 32-bit, hex: enough to group the same browser error, says nothing about the person
     let h = 0x811c9dc5;
     for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; }
-    return ('0000000' + h.toString(16)).slice(-8);
+    // letters only (0-9 -> g-p), so a fingerprint never looks like a long number to the server's privacy guard
+    return ('0000000' + h.toString(16)).slice(-8).replace(/[0-9]/g, d => 'ghijklmnop'[d]);
   }
   function errorEvent(filename, line, col, kind) {
     const file = String(filename || 'inline').split(/[?#]/)[0].split('/').pop() || 'inline';
