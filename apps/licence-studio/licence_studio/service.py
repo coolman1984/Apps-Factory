@@ -34,7 +34,7 @@ except ImportError:  # running from the repository checkout
 
 LOCK_AFTER_SECONDS = 30 * 60
 AGENT_MAX_TRIAL_DAYS = 14
-EDITIONS = ('trial', 'standard', 'pro')
+EDITIONS = ('trial', 'monthly', 'lifetime', 'standard', 'pro')  # old standard/pro codes remain valid
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS products (id TEXT PRIMARY KEY, name TEXT NOT NULL, trial_days INTEGER NOT NULL DEFAULT 14,
@@ -213,7 +213,7 @@ class Studio:
         if not self.one('SELECT 1 FROM products WHERE id = ?', product):
             raise StudioError('product.unknown', 'Unknown product. Add it on the Products page first.', 404)
         if edition not in EDITIONS:
-            raise StudioError('edition', 'Edition must be trial, standard or pro.')
+            raise StudioError('edition', 'Edition must be trial, monthly, lifetime, standard or pro.')
         if device:
             try:
                 norm = codes.normalize(device)
@@ -224,15 +224,22 @@ class Studio:
             device = codes.group(norm, 5)
         if not (1 <= int(days) <= 3660):
             raise StudioError('days', 'Days must be 1 to 3660.')
+        if edition == 'monthly' and int(days) != 30:
+            raise StudioError('days.monthly', 'Monthly activation lasts exactly 30 days.')
+        if edition == 'lifetime' and int(days) != 1:
+            raise StudioError('days.lifetime', 'Lifetime activation has no duration.')
+        if edition in ('trial', 'monthly', 'lifetime') and not device:
+            raise StudioError('device.required', 'A device code is required for this licence type.')
         return device
 
     def issue(self, product, edition, device, customer='', phone='', days=None, first_day=None, grace_days=0, seats=1, note='',
               actor='owner', request_id=None):
         prod = self.one('SELECT * FROM products WHERE id = ?', product)
-        days = int(days or (prod['trial_days'] if prod and edition == 'trial' else 365))
+        default_days = prod['trial_days'] if prod and edition == 'trial' else 30 if edition == 'monthly' else 1 if edition == 'lifetime' else 365
+        days = int(days if days is not None else default_days)
         device = self._check_terms(product, edition, device, days)
-        if edition == 'trial' and not device:
-            raise StudioError('device.required', 'A trial code must be tied to the customer\'s device code (so it cannot be passed on).')
+        if edition == 'trial' and self.one("SELECT 1 FROM codes WHERE product = ? AND device = ? AND edition = 'trial'", product, device):
+            raise StudioError('trial.repeat', 'This device already received its trial. Issue a paid code instead.', 409)
         first = date.fromisoformat(first_day) if first_day else date.today()
         if first < date.today() - timedelta(days=1):
             raise StudioError('first_day', 'The first day cannot be in the past.')
@@ -242,7 +249,7 @@ class Studio:
             self.db.execute('INSERT INTO codes(serial, product, edition, device, customer, phone, first_day, last_day, grace_days, seats, code, kid, '
                             'note, issued_at, issued_by, request_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
                             (out['serial'], product, edition, device, (customer or '').strip()[:80], (phone or '').strip()[:20], out['first_day'],
-                             out['last_day'], int(grace_days), int(seats), out['code'], kid, (note or '').strip()[:300], now_iso(), actor,
+                             (out['last_day'] or '9999-12-31'), int(grace_days), int(seats), out['code'], kid, (note or '').strip()[:300], now_iso(), actor,
                              request_id))
         self.audit(actor, 'code.issue', {'serial': out['serial'], 'product': product, 'edition': edition, 'device': device,
                                          'days': days, 'customer': customer})
@@ -256,11 +263,14 @@ class Studio:
 
     def _decorate(self, c):
         today = date.today()
-        last = date.fromisoformat(c['last_day'])
-        c['days_left'] = (last - today).days + 1
-        c['status'] = ('not_started' if date.fromisoformat(c['first_day']) > today else 'active' if today <= last
+        permanent = c['edition'] == 'lifetime'
+        last = None if permanent else date.fromisoformat(c['last_day'])
+        c['permanent'] = permanent
+        c['last_day'] = None if permanent else c['last_day']
+        c['days_left'] = None if permanent else (last - today).days + 1
+        c['status'] = ('not_started' if date.fromisoformat(c['first_day']) > today else 'active' if permanent or today <= last
                        else 'grace' if today <= last + timedelta(days=c['grace_days']) else 'expired')
-        c['expiring_soon'] = c['status'] == 'active' and c['days_left'] <= 3
+        c['expiring_soon'] = c['status'] == 'active' and not permanent and c['days_left'] <= 3
         return c
 
     def list_codes(self, q='', product='', status='', limit=300):
@@ -294,7 +304,8 @@ class Studio:
     # ------------------------------------------------------------------ requests (agent → owner)
     def request(self, product, edition, device, customer, phone='', days=None, note='', actor='agent'):
         prod = self.one('SELECT * FROM products WHERE id = ?', product)
-        days = int(days or (prod['trial_days'] if prod and edition == 'trial' else 365))
+        default_days = prod['trial_days'] if prod and edition == 'trial' else 30 if edition == 'monthly' else 1 if edition == 'lifetime' else 365
+        days = int(days if days is not None else default_days)
         device = self._check_terms(product, edition, device, days)
         if not (customer or '').strip():
             raise StudioError('customer', 'Write the customer or shop name.')
