@@ -1,0 +1,6 @@
+[
+  "sale.no_shift",
+  "shift.drawer_mismatch",
+  "stock.not_enough",
+  "auth.forbidden"
+]

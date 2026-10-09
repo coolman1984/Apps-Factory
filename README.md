@@ -1,6 +1,6 @@
 # Apps Factory | مصنع التطبيقات 🏭
 
-**Version:** 0.5.0 — adds licence codes + Licence Studio (MCP), the Showroom design system (`af-ui`), the UI Lab (performance + accessibility) and the factory knowledge base • **Status:** standards, specs and tested shared pieces; first product built on them: [الستور](https://github.com/coolman1984/Store). Nothing here is field-verified yet.
+**Version:** 0.6.0 — adds the guided-onboarding engine `af-guide` (role courses, coach, per-page help, «العربية الميسّرة» lint; see [CHANGELOG](CHANGELOG.md)) • **Status:** standards, specs and tested shared pieces; first product built on them: [الستور](https://github.com/coolman1984/Store). Nothing here is field-verified yet.
 
 مستودع القواعد الموحدة اللي كل تطبيق تجاري جديد عندك يبدأ منه: بحث السوق، تصميم ثابت، إدارة وصلاحيات، اشتراكات وتراخيص، خصوصية، أمان، بيانات، نسخ احتياطي، اختبار، تشغيل ودعم. **التخصص فقط بيتغير، القاعدة لا تُنسخ عشوائيًا.**
 
@@ -27,6 +27,14 @@
 - اختبار جاهزية بيع **يُفشل المسودات عمدًا**: `python scripts/factory.py check test-app.json --release`
 - اختبارات أداة المصنع: `python -m unittest discover -s tests -v`
 - اختبارات قطعة الرخص: `cd packages/af-license && pip install -r requirements.txt && python -m unittest discover -s tests -v`
+
+## الجديد في 0.6 ✨
+- 🧭 **الدليل التفاعلي** [packages/af-guide](packages/af-guide/README.md) • [المعيار](docs/GUIDED_ONBOARDING_STANDARD.md):
+  - طريق لكل دور، ويُحفظ تقدّم كل شخص على الخادم.
+  - مرشد ينتقل وحده إلى الخطوة التالية.
+  - زر «؟» في كل صفحة، وكل رسالة خطأ تربط بشرح المشكلة.
+  - تبديل لغة الدليل، وفحص الأسلوب «العربية الميسّرة».
+- فحص الدليل: `python scripts/factory.py guide <product>/guide --release`
 
 ## الجديد في 0.5 ✨
 - 🔑 **برنامج الأكواد** [apps/licence-studio](apps/licence-studio/README.md): يطلع كود تجربة ١٤ يوم مربوط بجهاز واحد، بشاشة واضحة، والوكيل يتصل بيه بـ MCP.

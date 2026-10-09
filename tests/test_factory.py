@@ -215,3 +215,40 @@ class FactoryTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class GuideControls(unittest.TestCase):
+    """HELP-04 register, HELP-07..12 and the `guide` subcommand (packages/af-guide)."""
+    SHOP = ROOT / "packages/af-guide/examples/shop"
+
+    def test_help_controls(self):
+        by_id = {c["id"]: c for c in factory.catalog()}
+        self.assertIn("العربية الميسّرة", by_id["HELP-04"]["requirement"])
+        self.assertNotIn("Egyptian Arabic a", by_id["HELP-04"]["requirement"])
+        for n in range(7, 13):
+            c = by_id[f"HELP-{n:02d}"]
+            self.assertEqual(c["implementation_status"], "implemented")
+            self.assertTrue({"desktop", "lan", "saas"}.issubset(c["profiles"]))
+        ids = {c["id"] for c in factory.valid_product(factory.load(ROOT / "examples/hessa-product.json"))[1]}
+        self.assertTrue({"HELP-07", "HELP-12"}.issubset(ids))
+
+    def guide(self, folder, *extra):
+        cmd = [sys.executable, str(ROOT / "scripts/factory.py"), "guide", str(folder),
+               "--ui", str(self.SHOP / "ui-ar.json"), "--ui", str(self.SHOP / "ui-en.json"),
+               "--access", str(self.SHOP / "access.json"), "--errors", str(self.SHOP / "errors.json"), *extra]
+        return subprocess.run(cmd, capture_output=True, text=True, check=False)
+
+    def test_guide_command(self):
+        p = self.guide(self.SHOP, "--release")
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertIn("GUIDE OK", p.stdout)
+        with tempfile.TemporaryDirectory() as d:
+            for f in self.SHOP.iterdir():
+                (Path(d) / f.name).write_bytes(f.read_bytes())
+            ar = json.loads((Path(d) / "ar.json").read_text(encoding="utf-8"))
+            ar["guide.open-shift.why"] = "لازم تفتح الوردية عشان تبيع."
+            (Path(d) / "ar.json").write_text(json.dumps(ar, ensure_ascii=False), encoding="utf-8")
+            self.assertEqual(self.guide(d).returncode, 0)
+            p = self.guide(d, "--release")
+            self.assertEqual(p.returncode, 1)
+            self.assertIn("banned-word", p.stdout)
