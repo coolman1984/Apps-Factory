@@ -80,6 +80,31 @@ class CodeTests(unittest.TestCase):
         self.assertEqual(self.read(c, date(2026, 11, 10)).state, 'grace')
         self.assertEqual(self.read(c, date(2026, 11, 15)).state, 'expired')
 
+    def test_monthly_code_is_thirty_days_and_cannot_be_extended_silently(self):
+        c = codes.issue_code(self.pem, 'al-store', 'monthly', TODAY, 30, self.device, issued=TODAY)
+        self.assertEqual(c['last_day'], (TODAY + __import__('datetime').timedelta(days=29)).isoformat())
+        self.assertTrue(self.read(c['code'], TODAY + __import__('datetime').timedelta(days=29)).full_access)
+        self.assertEqual(self.read(c['code'], TODAY + __import__('datetime').timedelta(days=30)).state, 'expired')
+        with self.assertRaisesRegex(ValueError, 'monthly_is_30_days'):
+            codes.issue_code(self.pem, 'al-store', 'monthly', TODAY, 365, self.device)
+
+    def test_lifetime_never_expires_but_is_signed_and_device_bound(self):
+        c = codes.issue_code(self.pem, 'al-store', 'lifetime', TODAY, 1, self.device, issued=TODAY)
+        self.assertIsNone(c['last_day'])
+        self.assertTrue(c['permanent'])
+        for on_day in (TODAY, date(2099, 12, 31), date(9999, 12, 31)):
+            r = self.read(c['code'], on_day)
+            self.assertTrue(r.full_access)
+            self.assertTrue(r.terms['permanent'])
+            self.assertIsNone(r.terms['days_left'])
+            self.assertIsNone(r.terms['last_day'])
+        self.assertEqual(self.read(c['code'], device=codes.device_code('other-device')).reason, 'other_device')
+        with self.assertRaisesRegex(ValueError, 'lifetime_requires_device'):
+            codes.issue_code(self.pem, 'al-store', 'lifetime', TODAY, 1, None)
+        wrong = codes.normalize(c['code'])
+        altered = ('2' if wrong[45] != '2' else '3')
+        self.assertFalse(self.read(wrong[:45] + altered + wrong[46:]).valid)
+
     def test_garbage_never_raises(self):
         for text in ('', 'hello world', '!' * 144, 'Z' * 144, '0' * 143, None):
             r = codes.read_code(text or '', [self.pub], 'al-store', self.device, TODAY)
