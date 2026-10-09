@@ -2,6 +2,11 @@
 
 Factory versions (the `README.md` version line). The control catalogue has its own `catalog_version` in `factory/controls.json`.
 
+## 0.11.3 (2026-10-09)
+- Added owner-approved four-plan small-business offer independent of existing connectivity engine, with exact cloud-backup and mobile acceptance evidence required at release when `commercial_plan` is declared; legacy manifests unchanged.
+- Factory Windows contract CI on `windows-2025` for PR and main; guidance now requires each Windows product to build/install/test on PR and main and separately test clean-PC recovery. Store Windows workflow PR trigger proposed in companion PR.
+- Cloud restore, multi-device sync and installed mobile are **not implemented** by this release. No product functionality or existing customer data changed.
+
 ## 0.11.2 (2026-10-09)
 - **af-guide 0.1.2:** the guide button no longer reads «الدليلnull» when the person has no course (signed out, or a role without one). `replaceChildren` printed the missing badge. A new browser test fails on 0.1.1. Store vendors 0.1.2.
 - `examples/al-store-product.json`: IAM-01 is `verified` by Store 1.4.0's owner recovery code. `DECISIONS.md` records it.
