@@ -274,21 +274,21 @@
       "type": "object",
       "additionalProperties": false,
       "required": [
-        "market_review",
-        "privacy_review",
-        "security_review",
         "clean_device_restore",
         "core_user_acceptance"
       ],
       "properties": {
         "market_review": {
-          "type": "string"
+          "type": "string",
+          "description": "Legacy key from factory 0.9 and older; ignored."
         },
         "privacy_review": {
-          "type": "string"
+          "type": "string",
+          "description": "Legacy key from factory 0.9 and older; ignored."
         },
         "security_review": {
-          "type": "string"
+          "type": "string",
+          "description": "Legacy key from factory 0.9 and older; ignored."
         },
         "clean_device_restore": {
           "type": "string"

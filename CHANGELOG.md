@@ -2,6 +2,38 @@
 
 Factory versions (the `README.md` version line). The control catalogue has its own `catalog_version` in `factory/controls.json`.
 
+## 0.10.0 (2026-10-09)
+Rules cleanup (step 1 of the simplification). Controls catalogue 1.10.0: 138 controls became 107 (32 core, 75 reference), plus 24 merged ids and 7 retired ids.
+- **Core gate:** every control has `"tier": "core"` or `"reference"`. `check --release` fails only on applicable core controls without verified proof. Reference controls are printed as advice (count and ids) and never block. `doctor` prints the core, reference, merged and retired counts.
+- **The 32 core controls:** IAM-01, IAM-02, IAM-03, IAM-06, IAM-08, IAM-10, IAM-11, DATA-02, DATA-03, DATA-05, DATA-06, OPS-06, SEC-02, SEC-03, SEC-04, SEC-07, LIC-01, BIZ-03, REL-03, OPS-07, OPS-01, QA-02, UX-08, A11Y-01, PERF-01, HELP-07, HELP-09, HELP-11, PRIV-01, PRIV-03, TEL-01, FB-01.
+- **Merged** (survivor <- old ids; the survivor lists them in `merged_from`, and `factory.py controls <ID>` and manifests accept the old id):
+  - HELP-07 (every role has a path, the coach works, every guide is walked) <- HELP-01, HELP-02, HELP-08, HELP-12
+  - HELP-09 (every error code has a problem entry) <- HELP-03
+  - HELP-11 (Arabic wording, languages and style lint) <- HELP-04, HELP-10
+  - UX-05 (first run, no slideshow) <- HELP-05
+  - PRIV-01 (consent, kept append-only, can be withdrawn) <- PRIV-02
+  - PRIV-03 (allowlist and never-collect list, in code and in tests) <- PRIV-06, TEL-03, SUP-04
+  - FB-01 (problem report with preview) <- SUP-01
+  - SUP-03 (customer-approved remote help) <- IAM-05
+  - BIZ-03 (no data lock at expiry) <- PROT-04
+  - LIC-01 (signed licence codes) <- BIZ-04, PROT-02; now applies to paid products only
+  - BIZ-01 (licence limits) <- PROT-03
+  - A11Y-01 (axe and keyboard) <- UX-03
+  - PERF-01 (UI Lab budgets and effect cost) <- PERF-02
+  - UX-09 (af-ui tokens) <- UX-01
+  - QA-01 (one quality report) <- OPS-04
+  - SEC-04 (TLS, loopback and LAN trust) <- LAN-01
+  - IAM-08 (permission catalogue) <- IAM-04
+- **Retired** (listed in `retired` in `controls.json`; looking one up prints `retired: <reason>`):
+  - OPS-03: paperwork; the checkable parts are DATA-05 and OPS-01.
+  - OPS-05: now enforced by GitHub branch protection.
+  - HELP-06: a habit with no checkable outcome; HELP-07 and HELP-09 already fail when a guide or problem entry is missing.
+  - REG-01, REG-02: the gate has no outside-review step; consent (PRIV-01) and the never-collect limits (PRIV-03) are what is enforced.
+  - PRO-01, PRO-02: `check` already requires buyer, problem, core journey and an acceptance scenario in the manifest.
+- **Release evidence is two items:** `clean_device_restore` and `core_user_acceptance`. `market_review`, `privacy_review` and `security_review` are gone from the gate. Manifests that still carry them validate; the keys are ignored (the schema keeps them as optional legacy keys).
+- **Wording:** no law, legal or jurisdiction wording in the controls; SYNC-10 and SYNC-13 now state the practical outcome (erasure reaches every replica; the customer is told where data is stored). The advisory for cloud tiers says the same in plain words.
+- **Unchanged:** all packages, apps, templates, design-factory and workflows. Control ids that stay in the catalogue keep their ids.
+
 ## 0.9.0 (2026-10-09)
 Telemetry hardening (roadmap step 1; the product rollout is paused until this lands). Each fix has a regression test.
 - **Protocol 2 (simpler and safer):** batches go over HTTPS with the install token (`Authorization: Bearer`), and event ids de-duplicate.

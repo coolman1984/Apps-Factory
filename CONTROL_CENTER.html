@@ -111,7 +111,7 @@ has_personal_data:text("sensitivity")!=="ordinary",
 backup_restore_plan:"TODO: Rehearse backup and restore on a second clean device"},
 addons:{ai_agents:$("ai").checked,regulated_overlay:$("regulated").checked||text("sensitivity")==="regulated"},
 stage:"research",competitors:[],acceptance:["TODO: Define observable end-to-end user acceptance"],
-evidence:{market_review:"PENDING",privacy_review:"PENDING",security_review:"PENDING",clean_device_restore:"PENDING",core_user_acceptance:"PENDING"},
+evidence:{clean_device_restore:"PENDING",core_user_acceptance:"PENDING"},
 control_evidence:{},features:text("features").split("\n").map(function(x){return x.trim()}).filter(Boolean),exclusions:[]
 };
 if(cloud)data.data.residency="TODO: hosting region decided by owner";

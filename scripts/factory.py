@@ -25,17 +25,44 @@ PAID = {"subscription", "perpetual", "usage", "hybrid"}
 REQUIRED = ("schema_version", "id", "name", "deployment", "markets", "buyer",
             "problem", "core_journey", "monetization", "data", "addons",
             "stage", "competitors", "acceptance", "evidence")
-EVIDENCE = ("market_review", "privacy_review", "security_review",
-            "clean_device_restore", "core_user_acceptance")
+EVIDENCE = ("clean_device_restore", "core_user_acceptance")
+LEGACY_EVIDENCE = ("market_review", "privacy_review", "security_review")  # old manifests still carry them; ignored
+CONTROL_TIERS = {"core", "reference"}
 
 def load(path):
     with Path(path).open(encoding="utf-8") as file:
         return json.load(file)
 
-def catalog():
+def catalog_data():
     result = load(ROOT / "factory" / "controls.json")
     assert result["controls"] and len({c["id"] for c in result["controls"]}) == len(result["controls"])
-    return result["controls"]
+    return result
+
+def catalog():
+    return catalog_data()["controls"]
+
+def merged_map(data=None):
+    """Old control id -> the control that absorbed it."""
+    return {old: c["id"] for c in (data or catalog_data())["controls"] for old in c.get("merged_from", [])}
+
+def retired_map(data=None):
+    """Retired control id -> one-line reason."""
+    return {r["id"]: r["reason"] for r in (data or catalog_data()).get("retired", [])}
+
+def lookup(control_id):
+    """('control', control) | ('merged', survivor id) | ('retired', reason) | (None, None) for an id."""
+    data = catalog_data()
+    for c in data["controls"]:
+        if c["id"] == control_id:
+            return "control", c
+    if control_id in merged_map(data):
+        return "merged", merged_map(data)[control_id]
+    if control_id in retired_map(data):
+        return "retired", retired_map(data)[control_id]
+    return None, None
+
+def core_controls(controls):
+    return [c for c in controls if c["tier"] == "core"]
 
 def connectivity(product):
     """Explicit connectivity (schema 1.1) or the legacy default implied by deployment (schema 1.0)."""
@@ -117,12 +144,12 @@ def advisories(product):
     notes = []
     if link["tier"] == "office_server":
         notes.append("office_server: when the main PC is off, other devices cannot write. "
-                     "Say so in the contract or offer office_mesh / cloud_sync.")
+                     "Say so in the offer, or offer office_mesh / cloud_sync.")
     if link["tier"] == "office_mesh":
         notes.append("office_mesh: every joined PC works alone and merges later; conflicts need an administrator's decision (MESH-01).")
     if link["tier"] in CLOUD_TIERS and product["data"].get("has_personal_data"):
-        notes.append("Personal data leaves the premises: privacy_review must cover hosting region "
-                     "and cross-border transfer before any pilot.")
+        notes.append("Personal data leaves the premises: tell the customer where it is stored (data.residency) "
+                     "and keep their consent (PRIV-01) before any pilot.")
     if link["tier"] == "cloud_sync" and product["monetization"]["model"] == "free":
         notes.append("cloud_sync has recurring hosting cost; a free model needs a recorded owner exception.")
     if link["tier"] == "cloud_sync" and product["data"].get("has_financial_ledger"):
@@ -199,7 +226,7 @@ def valid_product(product, release=False):
         errors.append("Unknown stage")
     if not isinstance(product["competitors"], list):
         errors.append("competitors must be a list")
-    if not isinstance(product["evidence"], dict) or any(k not in product["evidence"] for k in EVIDENCE):
+    if not isinstance(product["evidence"], dict) or any(k not in product["evidence"] for k in EVIDENCE):  # legacy keys ignored
         errors.append("Missing evidence slots")
     errors.extend(connectivity_errors(product))
     errors.extend(telemetry_errors(product))
@@ -209,9 +236,8 @@ def valid_product(product, release=False):
     provided = product.get("control_evidence", {})
     if not isinstance(provided, dict):
         return ["control_evidence must be an object"], selected
-    ids = {c["id"] for c in catalog()}
     for k, v in provided.items():
-        if k not in ids:
+        if lookup(k)[0] is None:
             errors.append("Unknown control ID: " + k)
         if not isinstance(v, dict) or v.get("status") not in {"planned", "implemented", "verified", "field_accepted"}:
             errors.append("Invalid control state: " + k)
@@ -226,7 +252,7 @@ def valid_product(product, release=False):
             v = product["evidence"].get(k, "")
             if not isinstance(v, str) or not v.strip() or v.upper().startswith(("PENDING", "TODO", "UNKNOWN")):
                 errors.append("Unverified release evidence: " + k)
-        for control in selected:
+        for control in core_controls(selected):  # reference controls are advice, never a release error
             ev = provided.get(control["id"], {})
             if ev.get("status") not in {"verified", "field_accepted"} or not str(ev.get("proof", "")).strip():
                 errors.append("Missing verified proof: " + control["id"])
@@ -305,10 +331,11 @@ def main(argv=None):
     check.add_argument("product")
     check.add_argument("--release", action="store_true")
     sub.add_parser("doctor", help="Read catalog and schema and check consistency")
-    sub.add_parser("controls", help="List standard control IDs")
+    controls = sub.add_parser("controls", help="List control IDs, or look one up (merged and retired ids resolve)")
+    controls.add_argument("id", nargs="?", help="e.g. HELP-03 -> merged into HELP-09; REG-01 -> retired: reason")
     prompt = sub.add_parser("prompt", help="Print safe agent starting prompt for a product manifest")
     prompt.add_argument("product")
-    guide = sub.add_parser("guide", help="Check a product's guide folder with packages/af-guide (HELP-07..12)")
+    guide = sub.add_parser("guide", help="Check a product's guide folder with packages/af-guide (HELP-07, HELP-09, HELP-11)")
     guide.add_argument("folder", help="Folder with catalogue.json and <lang>.json")
     guide.add_argument("--ui", action="append", default=[], help="UI dictionary JSON per language (ui-ar.json, ui-en.json)")
     guide.add_argument("--access", help="af-access permission catalogue JSON")
@@ -319,7 +346,8 @@ def main(argv=None):
         if args.action == "guide":
             return guide_check(args)
         if args.action == "doctor":
-            controls = catalog()
+            data = catalog_data()
+            controls = data["controls"]
             schema = load(ROOT / "factory" / "product.schema.json")
             ids = [x["id"] for x in controls]
             if not schema.get("required") or not {"desktop", "lan", "saas"}.issubset(set(schema["properties"]["deployment"]["enum"])):
@@ -329,11 +357,40 @@ def main(argv=None):
             unknown = {p for c in controls for p in c["profiles"]} - PROFILES
             if unknown:
                 raise ValueError("Controls use unknown profiles: " + ", ".join(sorted(unknown)))
-            print(f"FACTORY READY: {len(ids)} unique controls; schema present. This does NOT verify a commercial product.")
+            bad_tier = [c["id"] for c in controls if c.get("tier") not in CONTROL_TIERS]
+            if bad_tier:
+                raise ValueError("Controls without a valid tier (core/reference): " + ", ".join(bad_tier))
+            merged, retired = merged_map(data), retired_map(data)
+            merged_count = sum(len(c.get("merged_from", [])) for c in controls)
+            if len(merged) != merged_count:
+                raise ValueError("An id is listed in merged_from twice")
+            clash = (set(merged) | set(retired)) & set(ids) | (set(merged) & set(retired))
+            if clash:
+                raise ValueError("Ids both live, merged or retired: " + ", ".join(sorted(clash)))
+            if not all(isinstance(r, str) and r.strip() for r in retired.values()):
+                raise ValueError("Every retired id needs a reason")
+            core = len(core_controls(controls))
+            print(f"FACTORY READY: {len(ids)} unique controls ({core} core = the release gate, {len(ids) - core} reference = advice), "
+                  f"{len(merged)} merged ids, {len(retired)} retired ids; schema present. "
+                  "This does NOT verify a commercial product.")
             return 0
         if args.action == "controls":
+            if args.id:
+                kind, found = lookup(args.id.upper())
+                if kind == "control":
+                    print(found["id"], f"[{found['tier']}]", found["requirement"])
+                    if found.get("merged_from"):
+                        print("  also covers:", ", ".join(found["merged_from"]))
+                elif kind == "merged":
+                    print(f"{args.id.upper()}: merged into {found}")
+                elif kind == "retired":
+                    print(f"{args.id.upper()}: retired: {found}")
+                else:
+                    print(f"{args.id.upper()}: unknown control", file=sys.stderr)
+                    return 2
+                return 0
             for c in catalog():
-                print(c["id"], c["slug"], "/".join(c["profiles"]))
+                print(c["id"], c["tier"], c["slug"], "/".join(c["profiles"]))
             return 0
         if args.action == "new":
             print("Created:", new_product(args), "(research only; complete acceptance and evidence before release)")
@@ -352,7 +409,11 @@ def main(argv=None):
                   "Never hardcode demo credentials in production. "
                   "Show exact tests, skipped checks, release limitations and required customer acceptance.")
             return 0
-        print(f"PRODUCT: {product.get('id', '?')} | applicable controls: {len(selected)}")
+        core = core_controls(selected)
+        print(f"PRODUCT: {product.get('id', '?')} | applicable controls: {len(selected)} (core {len(core)} = release gate)")
+        reference = [c["id"] for c in selected if c["tier"] != "core"]
+        if reference:
+            print(f"ADVICE: {len(reference)} reference controls apply; they never block a release: {', '.join(reference)}")
         if errors:
             for e in errors:
                 print("NO-GO:", e)

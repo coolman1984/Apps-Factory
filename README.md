@@ -1,6 +1,6 @@
 # Apps Factory | مصنع التطبيقات 🏭
 
-**Version:** 0.9.0 — telemetry hardening (token transport, nothing lost mid-batch, new PCs wait for approval, alerts sent outside the lock); Telegram is a core owner-alert channel; adds telemetry ingest, incidents, per-person usage and parallel multi-channel alerts to the Control Center, plus a Cloudflare relay template, on top of consent/telemetry (0.7.0) and the guide engine (0.6.0); see [CHANGELOG](CHANGELOG.md) • **Status:** standards, specs and tested shared pieces; first product built on them: [الستور](https://github.com/coolman1984/Store). Nothing here is field-verified yet.
+**Version:** 0.10.0 — rules cleanup: 32 core controls are the only release gate, the rest is advice; release evidence is two items (clean-device restore, first-customer acceptance); 0.9.0 was telemetry hardening (token transport, nothing lost mid-batch, new PCs wait for approval, alerts sent outside the lock); Telegram is a core owner-alert channel; adds telemetry ingest, incidents, per-person usage and parallel multi-channel alerts to the Control Center, plus a Cloudflare relay template, on top of consent/telemetry (0.7.0) and the guide engine (0.6.0); see [CHANGELOG](CHANGELOG.md) • **Status:** standards, specs and tested shared pieces; first product built on them: [الستور](https://github.com/coolman1984/Store). Nothing here is field-verified yet.
 
 مستودع القواعد الموحدة اللي كل تطبيق تجاري جديد عندك يبدأ منه: بحث السوق، تصميم ثابت، إدارة وصلاحيات، اشتراكات وتراخيص، خصوصية، أمان، بيانات، نسخ احتياطي، اختبار، تشغيل ودعم. **التخصص فقط بيتغير، القاعدة لا تُنسخ عشوائيًا.**
 
@@ -24,7 +24,7 @@
 - إنشاء وصف: `python scripts/factory.py new --id test-app --name "نظام تجريبي" --mode lan --market EG --output test-app.json`
 - إنشاء وصف بالباقة الأعلى (مزامنة سحابية + موبايل + فروع + ملاك متعددين): أضف `--tier cloud_sync --sites multi --clients windows_desktop,browser,mobile_pwa --multi-owner`
 - فحص مسودة: `python scripts/factory.py check test-app.json`
-- اختبار جاهزية بيع **يُفشل المسودات عمدًا**: `python scripts/factory.py check test-app.json --release`
+- اختبار جاهزية بيع **يُفشل المسودات عمدًا**: `python scripts/factory.py check test-app.json --release` — البوابة هي بنود الـ **core** المنطبقة (٣٢ بندًا) وإثباتان: استرجاع على جهاز نظيف وقبول أول عميل؛ بنود الـ reference نصائح ولا توقف الإصدار. للبحث عن رقم بند قديم: `python scripts/factory.py controls HELP-03`
 - اختبارات أداة المصنع: `python -m unittest discover -s tests -v`
 - اختبارات قطعة الرخص: `cd packages/af-license && pip install -r requirements.txt && python -m unittest discover -s tests -v`
 
