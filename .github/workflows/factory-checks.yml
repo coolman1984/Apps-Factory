@@ -86,6 +86,30 @@ jobs:
             fi
           done
 
+
+  windows-contract:
+    # Baseline standards must run under Windows as well as Linux.
+    # Product repositories must separately build and install their own binaries.
+    runs-on: windows-2025
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - name: Windows factory manifest and catalogue
+        shell: pwsh
+        run: |
+          python scripts/factory.py doctor
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python scripts/factory.py check examples/al-store-product.json
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Windows factory standard regression tests
+        shell: pwsh
+        run: |
+          python -m unittest discover -s tests -v
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
   guide-browser:
     runs-on: ubuntu-latest
     timeout-minutes: 20
