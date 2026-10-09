@@ -41,6 +41,31 @@ instead of being refused forever.
 | 5 million rows read per day | No whole-table `COUNT(*)`. Ingest reads only the sender's own rows (at most `MAX_ROWS_PER_INSTALL`) or the small pending area (at most `PENDING_MAX_ROWS`). |
 | 100,000 rows written per day | One row per batch. The install list is pushed only when it changes, or once a day. |
 
+## The licence mailbox (second job of this Worker, `src/licence.js`)
+
+A shop that wants a trial (or a paid code) asks through the relay; the owner's trusted licensing program (Licence Studio) decides and hands the signed code back. Spec, threat model and the whole chain: [docs/LICENCE_ACTIVATION.md](../../docs/LICENCE_ACTIVATION.md).
+
+```
+shop (Al-Store) --POST /licence/request--> relay (D1) --Telegram "طلب جديد"--> owner's phone
+shop <--GET /licence/status--------------- relay <--GET /licence/pending, POST /licence/decide-- Licence Studio (owner's PC)
+shop --POST /licence/ack------------------> relay (the code leaves the relay once the shop has it)
+```
+
+- **No signing key here, ever.** The Worker never signs and never verifies a signature; it stores finished codes (public, bound to one device code) and passes them on. A leaked relay can refuse service or show who asked; it cannot make a code.
+- **Shop side has no secret.** The answer to a new request carries a one-time `poll_token`; only its hash is stored, and status/ack need it. A replay of the same request (same `nonce`) finds the same request, creates nothing, alerts nobody and never learns the token.
+- **One trial per PC and per device:** the request carries `machine` (sha256 of the PC's identity, never the identity). A second trial for the same machine or device is refused here (`already_used`) without waking the owner. The Licence Studio keeps the permanent record and decides again; the relay remembers 400 days.
+- **Limits:** `LICENCE_PER_SOURCE_DAY` (10, per salted address hash), `LICENCE_PER_DEVICE_DAY` (3), `LICENCE_PENDING_MAX` (300). A request uses at most 9 D1 queries, a poll 1, a decision 2 (tested).
+- **Owner side** needs `LICENCE_ADMIN_TOKEN` (a different secret from `RELAY_PULL_TOKEN`). **Telegram** (`TELEGRAM_BOT_TOKEN`, `TELEGRAM_OWNER_CHAT_ID`, optional): the alert carries only the kind, the product, the first 8 characters of the request id and the device code, never what the shop typed.
+- `GET /licence/events` is the relay's own log of each step (never a code, never a shop text).
+
+```bash
+wrangler secret put LICENCE_ADMIN_TOKEN      # long random value; the Licence Studio's relay token
+wrangler secret put TELEGRAM_BOT_TOKEN       # optional
+wrangler secret put TELEGRAM_OWNER_CHAT_ID   # optional
+wrangler d1 execute af-telemetry-relay --remote --file=schema.sql   # adds licence_requests and licence_events
+```
+Not deployed. `test/serve.mjs` runs the real Worker over plain HTTP for other programs' tests (the Licence Studio's chain test).
+
 ## Deploy
 
 ```bash
@@ -84,5 +109,5 @@ Rough load per installation: one batch per hour, plus one for each urgent error.
 The tests need Node 22 or newer. They use a D1 shim over `node:sqlite`.
 
 ```bash
-node --experimental-sqlite --test test/relay.test.mjs
+node --experimental-sqlite --test test/relay.test.mjs test/licence.test.mjs
 ```

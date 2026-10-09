@@ -20,6 +20,10 @@
 // Vars: RATE_PER_HOUR, MAX_ROWS_PER_INSTALL, MAX_BYTES_PER_INSTALL, PENDING_MAX_ROWS, PENDING_PER_INSTALL,
 // PENDING_PER_SOURCE, KEEP_DAYS.
 
+import {reply, num, same, sha256hex, bearer} from './common.js';
+import {cleanupLicence, handleLicence} from './licence.js';
+export {same, sha256hex};
+
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const HASH = /^[0-9a-f]{64}$/;
 export const MAX_BODY = 512 * 1024;            // same limit as the Control Center
@@ -28,33 +32,10 @@ export const MAX_INSTALLS_PER_SYNC = 1000;     // 40 upserts of 25 rows + 2 stat
 const UPSERT_ROWS = 25;                        // 3 parameters per row: 75 < 100
 const ACK_CHUNK = 100;
 
-const reply = (body, status = 200, now = null) => new Response(JSON.stringify(now === null ? body : {...body, server_time: now}), {
-  status, headers: {'content-type': 'application/json', 'cache-control': 'no-store', 'x-content-type-options': 'nosniff'},
-});
-const num = (v, d) => (Number.isFinite(Number(v)) && Number(v) >= 0 && String(v).trim() !== '' ? Number(v) : d);
-
-// Constant-time comparison of two strings (no early exit on the first difference).
-export function same(a, b) {
-  const x = new TextEncoder().encode(String(a)), y = new TextEncoder().encode(String(b));
-  let diff = x.length ^ y.length;
-  for (let i = 0; i < Math.max(x.length, y.length); i++) diff |= (x[i] | 0) ^ (y[i] | 0);
-  return diff === 0;
-}
-
-export async function sha256hex(text) {
-  const d = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text)));
-  return Array.from(d, (b) => b.toString(16).padStart(2, '0')).join('');
-}
-
 function b64(bytes) {
   let s = '';
   for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
   return btoa(s);
-}
-
-function bearer(h) {
-  const auth = h.get('authorization') || '';
-  return auth.slice(0, 7).toLowerCase() === 'bearer ' ? auth.slice(7).trim() : '';
 }
 
 async function readBody(request, limit) {
@@ -167,10 +148,13 @@ export default {
       if (request.method === 'POST' && url.pathname === '/ack') return ack(request, env);
       if (request.method === 'POST' && url.pathname === '/installs') return syncInstalls(request, env);
     }
+    const licence = await handleLicence(request, env, ctx, now, url);
+    if (licence) return licence;
     if (request.method === 'GET' && url.pathname === '/health') return reply({ok: true}, 200, now);
     return reply({error: 'not found'}, 404);
   },
   async scheduled(event, env, ctx) {
-    ctx.waitUntil(cleanup(env, Math.floor(Date.now() / 1000)));
+    const now = Math.floor(Date.now() / 1000);
+    ctx.waitUntil(Promise.all([cleanup(env, now), cleanupLicence(env, now)]));
   },
 };

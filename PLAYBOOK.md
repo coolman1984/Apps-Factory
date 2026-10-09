@@ -21,7 +21,7 @@ python3 -m unittest discover -s tests -v               # factory CLI + docs (tes
 python3 -m unittest discover -s packages/af-consent/tests -v
 python3 -m unittest discover -s packages/af-telemetry/tests -v
 node --test packages/af-telemetry/tests/core.test.mjs
-node --experimental-sqlite --test templates/telemetry-relay/test/relay.test.mjs      # Node 22.13+
+node --experimental-sqlite --test templates/telemetry-relay/test/relay.test.mjs templates/telemetry-relay/test/licence.test.mjs      # Node 22.13+
 (cd apps/licence-studio && pip install -r requirements.txt && PYTHONPATH=../../packages/af-license python3 -m unittest discover -s tests -v)
 python3 -m json.tool factory/ui-budgets.json > /dev/null
 python3 -m unittest discover -s design-factory/tests -v                             # design-factory.yml

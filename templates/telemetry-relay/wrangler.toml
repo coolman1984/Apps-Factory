@@ -1,5 +1,9 @@
 # Copy, then replace the placeholders. Secrets are NEVER written here:
 #   wrangler secret put RELAY_PULL_TOKEN      (required; the Control Center's CC_RELAY_TOKEN)
+#   wrangler secret put LICENCE_ADMIN_TOKEN   (licence mailbox; the Licence Studio's relay token. A different value from RELAY_PULL_TOKEN)
+#   wrangler secret put TELEGRAM_BOT_TOKEN    (optional: the owner's phone is told about every new licence request)
+#   wrangler secret put TELEGRAM_OWNER_CHAT_ID
+# There is NO signing key anywhere in this Worker, in its secrets or in its database. Licence codes are signed on the owner's PC only.
 name = "af-telemetry-relay"
 main = "src/worker.js"
 compatibility_date = "2026-10-01"
@@ -20,3 +24,9 @@ PENDING_MAX_ROWS = "200"            # shared area for PCs nobody registered yet 
 PENDING_PER_INSTALL = "5"
 PENDING_PER_SOURCE = "10"           # per network address per day (stored only as a salted hash)
 KEEP_DAYS = "14"
+
+# Licence mailbox (src/licence.js)
+LICENCE_PRODUCTS = "al-store"       # product ids that may ask for a code (comma separated)
+LICENCE_PER_SOURCE_DAY = "10"       # requests per network address per day (stored only as a salted hash)
+LICENCE_PER_DEVICE_DAY = "3"        # requests per device code per day
+LICENCE_PENDING_MAX = "300"         # waiting requests in total (then 503)
