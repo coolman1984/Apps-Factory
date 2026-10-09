@@ -16,7 +16,7 @@ import json
 import re
 import sys
 
-__version__ = '0.1.0'
+__version__ = '0.1.1'
 
 ID_RE = re.compile(r'^[a-z][a-z0-9_]*(\.[a-z0-9_]+)*$')
 KINDS = {'page', 'action', 'field', 'admin'}
@@ -106,6 +106,10 @@ def check(cat):
             if n not in known:
                 bad('page-unknown-perm', route, f'"{n}" is not a permission.')
             page_perms_used.add(n)
+    if not any(p.get('kind') == 'page' for p, _ in perms):
+        bad('no-page-perms', 'groups', 'Mark the permissions that open pages (kind "page"): one permission per page is the standard.')
+    if not cat.get('pages'):
+        bad('pages-missing', 'pages', 'Say which permission opens each page (route -> permissions), so the gate can prove every page is guarded.')
     if cat.get('pages'):
         for p, _ in perms:
             if p.get('kind') == 'page' and p['id'] not in page_perms_used:
@@ -122,6 +126,8 @@ def check(cat):
     requires = {p['id']: set(p.get('requires', [])) for p, _ in perms if isinstance(p.get('id'), str)}
     for pr in profs:
         pid = pr.get('id')
+        if not isinstance(pid, str) or not pid.strip():
+            bad('profile-id', str(pid), 'Every profile needs an id (text) so people can be linked to it.')
         if pid in seen_ids:
             bad('profile-duplicate', str(pid), 'Two profiles share an id.')
         seen_ids.add(pid)
@@ -172,7 +178,7 @@ def perm_diff(before, after):
 def matching_profile(perms, profiles):
     """The id of the profile whose ticks are exactly these, or None ("Custom")."""
     want = set(perms)
-    return next((p['id'] for p in profiles if set(p.get('perms', [])) == want), None)
+    return next((p.get('id') for p in profiles if p.get('id') and set(p.get('perms', [])) == want), None)
 
 
 def admin_safety(before, after, actor_id, admin, manage='users.manage'):

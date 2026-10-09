@@ -503,5 +503,48 @@
    ],
    "locked": false
   }
- ]
+ ],
+ "pages": {
+  "dashboard": [
+   "dashboard.view"
+  ],
+  "areas": [
+   "areas.view"
+  ],
+  "area": [
+   "areas.view"
+  ],
+  "equipment": [
+   "equipment.view"
+  ],
+  "transactions": [
+   "transactions.view"
+  ],
+  "maintenance": [
+   "maintenance.view"
+  ],
+  "reports": [
+   "reports.view"
+  ],
+  "logs": [
+   "logs.view",
+   "logs.activity",
+   "logs.security"
+  ],
+  "users": [
+   "users.manage"
+  ],
+  "devices": [
+   "users.manage"
+  ],
+  "settings": [
+   "settings.view",
+   "backups.manage",
+   "backups.restore",
+   "trash.restore",
+   "data.import"
+  ],
+  "account": "*",
+  "help": "*"
+ }
 }
