@@ -53,7 +53,7 @@ Product use below was read from the product clones on 2026-10-09 (Store, Teacher
 - **Used by:** the owner. Store sends its heartbeat to it (contract-tested in `tests/test_product_heartbeat.py`).
 
 ### apps/licence-studio — the owner's licence-code program (UI + MCP)
-- **Version:** 1.0.0 (`licence_studio/__init__.py`).
+- **Version:** 1.1.0 (`licence_studio/__init__.py`): also pulls shop requests from the relay's licence mailbox and applies the owner's policy (see `docs/LICENCE_ACTIVATION.md`).
 - **Run:** `pip install -r requirements.txt`, then `python3 -m licence_studio serve` (loopback only). MCP: `python3 -m licence_studio mcp`. Skill: `.claude/skills/licence-codes`.
 - **Spec:** `apps/licence-studio/README.md`; codes format in `packages/af-license`.
 - **Used by:** the owner issues the codes that Store verifies.
@@ -61,7 +61,7 @@ Product use below was read from the product clones on 2026-10-09 (Store, Teacher
 ## Templates (`templates/`)
 Templates are copied and edited by hand; they are not byte-identical vendored code.
 
-- **templates/telemetry-relay** — Cloudflare Worker + D1 mailbox between products and the Control Center (`/ingest`, `/pull`, `/ack`). Not deployed. Spec: its `README.md`, `docs/PRIVACY_TELEMETRY_STANDARD.md`. Used by: the Control Center pulls from it.
+- **templates/telemetry-relay** — Cloudflare Worker + D1 mailbox between products and the Control Center (`/ingest`, `/pull`, `/ack`) and, for licences, between a shop and the owner's Licence Studio (`/licence/*`, Telegram alert, no signing key). Not deployed. Spec: its `README.md`, `docs/PRIVACY_TELEMETRY_STANDARD.md`. Used by: the Control Center pulls from it.
 - **templates/windows-installer** — Nuitka build, Inno Setup installer, smoke test and Windows workflow, verified in Store. Copy the files and change the marked names (its `README.md`; lessons in `docs/knowledge/LESSONS.md`; ADR-0004 for unsigned builds). Used by: Store; Teachers, Yousef-Transportation and Mr.Ayman-HR have their own installers.
 - **templates/patch-pipeline** — ready but inactive workflows for the customer patch agent and Telegram approval notices. Spec: `docs/CUSTOMER_PATCH_PIPELINE.md`. Used by: no product yet.
 - **templates/\*.md** — `PRODUCT_BRIEF.md`, `MARKET_RESEARCH.md`, `RELEASE_EVIDENCE.md`, `CUSTOMER_INSTALL_GUIDE_AR.md`. Used when starting or releasing a product (skill `new-product`).
