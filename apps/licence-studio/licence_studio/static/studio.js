@@ -87,7 +87,7 @@ function gateUnlock() {
   });
 }
 
-const PAGES = [['issue', 'key', 'طلّع كود'], ['codes', 'receipt', 'الأكواد'], ['requests', 'message', 'طلبات الإيجنت'], ['verify', 'shield', 'افحص كود'],
+const PAGES = [['issue', 'key', 'طلّع كود'], ['codes', 'receipt', 'الأكواد'], ['requests', 'message', 'طلبات المحلات'], ['verify', 'shield', 'افحص كود'],
   ['products', 'box', 'المنتجات'], ['keys', 'lock', 'المفتاح'], ['agent', 'sparkle', 'الإيجنت والسجل']];
 
 function shell() {
@@ -238,16 +238,64 @@ function codeFile(c) {
   $$('a.btn.volt', scrim).forEach((a) => a.addEventListener('click', close));
 }
 
+const KIND = { trial: 'تجربة 14 يوم', monthly: 'اشتراك شهري', permanent: 'تفعيل دائم' };
+const HELD = { locked: 'البرنامج مقفول: افتحه وهيتعمل لوحده', daily_cap: 'عدد التجارب النهاردة وصل الحد', review_src: 'طلبات كتير من نفس المكان: راجعها', payment_needed: 'مستني تأكيد الدفع',
+  already_used: 'الكمبيوتر ده خد تجربة قبل كده', owner_refused: 'إنت رفضت', bad_device: 'رقم الجهاز مش مظبوط', bad_machine: 'بصمة الكمبيوتر مش مظبوطة', unknown_product: 'البرنامج مش معروف' };
+const POLICY_SAYS = { issue: 'السياسة هتصدّره لوحدها', reissue: 'السياسة هتبعت نفس الكود تاني', refuse: 'السياسة هترفضه', hold: 'السياسة هتسيبه لك' };
+
+async function relayPanel(page) {
+  const r = await get('/api/relay');
+  const pol = r.policy;
+  const last = r.last || {};
+  const state = !r.configured ? 'الوسيط لسه مش متظبط' : last.ok === false ? 'مفيش اتصال بالوسيط (' + (last.error || '') + ')' : last.at ? 'آخر سحب ' + last.at.replace('T', ' ').slice(0, 19) : 'لسه ماسحبش';
+  put($('#relay-box'), html`<div class="card"><div class="card-head"><h2>طلبات المحلات (التجربة التلقائية)</h2>
+      <span class="badge ${r.configured && last.ok !== false ? 'ok' : 'warn'}">${state}</span></div>
+    <p class="small muted">المحل بيطلب تجربة من برنامجه، وإشعار بيوصلك على تليجرام. هنا بتسحب الطلب، وبالسياسة اللي إنت وافقت عليها بيطلع الكود لوحده ويرجع للمحل ويتفعّل من غير نسخ ولصق. المفتاح السري بيفضل على الجهاز ده بس.</p>
+    <div class="two"><form class="form" id="rf"><div class="field"><label for="ru">عنوان الوسيط (https://…)</label><input id="ru" class="input mono" value="${r.url || ''}" placeholder="https://xxxx.workers.dev" autocomplete="off"></div>
+      <div class="field"><label for="rt">مفتاح الوسيط ${r.has_token ? '(محفوظ، اكتب جديد لو عايز تغيّره)' : ''}</label><input id="rt" type="password" class="input mono" autocomplete="off"></div>
+      <p class="err small" id="re"></p><div class="row wrap"><button class="btn primary">${icon('check')}احفظ</button><button type="button" class="btn" id="pull" ${r.configured ? '' : raw('disabled')}>${icon('refresh')}اسحب الطلبات دلوقتي</button></div></form>
+    <div class="stack tight">
+      <div class="toggle-row"><div><b>اصدر التجارب لوحدك</b><div class="small muted">تجربة 14 يوم، مربوطة بالجهاز، وجهاز واحد مايخدش تجربة تانية. المدفوع مايتعملش لوحده أبدًا.</div></div>
+        <label class="check"><input type="checkbox" id="au" ${pol.auto_trials ? raw('checked') : ''}>شغّال</label></div>
+      <div class="toggle-row"><div><b>أقصى تجارب في اليوم</b></div><input id="cap" class="input q-in mono" value="${pol.auto_trial_daily_cap}" inputmode="numeric"></div>
+      <div class="toggle-row"><div><b>افضل مفتوح عشان يصدّر وإنت مش قدام الجهاز</b><div class="small muted">${pol.keep_unlocked_until ? 'مفتوح لحد ' + pol.keep_unlocked_until.replace('T', ' ').slice(0, 16) : 'مقفول بعد 30 دقيقة من غير استخدام'}. أقصى حاجة 12 ساعة.</div></div>
+        <div class="row"><input id="kh" class="input q-in mono" value="8" inputmode="numeric"><button type="button" class="btn sm" id="keep">افضل مفتوح</button></div></div></div></div></div>`);
+  $('#rf').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    try { await post('/api/relay/save', { url: $('#ru').value, token: $('#rt').value || undefined }); toast('اتحفظ'); relayPanel(page); } catch (err) { $('#re').textContent = err.message; }
+  });
+  $('#pull').addEventListener('click', async () => {
+    try { const o = await post('/api/relay/pull'); toast(o.ok === false ? 'مفيش اتصال' : `اتسحب ${o.pulled} · اتصدّر ${o.issued} · اترفض ${o.refused} · مستني ${o.held}`, o.ok === false); ST = await get('/api/status'); requests(page); } catch (err) { toast(err.message, true); }
+  });
+  $('#au').addEventListener('change', async (e) => { await post('/api/policy', { auto_trials: e.target.checked }); toast('اتحفظ'); });
+  $('#cap').addEventListener('change', async (e) => { await post('/api/policy', { auto_trial_daily_cap: +e.target.value }); toast('اتحفظ'); });
+  $('#keep').addEventListener('click', async () => { try { await post('/api/auto/keep', { hours: +$('#kh').value }); toast('اتحفظ'); relayPanel(page); } catch (err) { toast(err.message, true); } });
+}
+
 async function requests(page) {
   const rows = await get('/api/requests?status=');
-  put(page, html`${head('طلبات الإيجنت', 'الإيجنت مايقدرش يطلّع أكواد مدفوعة: بيطلبها، وإنت توافق أو ترفض.')}
+  put(page, html`${head('طلبات المحلات', 'طلب جاي من محل (عن طريق الوسيط) أو من الإيجنت. التجربة ممكن تتصدّر لوحدها بالسياسة. الاشتراك والتفعيل الدائم بيستنوا موافقتك وتأكيد الدفع.')}
+    <div id="relay-box"></div>
     ${rows.length ? html`<div class="stack">${rows.map((r) => html`<div class="watch-item ${r.status === 'pending' ? 'warn' : ''}"><span class="ic">${icon('message')}</span>
-      <div><b>${r.customer}</b> · ${r.product} · ${EDITION[r.edition]} · ${r.days} يوم ${r.device ? html`· <span class="mono">${r.device}</span>` : ''}<div class="small muted">${r.note} · ${r.requested_at}</div></div>
+      <div><b>${r.customer}</b> · ${r.product} · ${r.source === 'relay' ? KIND[r.kind] : EDITION[r.edition] + ' · ' + r.days + ' يوم'} ${r.device ? html`· <span class="mono">${r.device}</span>` : ''}
+        <span class="badge">${r.source === 'relay' ? 'من المحل' : 'من الإيجنت'}</span>
+        <div class="small muted">${r.note} · ${r.requested_at}${r.machine ? html` · جهاز <span class="mono">${r.machine.slice(0, 8)}</span>` : ''}</div>
+        ${r.status === 'pending' && r.held ? html`<div class="small"><span class="badge warn">${HELD[r.held] || r.held}</span></div>` : ''}
+        ${r.status === 'pending' && r.policy ? html`<div class="xs faint">${POLICY_SAYS[r.policy.verdict]}${r.policy.reason ? ' (' + (HELD[r.policy.reason] || r.policy.reason) + ')' : ''}</div>` : ''}
+        ${r.status === 'pending' && r.source === 'relay' && r.kind !== 'trial' ? html`<div class="row wrap"><label class="check"><input type="checkbox" data-paid="${r.id}">الدفع وصل</label>
+          <input class="input mono" data-ref="${r.id}" placeholder="مرجع الدفع" value="${r.payment_ref || ''}" maxlength="60" autocomplete="off"></div>` : ''}
+        ${r.status !== 'pending' && r.source === 'relay' ? html`<div class="xs faint">${r.relayed === 1 ? 'اتبعت للمحل' : r.relayed === 2 ? 'الوسيط قفل الطلب: ابعت الكود للمحل يدوي' : 'لسه ماتبعتش للمحل: هيتحاول تاني'}</div>` : ''}</div>
       <div class="row">${r.status === 'pending' ? html`<button class="btn sm" data-no="${r.id}">ارفض</button><button class="btn sm volt" data-yes="${r.id}">وافق واعمل الكود</button>`
         : html`<span class="badge ${r.status === 'approved' ? 'ok' : 'bad'}">${r.status === 'approved' ? 'اتوافق' : 'اترفض'}</span>`}</div></div>`)}</div>`
       : html`<div class="card"><div class="empty">${icon('message')}<h3>مفيش طلبات</h3></div></div>`}`);
+  relayPanel(page).catch(() => put($('#relay-box'), html``));
   $$('[data-yes],[data-no]').forEach((b) => b.addEventListener('click', async () => {
-    try { await post('/api/request/decide', { id: b.dataset.yes || b.dataset.no, approve: !!b.dataset.yes }); toast('تمام'); ST = await get('/api/status'); shell(); location.hash = '#/requests'; } catch (e) { toast(e.message, true); }
+    const id = b.dataset.yes || b.dataset.no;
+    const paid = $(`[data-paid="${id}"]`);
+    try {
+      await post('/api/request/decide', { id, approve: !!b.dataset.yes, payment_confirmed: paid ? paid.checked : undefined, payment_ref: paid ? $(`[data-ref="${id}"]`).value : undefined });
+      toast('تمام'); ST = await get('/api/status'); shell(); location.hash = '#/requests';
+    } catch (e) { toast(e.key === 'payment.required' ? 'علّم على «الدفع وصل» واكتب مرجع الدفع الأول.' : e.message, true); }
   }));
 }
 

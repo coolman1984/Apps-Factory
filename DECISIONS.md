@@ -11,6 +11,15 @@ Dated owner decisions, newest first. Only decisions recorded in the repository a
 - **Pixel Plus × Sanad Business Advisory direction:** optional human consulting/coaching service sold separately, with explicit customer opt-in and least-privilege data access. Exact sales/commission/support/privacy terms remain **OPEN** pending owner's Sunday 2026-10-11 briefing. [Partner plan](docs/PIXEL_PLUS_SANAD_PARTNER_OPERATING_MODEL.md).
 - **Priority:** Store pilot and Windows/data field acceptance first; Telegram activation and off-device encrypted backup before broader commercial claims; demo/visual QA, Rafaa and showroom in phased PRs. Independent review agent vs implementation agent; only green tests and evidence permit merge.
 
+### 2026-10-09 — Telegram is the owner's channel for licence requests; trials go out automatically only by a policy the owner switches on
+- The owner's decision: the notification channel is **Telegram**, not WhatsApp. The shop's request reaches the owner's phone through the relay (kind, product, short request id, device code only); the owner's trusted PC signs; the shop checks and activates by itself. **The signing key exists only on the owner's trusted PC**: never in the bot, the relay, a CI job or a repository. WhatsApp to customers stays manual, one at a time (MSG-01).
+- **Automatic trials are OFF until the owner turns them on.** When on, the defaults recorded in the Licence Studio are: 14 days at most, bound to the device code, one trial per PC (an append-only ledger that survives a reinstall), at most 10 automatic trials a day, more than 5 a day from one address is held for the owner (never refused: shops share addresses). These numbers are **proposals awaiting the owner's confirmation**, not business decisions.
+- Monthly and permanent codes are never automatic: the server refuses to sign without a ticked payment confirmation and a payment reference (payment itself is still by hand, see "How customers pay for their licence" below).
+- Evidence: `docs/LICENCE_ACTIVATION.md`, the chain test with the real shop program, the real relay Worker and the real Studio (`apps/licence-studio/tests/test_store_chain.py`).
+
+### 2026-10-09 — The practice shop is the demo; the Pixel Plus website is documented, not built
+- The in-product demo is the existing practice shop, opened from Help and kept apart from the real shop (own folder beside it, own port on 127.0.0.1, never opened as the other kind, never sends anything), with three exercises checked from the shop's own books (Al-Store 1.7.0).
+- The website, a hosted sandbox and the lead form are **requirements only** (`docs/PIXEL_PLUS_WEBSITE_REQUIREMENTS.md`); hosting, domain and spending need the owner's written approval.
 
 ### 2026-10-09 — Al-Store activation kinds
 - The owner asked for three kinds of activation code: a **14-day trial**, a **monthly subscription** and a **permanent activation**. A permanent code is device-bound and never ends. The Studio defaults for a monthly code are 30 days + 3 grace days. The owner can change both in the Studio.
@@ -94,6 +103,9 @@ Nothing below is decided, bought or signed up for. Anything that depends on an o
 | Owner password recovery as an explicit IAM-01 acceptance item for every product | Al-Store now has a paper recovery code (1.4.0); the other products have none yet. |
 | How customers pay for their licence | Manual transfer (InstaPay / wallet) plus a code by hand until about 10 customers; automated payment stays with the Paymob / Fawry item below. |
 | Paymob / Fawry / InstaPay | Merchant onboarding needs company documents; transactions carry fees. |
+| Deploy the licence relay and create the Telegram bot | The owner creates the bot and the Cloudflare Worker secrets; nothing is deployed. Until then only the manual way (device code out, code in) works. |
+| Trial policy numbers (daily cap, per-address limit, trial days) | Recorded as defaults in the Studio; the owner confirms or changes them before switching automatic trials on. |
+| Pixel Plus website: brand files, domain, published contact details, hosting ceiling | See `docs/PIXEL_PLUS_WEBSITE_REQUIREMENTS.md` §9. |
 | Cloud provider, hosting region, monthly ceiling per customer | ADR-0001 open decision 1. |
 | Price of each tier | ADR-0001 open decision 2. |
 | Which mobile actions work offline in version 1 | ADR-0001 open decision 3. |

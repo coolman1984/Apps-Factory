@@ -25,6 +25,8 @@ from pathlib import Path
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
+from .relay import Relay
+
 try:
     from af_license import codes
 except ImportError:  # running from the repository checkout
@@ -52,11 +54,23 @@ CREATE TABLE IF NOT EXISTS requests (
 CREATE TABLE IF NOT EXISTS tokens (hash TEXT PRIMARY KEY, name TEXT NOT NULL, created_at TEXT NOT NULL, revoked INTEGER NOT NULL DEFAULT 0);
 CREATE TABLE IF NOT EXISTS audit (id INTEGER PRIMARY KEY AUTOINCREMENT, at TEXT NOT NULL, actor TEXT NOT NULL, action TEXT NOT NULL,
   detail TEXT NOT NULL DEFAULT '');
+-- One automatic trial per PC, for ever: the permanent record the relay's shorter memory is only a first filter for.
+CREATE TABLE IF NOT EXISTS trial_ledger (
+  product TEXT NOT NULL, machine TEXT NOT NULL, device TEXT NOT NULL, serial TEXT NOT NULL, relay_id TEXT, at TEXT NOT NULL,
+  PRIMARY KEY (product, machine));
+CREATE TRIGGER IF NOT EXISTS trial_ledger_append_only_u BEFORE UPDATE ON trial_ledger BEGIN SELECT RAISE(ABORT, 'trial ledger is append-only'); END;
+CREATE TRIGGER IF NOT EXISTS trial_ledger_append_only_d BEFORE DELETE ON trial_ledger BEGIN SELECT RAISE(ABORT, 'trial ledger is append-only'); END;
 CREATE TRIGGER IF NOT EXISTS codes_append_only_u BEFORE UPDATE ON codes BEGIN SELECT RAISE(ABORT, 'codes are append-only'); END;
 CREATE TRIGGER IF NOT EXISTS codes_append_only_d BEFORE DELETE ON codes BEGIN SELECT RAISE(ABORT, 'codes are append-only'); END;
 CREATE TRIGGER IF NOT EXISTS audit_append_only_u BEFORE UPDATE ON audit BEGIN SELECT RAISE(ABORT, 'audit is append-only'); END;
 CREATE TRIGGER IF NOT EXISTS audit_append_only_d BEFORE DELETE ON audit BEGIN SELECT RAISE(ABORT, 'audit is append-only'); END;
 """
+# columns the relay's requests need on the older `requests` table (added once, never removed)
+REQUEST_COLUMNS = (('source', "TEXT NOT NULL DEFAULT 'agent'"), ('relay_id', 'TEXT'), ('machine', 'TEXT'), ('src', 'TEXT'),
+                   ('kind', "TEXT NOT NULL DEFAULT ''"), ('payment_ref', "TEXT NOT NULL DEFAULT ''"), ('held', "TEXT NOT NULL DEFAULT ''"),
+                   ('relayed', 'INTEGER NOT NULL DEFAULT 0'), ('payment_confirmed', 'INTEGER NOT NULL DEFAULT 0'))
+MONTHLY_DAYS, MONTHLY_GRACE = 30, 3   # owner decision 2026-10-09: the Studio defaults for a monthly code
+MAX_KEEP_UNLOCKED_HOURS = 12
 DEFAULT_PRODUCTS = [('al-store', 'Al-Store · الستور', 14), ('hessa-centre', 'Hessa · حصّة', 14)]
 
 
@@ -87,10 +101,19 @@ class Studio:
         self.db.row_factory = sqlite3.Row
         self.lock = threading.RLock()
         self.db.executescript(SCHEMA)
+        have = {r['name'] for r in self.db.execute('PRAGMA table_info(requests)').fetchall()}
+        for name, ddl in REQUEST_COLUMNS:
+            if name not in have:
+                self.db.execute(f'ALTER TABLE requests ADD COLUMN {name} {ddl}')
+        self.db.execute('CREATE UNIQUE INDEX IF NOT EXISTS requests_relay ON requests(relay_id) WHERE relay_id IS NOT NULL')
         for pid, name, days in DEFAULT_PRODUCTS:
             self.db.execute('INSERT OR IGNORE INTO products(id, name, trial_days, created_at) VALUES (?, ?, ?, ?)', (pid, name, days, now_iso()))
         self._key: Ed25519PrivateKey | None = None
         self._unlocked_at = 0.0
+        self._keep_until = 0.0  # the owner's explicit "stay unlocked for N hours" so the automatic trial policy can sign unattended
+        self.relay = Relay(self.home)
+        from .autotrial import AutoTrial  # here, not at the top: autotrial imports this module
+        self.auto = AutoTrial(self)
         self._unlock_lock = threading.Lock()
         self._unlock_failures, self._unlock_blocked_until = 0, 0.0
 
@@ -119,9 +142,15 @@ class Studio:
         self.audit(actor, 'setting', {key: value})
 
     def policy(self):
+        keep = self._keep_until if self._key and time.time() < self._keep_until else 0
         return {'agent_may_issue_trials': bool(self.setting('agent_may_issue_trials', False)),
                 'agent_daily_limit': int(self.setting('agent_daily_limit', 10)),
-                'lock_minutes': LOCK_AFTER_SECONDS // 60}
+                'lock_minutes': LOCK_AFTER_SECONDS // 60,
+                # the owner-approved automatic trial policy (off until the owner switches it on): see autotrial.py
+                'auto_trials': bool(self.setting('auto_trials', False)),
+                'auto_trial_days': int(self.setting('auto_trial_days', AGENT_MAX_TRIAL_DAYS)),
+                'auto_trial_daily_cap': int(self.setting('auto_trial_daily_cap', 10)),
+                'keep_unlocked_until': (datetime.fromtimestamp(keep, timezone.utc).replace(microsecond=0).isoformat().replace('+00:00', 'Z') if keep else None)}
 
     # ------------------------------------------------------------------ key
     def key_file(self):
@@ -179,18 +208,29 @@ class Studio:
         return True
 
     def lock_key(self):
-        self._key = None
+        self._key, self._keep_until = None, 0.0
         self.audit('owner', 'key.lock')
 
+    def keep_unlocked(self, hours):
+        """The owner's explicit choice: the key stays in memory (only) for up to a working day, so the automatic trial policy can sign
+        while nobody is at the PC. Locking, restarting or the end of the time puts it back behind the passphrase."""
+        if not self.unlocked():
+            raise StudioError('key.locked', 'The studio is locked. The owner unlocks it with the passphrase.', 423)
+        hours = max(0.0, min(float(MAX_KEEP_UNLOCKED_HOURS), float(hours)))
+        self._keep_until = time.time() + hours * 3600 if hours else 0.0
+        self.audit('owner', 'key.keep_unlocked', {'hours': hours})
+        return self.policy()
+
     def unlocked(self):
-        if self._key and time.time() - self._unlocked_at > LOCK_AFTER_SECONDS:
+        if self._key and time.time() - self._unlocked_at > LOCK_AFTER_SECONDS and time.time() >= self._keep_until:
             self._key = None
         return self._key is not None
 
-    def _pem(self):
+    def _pem(self, owner=True):
         if not self.unlocked():
             raise StudioError('key.locked', 'The studio is locked. The owner unlocks it with the passphrase.', 423)
-        self._unlocked_at = time.time()
+        if owner:  # only the owner's own use keeps the key open; automatic signing never does (review of PR #34: it could keep it open for ever)
+            self._unlocked_at = time.time()
         return self._key.private_bytes(serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8, serialization.NoEncryption())
 
     # ------------------------------------------------------------------ products
@@ -233,7 +273,11 @@ class Studio:
             raise StudioError('device.required', 'A trial or perpetual code must be tied to the customer\'s device code (so it cannot be passed on).')
 
     def issue(self, product, edition, device, customer='', phone='', days=None, first_day=None, grace_days=0, seats=1, note='',
-              actor='owner', request_id=None):
+              actor='owner', request_id=None, machine=None):
+        if request_id:  # the same request asked twice (a retry after a crash) gives the same code, never a second one
+            done = self.one('SELECT serial FROM codes WHERE request_id = ?', request_id)
+            if done:
+                return self.code(done['serial'])
         prod = self.one('SELECT * FROM products WHERE id = ?', product)
         days = int(days or (prod['trial_days'] if prod and edition == 'trial' else 365))
         device = self._check_terms(product, edition, device, days)
@@ -243,14 +287,26 @@ class Studio:
         first = date.fromisoformat(first_day) if first_day else date.today()
         if first < date.today() - timedelta(days=1):
             raise StudioError('first_day', 'The first day cannot be in the past.')
-        out = codes.issue_code(self._pem(), product, edition, first, days, device, int(grace_days), int(seats), date.today())
+        out = codes.issue_code(self._pem(owner=actor != 'auto-trial'), product, edition, first, days, device, int(grace_days), int(seats), date.today())
         kid = (self.public_key() or ':').split(':', 1)[0]
         with self.lock:
-            self.db.execute('INSERT INTO codes(serial, product, edition, device, customer, phone, first_day, last_day, grace_days, seats, code, kid, '
-                            'note, issued_at, issued_by, request_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-                            (out['serial'], product, edition, device, (customer or '').strip()[:80], (phone or '').strip()[:20], out['first_day'],
-                             out['last_day'] or PERPETUAL, int(grace_days), int(seats), out['code'], kid, (note or '').strip()[:300], now_iso(), actor,
-                             request_id))
+            self.db.execute('BEGIN IMMEDIATE')
+            try:
+                if machine and edition == 'trial':  # one automatic trial per PC for ever: the primary key refuses a second, even in a race
+                    try:
+                        self.db.execute('INSERT INTO trial_ledger(product, machine, device, serial, relay_id, at) VALUES (?, ?, ?, ?, ?, ?)',
+                                        (product, machine, device, out['serial'], request_id, now_iso()))
+                    except sqlite3.IntegrityError:
+                        raise StudioError('trial.repeat', 'This PC already had its trial.', 409) from None
+                self.db.execute('INSERT INTO codes(serial, product, edition, device, customer, phone, first_day, last_day, grace_days, seats, code, kid, '
+                                'note, issued_at, issued_by, request_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                                (out['serial'], product, edition, device, (customer or '').strip()[:80], (phone or '').strip()[:20], out['first_day'],
+                                 out['last_day'] or PERPETUAL, int(grace_days), int(seats), out['code'], kid, (note or '').strip()[:300], now_iso(), actor,
+                                 request_id))
+                self.db.execute('COMMIT')
+            except BaseException:
+                self.db.execute('ROLLBACK')
+                raise
         self.audit(actor, 'code.issue', {'serial': out['serial'], 'product': product, 'edition': edition, 'device': device,
                                          'days': days, 'customer': customer})
         return self.code(out['serial'])
@@ -319,21 +375,61 @@ class Studio:
         return self.one('SELECT * FROM requests WHERE id = ?', rid)
 
     def requests(self, status='pending'):
-        return self.rows("SELECT * FROM requests WHERE (? = '' OR status = ?) ORDER BY requested_at DESC LIMIT 200", status, status)
+        rows = self.rows("SELECT * FROM requests WHERE (? = '' OR status = ?) ORDER BY requested_at DESC LIMIT 200", status, status)
+        for r in rows:
+            if r['source'] == 'relay' and r['status'] == 'pending':  # what the owner-approved policy would do with it (a hint, nothing is changed)
+                kind, reason, _ = self.auto.verdict(r)
+                r['policy'] = {'verdict': kind, 'reason': reason}
+        return rows
 
-    def decide(self, rid, approve, actor='owner'):
+    def decide(self, rid, approve, actor='owner', payment_confirmed=False, payment_ref=''):
         r = self.one('SELECT * FROM requests WHERE id = ?', rid)
         if not r or r['status'] != 'pending':
             raise StudioError('request.closed', 'This request is not pending.', 409)
+        relay = r['source'] == 'relay'
+        paid = relay and r['kind'] in ('monthly', 'permanent')
+        ref = (payment_ref or r['payment_ref'] or '').strip()[:60]
+        if approve and paid and (not payment_confirmed or len(ref) < 3):  # a paid code is never given before the owner confirms the money arrived
+            raise StudioError('payment.required', 'Tick that the payment arrived and write its reference first.', 400)
+        if not self.claim(rid):  # the automatic round took it a moment ago
+            raise StudioError('request.closed', 'This request was decided a moment ago.', 409)
+        try:
+            serial = self._decide_claimed(r, approve, actor, relay, paid, ref)
+        except BaseException:
+            self.release(rid)
+            raise
+        if relay:
+            self.auto.owner_decided(rid)
+        return self.one('SELECT * FROM requests WHERE id = ?', rid)
+
+    def claim(self, rid):
+        """One decision per request: whoever moves it from pending to deciding decides it (the owner or the automatic round), and only
+        that one signs and delivers (review of PR #34: both could decide the same request and the relay and the Studio disagreed)."""
+        with self.lock:
+            return self.db.execute("UPDATE requests SET status = 'deciding' WHERE id = ? AND status = 'pending'", (rid,)).rowcount == 1
+
+    def release(self, rid):
+        with self.lock:
+            self.db.execute("UPDATE requests SET status = 'pending' WHERE id = ? AND status = 'deciding'", (rid,))
+
+    def _decide_claimed(self, r, approve, actor, relay, paid, ref):
+        rid = r['id']
         serial = None
         if approve:
-            serial = self.issue(r['product'], r['edition'], r['device'], r['customer'], r['phone'], r['days'], note=r['note'],
-                                actor=actor, request_id=rid)['serial']
+            days, grace = r['days'], 0
+            if relay and r['kind'] == 'monthly':
+                days, grace = MONTHLY_DAYS, MONTHLY_GRACE
+            machine = r['machine'] if relay and r['kind'] == 'trial' else None
+            if machine and self.one('SELECT 1 FROM trial_ledger WHERE product = ? AND machine = ?', r['product'], machine):
+                machine = None  # the owner knowingly gives a second trial to this PC: it stays in the audit, the ledger keeps the first
+            serial = self.issue(r['product'], r['edition'], r['device'], r['customer'], r['phone'], days, grace_days=grace, note=r['note'],
+                                actor=actor, request_id=rid, machine=machine)['serial']
         with self.lock:
-            self.db.execute('UPDATE requests SET status = ?, decided_at = ?, decided_by = ?, serial = ? WHERE id = ?',
-                            ('approved' if approve else 'refused', now_iso(), actor, serial, rid))
-        self.audit(actor, 'request.' + ('approve' if approve else 'refuse'), {'id': rid, 'serial': serial})
-        return self.one('SELECT * FROM requests WHERE id = ?', rid)
+            self.db.execute('UPDATE requests SET status = ?, decided_at = ?, decided_by = ?, serial = ?, held = ?, payment_ref = ?, payment_confirmed = ? '
+                            'WHERE id = ?', ('approved' if approve else 'refused', now_iso(), actor, serial, '' if approve else 'owner_refused', ref,
+                                             1 if (approve and paid) else 0, rid))
+        self.audit(actor, 'request.' + ('approve' if approve else 'refuse'), {'id': rid, 'serial': serial, **({'payment_ref': ref} if paid and approve else {})})
+        return serial
 
     def agent_issue_trial(self, product, device, customer, phone='', days=None, note=''):
         """The agent's only direct way to make a code: trial, device-bound, ≤ 14 days, daily limit, owner switched it on."""
@@ -377,7 +473,8 @@ class Studio:
         return {'key': bool(self.key_file()), 'unlocked': self.unlocked(), 'public_key': self.public_key(), 'policy': self.policy(),
                 'products': len(self.products()), 'codes': self.one('SELECT COUNT(*) AS n FROM codes')['n'],
                 'pending_requests': self.one("SELECT COUNT(*) AS n FROM requests WHERE status = 'pending'")['n'],
-                'expiring_soon': len(self.list_codes(status='expiring')), 'home': str(self.home)}
+                'expiring_soon': len(self.list_codes(status='expiring')), 'home': str(self.home),
+                'relay': {**self.relay.public(), 'last': dict(self.auto.last)}}
 
     def audit_log(self, limit=200):
         return self.rows('SELECT * FROM audit ORDER BY id DESC LIMIT ?', min(int(limit), 2000))

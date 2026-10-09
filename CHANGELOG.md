@@ -2,6 +2,14 @@
 
 Factory versions (the `README.md` version line). The control catalogue has its own `catalog_version` in `factory/controls.json`.
 
+## 0.13.0 (2026-10-09)
+Records for the activation chain and the practice shop. No code, package or catalogue change in this entry (the code is in the stacked PRs for the relay and the Studio).
+- **Licence mailbox on `templates/telemetry-relay`:** a shop asks for a trial or a paid code, the owner's phone is told on **Telegram** (not WhatsApp), the owner's trusted PC signs, the shop checks the code with the public key and switches itself on. The signing key is never in the bot or the cloud. Spec and threat model: `docs/LICENCE_ACTIVATION.md`.
+- **Licence Studio 1.1.0:** pulls requests, applies the owner's policy (automatic trials **off** until the owner switches them on), one trial per PC in an append-only ledger, monthly and permanent only after payment is confirmed and the owner approves, «افضل مفتوح N ساعة» for the key (at most 12 hours).
+- **`docs/PIXEL_PLUS_WEBSITE_REQUIREMENTS.md`:** pages, honesty rules, the three ways to "try it", lead intake (Telegram alert, no automated WhatsApp), non-functional limits, acceptance checks and the owner's open items. Nothing is built or hosted.
+- **Review fixes (Codex, before merge):** the relay's limits and insert are one statement; payment references and phone-like digits are not kept in the cloud; an issued trial nobody collected still counts as given; the Studio decides each request once (owner or automatic round), never reports a request the relay closed as sent, never lets automatic signing keep the key open past the owner's deadline, reads the waiting list page by page, and counts the daily cap in UTC.
+- `DECISIONS.md`, `PARTS.md`: the Telegram channel and the trial-policy defaults recorded as decisions awaiting the owner's numbers; Studio 1.1.0.
+
 ## 0.12.0 (2026-10-09)
 - **af-license 0.3.0:** new code edition `perpetual`, always device-bound: issuing one without a device fails (`device_required`), and a reader refuses an unbound one (`unbound_perpetual`). It never expires: its last day is stored as day 65535 and readers report no last day. Older readers refuse it (`unknown_edition`). Tests cover a monthly code (days → grace → expired), a perpetual code (2299, other device, not yet valid) and an older reader.
 - **Licence Studio:** quick buttons «تجربة 14 يوم», «اشتراك شهري» (standard 30 days + 3 grace) and «تفعيل دائم» (device-bound). The codes list, WhatsApp text and verify page show «دائم». The MCP `request_code` accepts `perpetual`. The full-chain test proves that each kind unlocks Al-Store.
