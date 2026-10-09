@@ -69,6 +69,21 @@ class CodeTests(unittest.TestCase):
         later = self.trial(edition='perpetual', first_day=date(2026, 12, 1))
         self.assertEqual(self.read(later['code']).state, 'not_yet_valid')
 
+    def test_a_perpetual_code_is_never_unbound(self):
+        with self.assertRaises(ValueError) as e:
+            self.trial(edition='perpetual', device=None)
+        self.assertEqual(str(e.exception), 'device_required')
+        # a code signed by another tool without a device (the reader's second guard): forge the terms with the same key
+        import struct
+        from cryptography.hazmat.primitives import serialization
+        key = serialization.load_pem_private_key(self.pem, password=None)
+        raw = key.public_key().public_bytes(serialization.Encoding.Raw, serialization.PublicFormat.Raw)
+        payload = struct.pack(codes._LAYOUT, codes.VERSION, codes.product_tag('al-store'), 4, codes._num(TODAY), codes._num(TODAY),
+                              codes.FOREVER, 0, b'\0' * 6, os.urandom(4), 1, hashlib.sha256(raw).digest()[:2])
+        code = codes.group(codes._b32(payload + key.sign(codes.DOMAIN + payload)))
+        r = self.read(code)
+        self.assertEqual((r.reason, r.full_access), ('unbound_perpetual', False))
+
     def test_an_older_reader_refuses_a_perpetual_code(self):
         c = self.trial(edition='perpetual')
         saved = dict(codes.EDITIONS)
