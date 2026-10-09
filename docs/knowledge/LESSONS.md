@@ -64,3 +64,11 @@ Each lesson comes from a real history file. A rule that caught a real bug outran
 ## Process
 - A plan is not a feature. A Markdown rule is not working software. Status words: planned → implemented → verified → field_accepted.
 - Every bug becomes a test in the same commit; every recalibrated budget records why.
+
+## People and permissions (BAMS → factory, 2026-10-09)
+| What happened | Fix | Rule |
+|---|---|---|
+| Al-Store's last-owner guard looked at the role name only; removing `users.manage` from the only owner with a per-person "removed tick" locked the shop out of its own settings | Guard on the *right* (`af_access.admin_safety`: last-manager, self-lockout), not on the role name | Protect the permission, not the label |
+| Fixed roles in code could not express a real shop's "senior cashier" | Editable profiles with one locked administrator profile (BAMS) | Ship profiles as data the owner can change, never as code |
+| Permission changes were audited as "role changed" without the ticks | `perm_diff` added/removed lists in the audit | Log what was granted and removed, by whom |
+| Teachers and Trip Orders copied the BAMS engine but each drifted on its own | One gate (`packages/af-access`) every product runs in its tests | Copy the rules as a test, not only as code |

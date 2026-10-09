@@ -1,0 +1,507 @@
+{
+ "product": "bams",
+ "languages": [
+  "en"
+ ],
+ "manage": "users.manage",
+ "groups": [
+  {
+   "id": "g0",
+   "label": "Pages - what the person can open",
+   "admin": false,
+   "permissions": [
+    {
+     "id": "dashboard.view",
+     "label": "Dashboard",
+     "kind": "page"
+    },
+    {
+     "id": "areas.view",
+     "label": "Break Areas list and profiles",
+     "kind": "page"
+    },
+    {
+     "id": "equipment.view",
+     "label": "Furniture & Equipment page",
+     "kind": "page"
+    },
+    {
+     "id": "transactions.view",
+     "label": "Transactions page",
+     "kind": "page"
+    },
+    {
+     "id": "maintenance.view",
+     "label": "Inspection & Maintenance page",
+     "kind": "page"
+    },
+    {
+     "id": "reports.view",
+     "label": "Reports page",
+     "kind": "page"
+    },
+    {
+     "id": "surveys.view",
+     "label": "Satisfaction survey results",
+     "kind": "page"
+    }
+   ]
+  },
+  {
+   "id": "g1",
+   "label": "Break Areas",
+   "admin": false,
+   "permissions": [
+    {
+     "id": "areas.create",
+     "label": "Add new break areas",
+     "kind": "action"
+    },
+    {
+     "id": "areas.edit",
+     "label": "Edit break area details and status",
+     "kind": "action"
+    },
+    {
+     "id": "areas.delete",
+     "label": "Delete break areas",
+     "kind": "action"
+    }
+   ]
+  },
+  {
+   "id": "g2",
+   "label": "Inventory",
+   "admin": false,
+   "permissions": [
+    {
+     "id": "inventory.edit",
+     "label": "Add, remove, replace and transfer items",
+     "kind": "action"
+    },
+    {
+     "id": "inventory.delete",
+     "label": "Delete an item from an inventory",
+     "kind": "action"
+    },
+    {
+     "id": "itemtypes.manage",
+     "label": "Add, edit and delete item types",
+     "kind": "action"
+    }
+   ]
+  },
+  {
+   "id": "g3",
+   "label": "Issues",
+   "admin": false,
+   "permissions": [
+    {
+     "id": "issues.create",
+     "label": "Report issues",
+     "kind": "action"
+    },
+    {
+     "id": "issues.followup",
+     "label": "Follow up and close issues",
+     "kind": "action"
+    },
+    {
+     "id": "issues.delete",
+     "label": "Delete issues",
+     "kind": "action"
+    }
+   ]
+  },
+  {
+   "id": "g4",
+   "label": "Maintenance & Inspections",
+   "admin": false,
+   "permissions": [
+    {
+     "id": "maintenance.create",
+     "label": "Schedule maintenance",
+     "kind": "action"
+    },
+    {
+     "id": "maintenance.complete",
+     "label": "Complete maintenance",
+     "kind": "action"
+    },
+    {
+     "id": "maintenance.delete",
+     "label": "Delete maintenance",
+     "kind": "action"
+    },
+    {
+     "id": "maintenance.cost",
+     "label": "See and enter what maintenance work cost",
+     "kind": "action"
+    },
+    {
+     "id": "inspections.create",
+     "label": "Record inspections",
+     "kind": "action"
+    },
+    {
+     "id": "inspections.delete",
+     "label": "Delete inspections",
+     "kind": "action"
+    }
+   ]
+  },
+  {
+   "id": "g5",
+   "label": "Satisfaction Surveys",
+   "admin": false,
+   "permissions": [
+    {
+     "id": "surveys.create",
+     "label": "Add results",
+     "kind": "action"
+    },
+    {
+     "id": "surveys.edit",
+     "label": "Edit results",
+     "kind": "action"
+    },
+    {
+     "id": "surveys.delete",
+     "label": "Delete results",
+     "kind": "action"
+    }
+   ]
+  },
+  {
+   "id": "g6",
+   "label": "Photos & Documents",
+   "admin": false,
+   "permissions": [
+    {
+     "id": "files.upload",
+     "label": "Upload photos and documents, choose the main photo",
+     "kind": "action"
+    },
+    {
+     "id": "files.download",
+     "label": "Download documents",
+     "kind": "action"
+    },
+    {
+     "id": "files.delete",
+     "label": "Delete photos and documents",
+     "kind": "action"
+    }
+   ]
+  },
+  {
+   "id": "g7",
+   "label": "Reports & Export",
+   "admin": false,
+   "permissions": [
+    {
+     "id": "report.register",
+     "label": "Report: Break Area Register",
+     "kind": "action"
+    },
+    {
+     "id": "report.inventory",
+     "label": "Report: Inventory by Break Area",
+     "kind": "action"
+    },
+    {
+     "id": "report.history",
+     "label": "Report: Update History",
+     "kind": "action"
+    },
+    {
+     "id": "report.issues",
+     "label": "Report: Issues",
+     "kind": "action"
+    },
+    {
+     "id": "report.inspections",
+     "label": "Report: Inspection Schedule",
+     "kind": "action"
+    },
+    {
+     "id": "report.satisfaction",
+     "label": "Report: Satisfaction Survey",
+     "kind": "action"
+    },
+    {
+     "id": "report.locations",
+     "label": "Report: Summary by Location",
+     "kind": "action"
+    },
+    {
+     "id": "report.labels",
+     "label": "Print QR code labels",
+     "kind": "action"
+    },
+    {
+     "id": "export.excel",
+     "label": "Export page lists to Excel",
+     "kind": "action"
+    },
+    {
+     "id": "print",
+     "label": "Print lists and reports / save as PDF",
+     "kind": "action"
+    },
+    {
+     "id": "report.full",
+     "label": "Complete database export (all data and logs)",
+     "kind": "action"
+    }
+   ]
+  },
+  {
+   "id": "g8",
+   "label": "Settings & Backups",
+   "admin": false,
+   "permissions": [
+    {
+     "id": "logs.view",
+     "label": "Data changes log (who changed what)",
+     "kind": "action"
+    },
+    {
+     "id": "settings.view",
+     "label": "Settings page and server information",
+     "kind": "action"
+    },
+    {
+     "id": "settings.edit",
+     "label": "Change general settings (name, locations, targets)",
+     "kind": "action"
+    },
+    {
+     "id": "backups.manage",
+     "label": "See and create backups",
+     "kind": "action"
+    },
+    {
+     "id": "trash.restore",
+     "label": "Recycle Bin: see and restore deleted records",
+     "kind": "action"
+    }
+   ]
+  },
+  {
+   "id": "g9",
+   "label": "Administrator rights - only for administrators",
+   "admin": true,
+   "permissions": [
+    {
+     "id": "users.manage",
+     "label": "Manage people, links, profiles and permissions",
+     "kind": "action"
+    },
+    {
+     "id": "logs.activity",
+     "label": "See what each person did and clicked (activity log)",
+     "kind": "action"
+    },
+    {
+     "id": "logs.security",
+     "label": "See logins and the security log",
+     "kind": "action"
+    },
+    {
+     "id": "backups.restore",
+     "label": "Restore a backup (all data goes back in time)",
+     "kind": "action"
+    },
+    {
+     "id": "data.import",
+     "label": "Import old data, load or delete all sample data",
+     "kind": "action"
+    }
+   ]
+  }
+ ],
+ "profiles": [
+  {
+   "id": "full-access",
+   "label": "Full access",
+   "perms": [
+    "areas.create",
+    "areas.delete",
+    "areas.edit",
+    "areas.view",
+    "backups.manage",
+    "dashboard.view",
+    "equipment.view",
+    "export.excel",
+    "files.delete",
+    "files.download",
+    "files.upload",
+    "inspections.create",
+    "inspections.delete",
+    "inventory.delete",
+    "inventory.edit",
+    "issues.create",
+    "issues.delete",
+    "issues.followup",
+    "itemtypes.manage",
+    "logs.view",
+    "maintenance.complete",
+    "maintenance.cost",
+    "maintenance.create",
+    "maintenance.delete",
+    "maintenance.view",
+    "print",
+    "report.full",
+    "report.history",
+    "report.inspections",
+    "report.inventory",
+    "report.issues",
+    "report.labels",
+    "report.locations",
+    "report.register",
+    "report.satisfaction",
+    "reports.view",
+    "settings.edit",
+    "settings.view",
+    "surveys.create",
+    "surveys.delete",
+    "surveys.edit",
+    "surveys.view",
+    "transactions.view",
+    "trash.restore"
+   ],
+   "locked": false
+  },
+  {
+   "id": "administrator",
+   "label": "Administrator",
+   "perms": [
+    "areas.create",
+    "areas.delete",
+    "areas.edit",
+    "areas.view",
+    "backups.manage",
+    "backups.restore",
+    "dashboard.view",
+    "data.import",
+    "equipment.view",
+    "export.excel",
+    "files.delete",
+    "files.download",
+    "files.upload",
+    "inspections.create",
+    "inspections.delete",
+    "inventory.delete",
+    "inventory.edit",
+    "issues.create",
+    "issues.delete",
+    "issues.followup",
+    "itemtypes.manage",
+    "logs.activity",
+    "logs.security",
+    "logs.view",
+    "maintenance.complete",
+    "maintenance.cost",
+    "maintenance.create",
+    "maintenance.delete",
+    "maintenance.view",
+    "print",
+    "report.full",
+    "report.history",
+    "report.inspections",
+    "report.inventory",
+    "report.issues",
+    "report.labels",
+    "report.locations",
+    "report.register",
+    "report.satisfaction",
+    "reports.view",
+    "settings.edit",
+    "settings.view",
+    "surveys.create",
+    "surveys.delete",
+    "surveys.edit",
+    "surveys.view",
+    "transactions.view",
+    "trash.restore",
+    "users.manage"
+   ],
+   "locked": true
+  },
+  {
+   "id": "data-entry",
+   "label": "Data Entry",
+   "perms": [
+    "areas.view",
+    "dashboard.view",
+    "equipment.view",
+    "export.excel",
+    "files.download",
+    "files.upload",
+    "inspections.create",
+    "inventory.edit",
+    "issues.create",
+    "issues.followup",
+    "maintenance.complete",
+    "maintenance.create",
+    "maintenance.view",
+    "print",
+    "surveys.create",
+    "surveys.edit",
+    "surveys.view",
+    "transactions.view"
+   ],
+   "locked": false
+  },
+  {
+   "id": "maintenance",
+   "label": "Maintenance Team",
+   "perms": [
+    "areas.view",
+    "dashboard.view",
+    "files.download",
+    "files.upload",
+    "inspections.create",
+    "issues.create",
+    "issues.followup",
+    "maintenance.complete",
+    "maintenance.view",
+    "print"
+   ],
+   "locked": false
+  },
+  {
+   "id": "viewer",
+   "label": "Viewer",
+   "perms": [
+    "areas.view",
+    "dashboard.view",
+    "equipment.view",
+    "files.download",
+    "maintenance.view",
+    "print",
+    "report.history",
+    "report.inspections",
+    "report.inventory",
+    "report.issues",
+    "report.locations",
+    "report.register",
+    "report.satisfaction",
+    "reports.view",
+    "surveys.view",
+    "transactions.view"
+   ],
+   "locked": false
+  },
+  {
+   "id": "visitor",
+   "label": "Visitor",
+   "perms": [
+    "areas.view",
+    "dashboard.view"
+   ],
+   "locked": false
+  }
+ ]
+}
