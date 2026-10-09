@@ -70,6 +70,13 @@ class Browser(unittest.TestCase):
                 self.assertIn('guide.start', kinds)
                 self.assertIn('guide.done', kinds)
 
+    def test_a_role_without_a_course_shows_no_badge(self):
+        """Regression: the button read «الدليلnull» on Store's sign-in page (replaceChildren printed the missing badge)."""
+        page = self.page('nobody', role='guest')
+        self.assertIsNone(page.query_selector('.afg-badge'))
+        self.assertNotIn('null', page.text_content('.afg-fab'))
+        self.assertEqual(page.problems, [])
+
     def test_walker_needs_no_eval_under_a_strict_csp(self):
         """Regression: walk_guides used wait_for_function, whose polling runs eval in the page; Store's policy refuses it."""
         page = self.page('csp-walker')

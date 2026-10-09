@@ -23,7 +23,7 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
-__version__ = '0.1.1'
+__version__ = '0.1.2'
 FORMAT = 1
 
 ID_RE = re.compile(r'^[a-z][a-z0-9]*(-[a-z0-9]+)*$')

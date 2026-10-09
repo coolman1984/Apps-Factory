@@ -189,8 +189,9 @@
     function setDir(node) { node.setAttribute('lang', lang()); node.setAttribute('dir', lang() === 'ar' ? 'rtl' : 'ltr'); }
     function renderFab() {
       const c = myCourse();
+      // no course (signed out, or a role without one): no badge. replaceChildren would print a null as the word "null"
       fab.replaceChildren(el('span', {class: 'afg-fab-label', text: W('guide')}),
-        c.total ? el('span', {class: 'afg-badge', 'aria-label': fmt(W('progress'), {d: c.done, t: c.total}), text: c.done + '/' + c.total}) : null);
+        ...(c.total ? [el('span', {class: 'afg-badge', 'aria-label': fmt(W('progress'), {d: c.done, t: c.total}), text: c.done + '/' + c.total})] : []));
       setDir(fab);
     }
     function guideRow(g, item) {
