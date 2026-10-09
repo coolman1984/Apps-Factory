@@ -1,4 +1,4 @@
-# af-access v0.1.0 • people, profiles, pages and permissions gate
+# af-access v0.1.1 • people, profiles, pages and permissions gate
 
 **Status:** `implemented` (unit-tested here; reference catalogue from BAMS passes). Standard:
 [docs/ACCESS_AND_ADMINISTRATION_STANDARD.md](../../docs/ACCESS_AND_ADMINISTRATION_STANDARD.md). Controls `IAM-08`…`IAM-12`.
@@ -31,7 +31,7 @@ python -m unittest discover -s tests
 
 ## Rules (`check`)
 Errors: `perm-id`, `perm-duplicate`, `perm-kind`, `label-missing`, `requires-unknown`, `requires-self`, `admin-group`,
-`manage-missing`, `manage-not-admin`, `page-unguarded`, `page-unknown-perm`, `locked-profile`, `profile-duplicate`,
+`manage-missing`, `manage-not-admin`, `pages-missing`, `page-unguarded`, `page-unknown-perm`, `locked-profile`, `profile-id`, `profile-duplicate`,
 `profile-reserved-name`, `profile-unknown-perm`, `profile-missing-requires`, `no-work-profile`.
 Warnings: `page-perm-unused`, `perm-unused`.
 

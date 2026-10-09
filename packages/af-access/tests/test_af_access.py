@@ -64,6 +64,9 @@ class Catalogue(unittest.TestCase):
             ('profile-reserved-name', lambda c: c['profiles'][1]['labels'].update(en='Custom')),
             ('profile-missing-requires', lambda c: c['profiles'][1]['perms'].remove('sales.view')),
             ('no-work-profile', lambda c: c['profiles'][1]['perms'].append('users.manage')),
+            ('pages-missing', lambda c: c.pop('pages')),
+            ('pages-missing', lambda c: c.update(pages={})),
+            ('profile-id', lambda c: c['profiles'][1].pop('id')),
         ]
         for code, breaks in cases:
             with self.subTest(code=code):
@@ -74,7 +77,7 @@ class Catalogue(unittest.TestCase):
     def test_warnings_do_not_fail(self):
         cat = tiny()
         cat['profiles'][1]['perms'].remove('cost.view')  # nobody but the owner sees cost: allowed, but worth a look
-        cat['pages'].pop('sales')
+        cat['pages'].pop('sales')  # still one page left: the map exists, the sales page tick just opens nothing
         found = A.check(cat)
         self.assertEqual({f.code for f in found}, {'perm-unused', 'page-perm-unused'})
         self.assertEqual(A.errors(cat), [])
@@ -118,6 +121,7 @@ class Guards(unittest.TestCase):
         profs = tiny()['profiles']
         self.assertEqual(A.matching_profile(['cost.view', 'sales.return', 'sales.view'], profs), 'cashier')
         self.assertIsNone(A.matching_profile(['sales.view'], profs))
+        self.assertIsNone(A.matching_profile(['x'], [{'perms': ['x']}]))  # a profile without id never matches (no KeyError)
 
     def test_matrix(self):
         m = A.matrix(tiny(), 'ar')
