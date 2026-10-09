@@ -5,8 +5,7 @@
   "references": [
     "https://owasp.org/projects/asvs",
     "https://csrc.nist.gov/pubs/sp/800/218/final",
-    "https://www.w3.org/TR/WCAG22/",
-    "https://www.pdpc.gov.eg/"
+    "https://www.w3.org/TR/WCAG22/"
   ],
   "controls": [
     {
