@@ -9,6 +9,17 @@ One repeatable process for building and selling small commercial apps (desktop, 
 a catalogue of controls and a manifest schema (`factory/`), a CLI that checks them (`scripts/factory.py`), and tested shared parts that products copy in.
 A feature has one status: `planned` → `implemented` → `verified` → `field_accepted`. A written rule is not a working feature.
 
+## Pixel Plus company execution map (owner direction 2026-10-09)
+
+**Start with [the single prioritized execution roadmap](docs/PIXEL_PLUS_EXECUTION_ROADMAP_2026.md).** It connects the latest customer-sales strategy, Store's first paid-shop gate, Telegram owner-approved activation, guided Demo Mode / public product showroom, the four distinct infrastructure plans, **Rafaa** (included small radar vs optional paid finance/growth module) and the Pixel Plus × Sanad Business Advisory consented service model.
+
+- [Owner-approved Telegram activation design](docs/TELEGRAM_APPROVED_ACTIVATION.md): consented 14-day request → Telegram **approve/reject** → a **trusted local Licence Studio signs** → only requesting Store receives and locally verifies the signed code; offline phone readout. **Not implemented end-to-end or deployed.**
+- [Rafaa financial-growth add-on proposal](docs/RAFAA_GROWTH_DECISION_ADDON_PROPOSAL.md): accounting, purchasing, taxes, closing, cost/FP&A and decision simulation on top of Accounting-sys, *not* a duplicate Store ledger. Name/price/claims require validation.
+- [Pixel Plus × Sanad partner/service plan](docs/PIXEL_PLUS_SANAD_PARTNER_OPERATING_MODEL.md): two independent companies, opt-in advisory, no automatic customer-data sharing. Pricing, roles and commissions await owner briefing 2026-10-11.
+- [Interactive practice and public showroom](docs/PIXEL_PLUS_EXPERIENCE_ROADMAP.md): safe synthetic demo inside Guide, later authentic isolated website trials; **planned**, not launched.
+
+These are **strategic reference specifications**, NOT executable features, a paid cloud deployment or evidence of any customer acceptance. Factory's five living operational docs below remain unchanged.
+
 ## The five living docs
 | Doc | Read it for |
 |---|---|
