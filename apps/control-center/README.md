@@ -1,6 +1,6 @@
-# Vendor Control Center (برج المراقبة) v0.1.0
+# Vendor Control Center (برج المراقبة) v0.2.0
 
-**Status:** `implemented` — 15 API/UI tests pass. **Not deployed, not field-verified.** Manifest: [examples/vendor-control-center.json](../../examples/vendor-control-center.json) • Spec: [PROTECTION_UPDATES_AND_SUPPORT.md](../../docs/PROTECTION_UPDATES_AND_SUPPORT.md) §3–5.
+**Status:** `implemented` — API/UI and telemetry tests pass (`tests/`). **Not deployed, not field-verified.** Manifest: [examples/vendor-control-center.json](../../examples/vendor-control-center.json) • Spec: [PROTECTION_UPDATES_AND_SUPPORT.md](../../docs/PROTECTION_UPDATES_AND_SUPPORT.md) §3–5.
 
 ## What works now
 - Customer and install registry; one-time install tokens (stored hashed); deactivate an install.
@@ -10,6 +10,44 @@
 - Repairs: allowlist of 4 non-destructive actions, only under a live grant with `repair` scope; the AI agent token can only *request*; the owner approves.
 - Licence desk: claims template per install → sign **offline** with `af-license` → upload; the server verifies the signature before storing; expiring list.
 - Audit of every write; UUIDv7 IDs; forward-only migrations; Arabic RTL dashboard (customer text rendered as text only).
+
+- **Telemetry (0.2.0):**
+  - **Ingest:** signed gzip event batches, either through `POST /api/agent/events` or pulled from the Cloudflare relay (`templates/telemetry-relay`).
+    - Every batch is checked for its HMAC signature (keyed with the stored sha256 of the install token), a 5-minute window and a single-use nonce.
+    - Every event is checked again against the firm limits (exact envelope, `p_` pseudonyms only, the allowlisted fields of `events.json`, and a second redaction of report text).
+  - **Incidents:** grouped by product + fingerprint, with counts, installations and versions. An incident re-opens when it returns on a new version.
+  - **Usage:** per person (pseudonym) per day.
+  - **Guides:** a guide funnel (started, finished, abandoned).
+  - **Releases:** errors and failed upgrades per release.
+  - **Problem reports and ideas:** stored as tickets (untrusted text).
+- **Alerts (`control_center/alerts.py`):**
+  - **Rules:** 11 rules:
+    - new incident;
+    - spike;
+    - spread across 3 installations;
+    - failed upgrade;
+    - failed backup;
+    - stale backup (48 h);
+    - silent installation (26 h);
+    - failing sync;
+    - licence attention;
+    - problem report;
+    - permission friction.
+
+    Rules can be switched off and their thresholds changed in settings. A 6-hour de-duplication applies.
+  - **Fan-out:** every alert is sent to **all enabled channels at the same time** (a thread pool, one task per channel). There is no priority and no fallback. A failing or hung channel never blocks the others: each one has its own try/except and a time limit. Every channel's result is logged in `alert_deliveries` (`sent`, `failed`, `unsupported`, `disabled`, ms) and shown on the dashboard.
+  - **Channels:**
+
+    | Channel | Settings (environment only, never stored or shown) | Default |
+    |---|---|---|
+    | dashboard | — | always on |
+    | email | `CC_SMTP_HOST`, `CC_SMTP_PORT`, `CC_SMTP_USER`, `CC_SMTP_PASSWORD`, `CC_ALERT_EMAIL_FROM`, `CC_ALERT_EMAIL_TO` | on when configured |
+    | whatsapp | `CC_WA_TOKEN`, `CC_WA_PHONE_NUMBER_ID`, `CC_WA_TO`, `CC_WA_TEMPLATE` (+ `CC_WA_TEMPLATE_LANG`). Without a template, plain text only reaches the owner inside WhatsApp's 24-hour window. «⚠️ نقطة مفتوحة: لسه ما بدأناش ندفع — التكلفة و/أو شرط توثيق الشركة مش واضحين» | on when configured |
+    | telegram | `CC_TG_BOT_TOKEN`, `CC_TG_CHAT_ID`. Free; **recommended** for owner alerts. | **off** until switched on |
+    | linkedin | `CC_LINKEDIN_TOKEN`. **Cannot deliver:** member DMs are partner-only and automated sends are prohibited, and the free API only makes public posts on your own profile. The adapter logs `unsupported` and never posts. «⚠️ نقطة مفتوحة: لسه ما بدأناش ندفع — التكلفة و/أو شرط توثيق الشركة مش واضحين» | **off** |
+
+  - **Settings:** `GET/PUT /api/alert-settings` (owner) holds on/off switches and thresholds only. Secret-looking keys are refused. `POST /api/alerts/test` sends a test alert to every enabled channel.
+- **Retention:** raw events 90 days, nonces 1 day, alerts and fixed incidents 12 months, daily usage 24 months. It runs daily in the background, or once with `python -m control_center retention`.
 
 ## Not yet
 MCP gateway process for the AI agent (the API is its backend), product-side agent library, GlitchTip/RustDesk/Uptime Kuma deployment, owner MFA, HTTPS deployment, backups of this server.
@@ -22,5 +60,10 @@ export CC_LICENCE_PUBLIC_KEYS="<kid>:<public key>"        # from: python -m af_l
 python -m control_center token --kind owner --name "Owner"  # printed once
 python -m control_center token --kind agent --name "AI agent"
 python -m control_center serve --host 127.0.0.1 --port 8765 # put HTTPS (reverse proxy) in front before going online
+# telemetry relay (optional; see templates/telemetry-relay):
+export CC_RELAY_URL=https://<worker>.workers.dev CC_RELAY_TOKEN=<same as RELAY_PULL_TOKEN>
+python -m control_center pull-relay   # once; `serve` also pulls every CC_RELAY_EVERY seconds (default 300)
+python -m control_center alerts       # time-based rules once
+python -m control_center retention    # clean-up once
 python -m unittest discover -s tests -v
 ```

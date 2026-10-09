@@ -2,6 +2,22 @@
 
 Factory versions (the `README.md` version line). The control catalogue has its own `catalog_version` in `factory/controls.json`.
 
+## 0.8.0 (2026-10-09)
+- **Control Center 0.2.0: telemetry ingest and alerts:**
+  - signed gzip batches through `POST /api/agent/events` or pulled from the relay, checked for HMAC, a 5-minute window, nonce replay and the firm limits (checked again on arrival);
+  - incidents, per-person usage, guide funnel, releases, and problem reports as tickets;
+  - 11 alert rules with de-duplication;
+  - **parallel fan-out to every enabled channel** with a per-channel delivery log;
+  - channel adapters: dashboard, email, WhatsApp, Telegram (free, off by default) and LinkedIn (off; cannot deliver, logs `unsupported`);
+  - settings without secrets;
+  - retention;
+  - CLI commands `pull-relay`, `alerts` and `retention`, plus a background loop;
+  - dashboard sections for alerts (with per-channel status), channels, incidents, releases, usage, guide funnel and reports.
+- Fix: Control Center requests and the background loop now take turns on the shared sqlite connection. Before this, parallel dashboard requests could read each other's cursors (500 and false 401 errors); a regression test covers it.
+- New template `templates/telemetry-relay`: a Cloudflare Worker + D1 relay (`/ingest`, `/pull`, `/ack`, a 14-day cron clean-up) with Node tests on a D1 shim.
+- Design only: `docs/CUSTOMER_PATCH_PIPELINE.md`, covering the customer patch pipeline (all delivery free; the paid WhatsApp API is rejected for customers) and the optional customer Telegram bot.
+- `docs/OPEN_POINTS.md`: new decided items for free customer delivery, the rejected customer WhatsApp API, and Telegram recommended for owner alerts.
+
 ## 0.7.0 (2026-10-09)
 - New package `packages/af-consent` 0.1.0:
   - two-level, append-only consent records with exact text ids;
