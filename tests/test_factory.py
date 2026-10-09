@@ -228,6 +228,8 @@ class CoreGateTests(unittest.TestCase):
         p["competitors"] = []  # competitor rows are advice only
         p["evidence"] = {"clean_device_restore": "2026-10-09 restored on a second PC, run log 41",
                          "core_user_acceptance": "2026-10-09 first customer did the journey alone"}
+        if p.get("commercial_plan") == "solo":
+            p["evidence"]["off_device_cloud_restore"] = "Synthetic test: off-PC encrypted backup restored on a second clean PC"
         p["control_evidence"] = {c["id"]: {"status": "verified", "proof": "test run 41"}
                                  for c in factory.core_controls(factory.applicable(factory.catalog(), p))}
         return p

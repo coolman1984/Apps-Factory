@@ -6,10 +6,15 @@
   "connectivity": {
     "tier": "office_server",
     "sites": "single",
-    "clients": ["windows_desktop", "browser"],
+    "clients": [
+      "windows_desktop",
+      "browser"
+    ],
     "multi_owner": false
   },
-  "markets": ["EG"],
+  "markets": [
+    "EG"
+  ],
   "buyer": "Owner of one household-goods and electrical-appliances shop in Egypt (first pilot in Beni Suef), 2-6 staff, one counter PC",
   "problem": "Fast price rises, shop instalments, serial warranty, unrecorded discounts/returns and drawer differences are tracked on paper; money and stock leak without the owner seeing where.",
   "core_journey": "Open shift with a float, sell by barcode/keyboard (serial for appliances) for cash (the only way on in every shop; card/wallet/InstaPay/finance company/on account/shop instalments are built and tested but hidden until the owner turns them on), print the receipt, take a return linked to the sale line with a manager's approval, close the shift by counting; the owner sees every difference.",
@@ -32,60 +37,214 @@
   },
   "stage": "pilot_candidate",
   "competitors": [
-    {"name": "Daftra", "url": "https://www.daftra.com/plans", "checked_on": "2026-10-08", "region": "EG/MENA", "pricing_status": "verified", "price_notes": "USD plans; offline hardware POS only on the top plan", "differentiator": "Generic cloud ERP; needs internet"},
-    {"name": "Edara", "url": "https://getedara.com/", "checked_on": "2026-10-08", "region": "EG", "pricing_status": "unknown", "differentiator": "Generic accounting and stock"},
-    {"name": "Al-Ameen", "url": "https://alameensoft-eg.com/", "checked_on": "2026-10-08", "region": "EG", "pricing_status": "not_public", "differentiator": "Heavy desktop ERP"},
-    {"name": "Odoo", "url": "https://www.odoo.com/pricing", "checked_on": "2026-10-08", "region": "Global", "pricing_status": "verified", "price_notes": "about USD 31 per user per month (third-party listing)", "differentiator": "Needs an implementer"},
-    {"name": "Loyverse", "url": "https://loyverse.com", "checked_on": "2026-10-08", "region": "Global", "pricing_status": "unknown", "differentiator": "Simple POS; no shop instalments or serial warranty (UNVERIFIED)"}
+    {
+      "name": "Daftra",
+      "url": "https://www.daftra.com/plans",
+      "checked_on": "2026-10-08",
+      "region": "EG/MENA",
+      "pricing_status": "verified",
+      "price_notes": "USD plans; offline hardware POS only on the top plan",
+      "differentiator": "Generic cloud ERP; needs internet"
+    },
+    {
+      "name": "Edara",
+      "url": "https://getedara.com/",
+      "checked_on": "2026-10-08",
+      "region": "EG",
+      "pricing_status": "unknown",
+      "differentiator": "Generic accounting and stock"
+    },
+    {
+      "name": "Al-Ameen",
+      "url": "https://alameensoft-eg.com/",
+      "checked_on": "2026-10-08",
+      "region": "EG",
+      "pricing_status": "not_public",
+      "differentiator": "Heavy desktop ERP"
+    },
+    {
+      "name": "Odoo",
+      "url": "https://www.odoo.com/pricing",
+      "checked_on": "2026-10-08",
+      "region": "Global",
+      "pricing_status": "verified",
+      "price_notes": "about USD 31 per user per month (third-party listing)",
+      "differentiator": "Needs an implementer"
+    },
+    {
+      "name": "Loyverse",
+      "url": "https://loyverse.com",
+      "checked_on": "2026-10-08",
+      "region": "Global",
+      "pricing_status": "unknown",
+      "differentiator": "Simple POS; no shop instalments or serial warranty (UNVERIFIED)"
+    }
   ],
   "acceptance": [
     "A one-product cash sale with change takes under 10 seconds by keyboard and never records twice on retry.",
     "Discounts above the seller's limit, prices under minimum/cost and going over a credit limit need another person's password; wrong tries count toward lockout.",
     "Returns refund at most what was paid for that line and are shown in the owner's eye.",
     "Without a valid device-bound licence code the shop can read, export and back up but cannot sell or change data.",
-    "No page wider than the screen or text out of its card at 360/390/820/1366 px in Arabic and English; UI Lab budgets pass on a 4x slower CPU."
+    "No page wider than the screen or text out of its card at 360/390/820/1366 px in Arabic and English; UI Lab budgets pass on a 4x slower CPU.",
+    "Solo sale requires an encrypted versioned backup uploaded outside the Windows PC and verified restore with the real customer's chosen storage/key procedure; otherwise market the existing app as an on-site pilot only."
   ],
   "evidence": {
     "market_review": "Desk research 2026-10-08 (docs/01-research.md in coolman1984/Store); field interviews with 5 shops PENDING",
     "privacy_review": "PENDING Egypt PDPL review",
     "security_review": "Automated negative checks (CSP, Host/Origin, roles, approvals, append-only ledger) PASS; independent review PENDING",
     "clean_device_restore": "PENDING field drill",
-    "core_user_acceptance": "PENDING first pilot shop"
+    "core_user_acceptance": "PENDING first pilot shop",
+    "off_device_cloud_restore": "PENDING: safe encrypted versioned cloud backup, retention and off-device restore on a different clean Windows PC not yet implemented/accepted"
   },
-  "features": ["pos", "serials-warranty", "returns", "shop-instalments", "shifts-drawer-safe", "stock-places-shelves", "bulk-dated-prices", "owner-eye", "reports", "local-backup", "licence-codes"],
-  "exclusions": ["eta-e-receipt", "multi-branch-sync", "online-store", "supplier-returns", "label-printing"],
+  "features": [
+    "pos",
+    "serials-warranty",
+    "returns",
+    "shop-instalments",
+    "shifts-drawer-safe",
+    "stock-places-shelves",
+    "bulk-dated-prices",
+    "owner-eye",
+    "reports",
+    "local-backup",
+    "licence-codes"
+  ],
+  "exclusions": [
+    "eta-e-receipt",
+    "multi-branch-sync",
+    "online-store",
+    "supplier-returns",
+    "label-printing"
+  ],
   "control_evidence": {
-    "IAM-01": {"status": "verified", "proof": "coolman1984/Store 1.4.0, tests green 2026-10-09 (171 passed, 0 skips, Chromium): SetupTests.test_first_run_creates_owner_once; owner recovery by a one-time paper code, hash only, throttled, no master password (test_api.RecoveryTests, browser OwnerRecovery)"},
-    "IAM-02": {"status": "verified", "proof": "coolman1984/Store 1.3.0, tests green 2026-10-09 (164 passed, 0 skips, Chromium): ApiTests.test_wrong_password_is_vague_and_locks; approvals checked before the transaction"},
-    "IAM-03": {"status": "verified", "proof": "coolman1984/Store 1.3.0, tests green 2026-10-09 (164 passed, 0 skips, Chromium): ApiTests.test_cashier_sees_no_cost_and_cannot_manage, test_storekeeper_cannot_sell, test_access.Http.test_pages_follow_the_ticks_on_the_server"},
-    "IAM-06": {"status": "implemented", "proof": "PENDING: practice shop is a separate folder and port; no negative test that demo passwords are refused in a real shop"},
-    "IAM-08": {"status": "verified", "proof": "coolman1984/Store 1.3.0, tests green 2026-10-09 (164 passed, 0 skips, Chromium): test_access.Catalogue.test_factory_gate_passes_with_both_languages (vendored afaccess gate)"},
-    "IAM-10": {"status": "verified", "proof": "coolman1984/Store 1.3.0, tests green 2026-10-09 (164 passed, 0 skips, Chromium): test_access.Guards (lockout refused, last manager kept), Profiles.test_applying_a_profile_cannot_lock_the_shop_out"},
-    "IAM-11": {"status": "verified", "proof": "coolman1984/Store 1.3.0, tests green 2026-10-09 (164 passed, 0 skips, Chromium): test_access.Http.test_pages_follow_the_ticks_on_the_server, browser PeopleAndProfiles.test_owner_controls_what_each_person_sees"},
-    "DATA-02": {"status": "verified", "proof": "coolman1984/Store 1.3.0, tests green 2026-10-09 (164 passed, 0 skips, Chromium): test_domain ledger triggers refuse UPDATE/DELETE, reversals with reasons, audit rows (test_access.Http.test_people_screen_data_and_audit)"},
-    "DATA-03": {"status": "verified", "proof": "coolman1984/Store 1.3.0, tests green 2026-10-09 (164 passed, 0 skips, Chromium): test_domain.SellingTests.test_cash_sale_moves_stock_drawer_and_is_idempotent, return idempotency in ReturnTests"},
-    "DATA-05": {"status": "implemented", "proof": "PENDING: checked backups and restore tested (RestoreTests); restore on a different clean PC not done"},
-    "DATA-06": {"status": "implemented", "proof": "PENDING: upgrade with checked copy tested (test_access.Upgrade); refusal of newer data (db.NewerData) has no test"},
-    "OPS-06": {"status": "implemented", "proof": "PENDING: SQLite transactions and online backup outside transactions; no kill-process / power-cut drill"},
-    "SEC-02": {"status": "implemented", "proof": "PENDING: support token kept out of the DB (test_support); no repository secret scan in CI"},
-    "SEC-03": {"status": "verified", "proof": "coolman1984/Store 1.3.0, tests green 2026-10-09 (164 passed, 0 skips, Chromium): test_fuzz FuzzTests + MutationTests, prepared queries, html escaping static checks (test_frontend.PageCode)"},
-    "SEC-04": {"status": "verified", "proof": "coolman1984/Store 1.3.0, tests green 2026-10-09 (164 passed, 0 skips, Chromium): ApiTests.test_boot_and_security_headers (HttpOnly SameSite cookie), loopback/LAN host checks"},
-    "SEC-07": {"status": "implemented", "proof": "PENDING: CSP, Host, Origin tested (test_dns_rebinding_and_cross_site_writes_refused, test_no_inline_styles_or_scripts); spreadsheet formula neutralising in backup.py has no test"},
-    "LIC-01": {"status": "verified", "proof": "coolman1984/Store 1.3.0, tests green 2026-10-09 (164 passed, 0 skips, Chromium): LicenceGateTests (other PC, expired, clock moved back); vendor public key not yet in licence_keys.txt"},
-    "BIZ-03": {"status": "verified", "proof": "coolman1984/Store 1.3.0, tests green 2026-10-09 (164 passed, 0 skips, Chromium): LicenceGateTests.test_without_code_reads_work_and_writes_are_refused, browser LicenceLock"},
-    "OPS-01": {"status": "implemented", "proof": "PENDING: no release proof with source SHA to installer yet"},
-    "REL-03": {"status": "implemented", "proof": "PENDING: uninstall keeps data in the windows workflow (run 3, 2026-10-08); upgrade 1.2.2 to 1.3.0 on a realistic copy not run"},
-    "OPS-07": {"status": "implemented", "proof": "PENDING: windows installer workflow green 2026-10-08 (run 3); rerun on the release commit and record the run id"},
-    "QA-02": {"status": "verified", "proof": "coolman1984/Store 1.3.0, tests green 2026-10-09 (164 passed, 0 skips, Chromium): test_fuzz.FuzzTests.test_no_route_crashes_on_junk_writes, MutationTests"},
-    "UX-08": {"status": "verified", "proof": "coolman1984/Store 1.3.0, tests green 2026-10-09 (164 passed, 0 skips, Chromium): browser LayoutSweep at 360/390/820/1366, AR/EN, dark, large text"},
-    "PERF-01": {"status": "implemented", "proof": "PENDING: ui-lab REPORT.md all PASS on 2026-10-08; rerun on the release commit"},
-    "A11Y-01": {"status": "implemented", "proof": "PENDING: ui-lab a11y column 0 on 2026-10-08; manual keyboard journey not recorded"},
-    "HELP-07": {"status": "verified", "proof": "coolman1984/Store 1.3.0, tests green 2026-10-09 (164 passed, 0 skips, Chromium): test_guide (af_guide check, per-person progress over HTTP), browser GuideCoach"},
-    "HELP-09": {"status": "verified", "proof": "coolman1984/Store 1.3.0, tests green 2026-10-09 (164 passed, 0 skips, Chromium): test_guide.Catalogue.test_release_check_uses_the_real_shop and test_cli_check_release with --errors"},
-    "HELP-11": {"status": "verified", "proof": "coolman1984/Store 1.3.0, tests green 2026-10-09 (164 passed, 0 skips, Chromium): test_guide.test_cli_check_release --release clean, browser language switch"},
-    "PRIV-01": {"status": "verified", "proof": "coolman1984/Store 1.3.0, tests green 2026-10-09 (164 passed, 0 skips, Chromium): test_privacy.Privacy + GluePrivacy (two levels, decline and withdraw purge), browser GuideCoach consent"},
-    "PRIV-03": {"status": "verified", "proof": "coolman1984/Store 1.3.0, tests green 2026-10-09 (164 passed, 0 skips, Chromium): test_privacy.test_nothing_is_queued_without_consent_and_forbidden_fields_are_refused with the vendored taxonomy"},
-    "TEL-01": {"status": "verified", "proof": "coolman1984/Store 1.3.0, tests green 2026-10-09 (164 passed, 0 skips, Chromium): test_privacy.test_failed_send_keeps_batch_and_new_events_for_retry, test_no_remote_send_inside_a_shop_write"},
-    "FB-01": {"status": "verified", "proof": "coolman1984/Store 1.3.0, tests green 2026-10-09 (164 passed, 0 skips, Chromium): browser GuideCoach.test_report_previews_redacted_words_and_queues_only_after_send, test_edit_during_report_preview_does_not_enable_stale_send"}
-  }
+    "IAM-01": {
+      "status": "verified",
+      "proof": "coolman1984/Store 1.4.0, tests green 2026-10-09 (171 passed, 0 skips, Chromium): SetupTests.test_first_run_creates_owner_once; owner recovery by a one-time paper code, hash only, throttled, no master password (test_api.RecoveryTests, browser OwnerRecovery)"
+    },
+    "IAM-02": {
+      "status": "verified",
+      "proof": "coolman1984/Store 1.3.0, tests green 2026-10-09 (164 passed, 0 skips, Chromium): ApiTests.test_wrong_password_is_vague_and_locks; approvals checked before the transaction"
+    },
+    "IAM-03": {
+      "status": "verified",
+      "proof": "coolman1984/Store 1.3.0, tests green 2026-10-09 (164 passed, 0 skips, Chromium): ApiTests.test_cashier_sees_no_cost_and_cannot_manage, test_storekeeper_cannot_sell, test_access.Http.test_pages_follow_the_ticks_on_the_server"
+    },
+    "IAM-06": {
+      "status": "implemented",
+      "proof": "PENDING: practice shop is a separate folder and port; no negative test that demo passwords are refused in a real shop"
+    },
+    "IAM-08": {
+      "status": "verified",
+      "proof": "coolman1984/Store 1.3.0, tests green 2026-10-09 (164 passed, 0 skips, Chromium): test_access.Catalogue.test_factory_gate_passes_with_both_languages (vendored afaccess gate)"
+    },
+    "IAM-10": {
+      "status": "verified",
+      "proof": "coolman1984/Store 1.3.0, tests green 2026-10-09 (164 passed, 0 skips, Chromium): test_access.Guards (lockout refused, last manager kept), Profiles.test_applying_a_profile_cannot_lock_the_shop_out"
+    },
+    "IAM-11": {
+      "status": "verified",
+      "proof": "coolman1984/Store 1.3.0, tests green 2026-10-09 (164 passed, 0 skips, Chromium): test_access.Http.test_pages_follow_the_ticks_on_the_server, browser PeopleAndProfiles.test_owner_controls_what_each_person_sees"
+    },
+    "DATA-02": {
+      "status": "verified",
+      "proof": "coolman1984/Store 1.3.0, tests green 2026-10-09 (164 passed, 0 skips, Chromium): test_domain ledger triggers refuse UPDATE/DELETE, reversals with reasons, audit rows (test_access.Http.test_people_screen_data_and_audit)"
+    },
+    "DATA-03": {
+      "status": "verified",
+      "proof": "coolman1984/Store 1.3.0, tests green 2026-10-09 (164 passed, 0 skips, Chromium): test_domain.SellingTests.test_cash_sale_moves_stock_drawer_and_is_idempotent, return idempotency in ReturnTests"
+    },
+    "DATA-05": {
+      "status": "implemented",
+      "proof": "PENDING: checked backups and restore tested (RestoreTests); restore on a different clean PC not done"
+    },
+    "DATA-06": {
+      "status": "implemented",
+      "proof": "PENDING: upgrade with checked copy tested (test_access.Upgrade); refusal of newer data (db.NewerData) has no test"
+    },
+    "OPS-06": {
+      "status": "implemented",
+      "proof": "PENDING: SQLite transactions and online backup outside transactions; no kill-process / power-cut drill"
+    },
+    "SEC-02": {
+      "status": "implemented",
+      "proof": "PENDING: support token kept out of the DB (test_support); no repository secret scan in CI"
+    },
+    "SEC-03": {
+      "status": "verified",
+      "proof": "coolman1984/Store 1.3.0, tests green 2026-10-09 (164 passed, 0 skips, Chromium): test_fuzz FuzzTests + MutationTests, prepared queries, html escaping static checks (test_frontend.PageCode)"
+    },
+    "SEC-04": {
+      "status": "verified",
+      "proof": "coolman1984/Store 1.3.0, tests green 2026-10-09 (164 passed, 0 skips, Chromium): ApiTests.test_boot_and_security_headers (HttpOnly SameSite cookie), loopback/LAN host checks"
+    },
+    "SEC-07": {
+      "status": "implemented",
+      "proof": "PENDING: CSP, Host, Origin tested (test_dns_rebinding_and_cross_site_writes_refused, test_no_inline_styles_or_scripts); spreadsheet formula neutralising in backup.py has no test"
+    },
+    "LIC-01": {
+      "status": "verified",
+      "proof": "coolman1984/Store 1.3.0, tests green 2026-10-09 (164 passed, 0 skips, Chromium): LicenceGateTests (other PC, expired, clock moved back); vendor public key not yet in licence_keys.txt"
+    },
+    "BIZ-03": {
+      "status": "verified",
+      "proof": "coolman1984/Store 1.3.0, tests green 2026-10-09 (164 passed, 0 skips, Chromium): LicenceGateTests.test_without_code_reads_work_and_writes_are_refused, browser LicenceLock"
+    },
+    "OPS-01": {
+      "status": "implemented",
+      "proof": "PENDING: no release proof with source SHA to installer yet"
+    },
+    "REL-03": {
+      "status": "implemented",
+      "proof": "PENDING: uninstall keeps data in the windows workflow (run 3, 2026-10-08); upgrade 1.2.2 to 1.3.0 on a realistic copy not run"
+    },
+    "OPS-07": {
+      "status": "implemented",
+      "proof": "PENDING: windows installer workflow green 2026-10-08 (run 3); rerun on the release commit and record the run id"
+    },
+    "QA-02": {
+      "status": "verified",
+      "proof": "coolman1984/Store 1.3.0, tests green 2026-10-09 (164 passed, 0 skips, Chromium): test_fuzz.FuzzTests.test_no_route_crashes_on_junk_writes, MutationTests"
+    },
+    "UX-08": {
+      "status": "verified",
+      "proof": "coolman1984/Store 1.3.0, tests green 2026-10-09 (164 passed, 0 skips, Chromium): browser LayoutSweep at 360/390/820/1366, AR/EN, dark, large text"
+    },
+    "PERF-01": {
+      "status": "implemented",
+      "proof": "PENDING: ui-lab REPORT.md all PASS on 2026-10-08; rerun on the release commit"
+    },
+    "A11Y-01": {
+      "status": "implemented",
+      "proof": "PENDING: ui-lab a11y column 0 on 2026-10-08; manual keyboard journey not recorded"
+    },
+    "HELP-07": {
+      "status": "verified",
+      "proof": "coolman1984/Store 1.3.0, tests green 2026-10-09 (164 passed, 0 skips, Chromium): test_guide (af_guide check, per-person progress over HTTP), browser GuideCoach"
+    },
+    "HELP-09": {
+      "status": "verified",
+      "proof": "coolman1984/Store 1.3.0, tests green 2026-10-09 (164 passed, 0 skips, Chromium): test_guide.Catalogue.test_release_check_uses_the_real_shop and test_cli_check_release with --errors"
+    },
+    "HELP-11": {
+      "status": "verified",
+      "proof": "coolman1984/Store 1.3.0, tests green 2026-10-09 (164 passed, 0 skips, Chromium): test_guide.test_cli_check_release --release clean, browser language switch"
+    },
+    "PRIV-01": {
+      "status": "verified",
+      "proof": "coolman1984/Store 1.3.0, tests green 2026-10-09 (164 passed, 0 skips, Chromium): test_privacy.Privacy + GluePrivacy (two levels, decline and withdraw purge), browser GuideCoach consent"
+    },
+    "PRIV-03": {
+      "status": "verified",
+      "proof": "coolman1984/Store 1.3.0, tests green 2026-10-09 (164 passed, 0 skips, Chromium): test_privacy.test_nothing_is_queued_without_consent_and_forbidden_fields_are_refused with the vendored taxonomy"
+    },
+    "TEL-01": {
+      "status": "verified",
+      "proof": "coolman1984/Store 1.3.0, tests green 2026-10-09 (164 passed, 0 skips, Chromium): test_privacy.test_failed_send_keeps_batch_and_new_events_for_retry, test_no_remote_send_inside_a_shop_write"
+    },
+    "FB-01": {
+      "status": "verified",
+      "proof": "coolman1984/Store 1.3.0, tests green 2026-10-09 (164 passed, 0 skips, Chromium): browser GuideCoach.test_report_previews_redacted_words_and_queues_only_after_send, test_edit_during_report_preview_does_not_enable_stale_send"
+    }
+  },
+  "commercial_plan": "solo"
 }

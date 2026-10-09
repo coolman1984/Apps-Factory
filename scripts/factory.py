@@ -278,7 +278,7 @@ def valid_product(product, release=False):
     if not isinstance(product["evidence"], dict) or any(k not in product["evidence"] for k in EVIDENCE):  # legacy keys ignored
         errors.append("Missing evidence slots")
     errors.extend(connectivity_errors(product))
-    errors.extend(commercial_plan_errors(product, release=release))
+    errors.extend(commercial_plan_errors(product, release=False))
     errors.extend(telemetry_errors(product))
     if errors:
         return errors, []
@@ -292,6 +292,7 @@ def valid_product(product, release=False):
         if not isinstance(v, dict) or v.get("status") not in {"planned", "implemented", "verified", "field_accepted"}:
             errors.append("Invalid control state: " + k)
     if release:
+        errors.extend(commercial_plan_errors(product, release=True))
         if product["stage"] not in {"field_accepted", "production"}:
             errors.append("Release requires independent field acceptance")
         if tier in CLOUD_TIERS and str(product["data"].get("residency", "")).upper().startswith(("TODO", "PENDING", "UNKNOWN")):

@@ -17,7 +17,7 @@ class FourPlanContractTests(unittest.TestCase):
         return copy.deepcopy(factory.load(ROOT / "examples/multi-branch-reference.json"))
 
     def test_existing_products_remain_valid_without_commercial_plan(self):
-        product = self.store()
+        product = copy.deepcopy(factory.load(ROOT / "examples/hessa-product.json"))
         self.assertNotIn("commercial_plan", product)
         self.assertEqual([], factory.valid_product(product)[0])
 
