@@ -2,6 +2,14 @@
 
 Factory versions (the `README.md` version line). The control catalogue has its own `catalog_version` in `factory/controls.json`.
 
+## 0.8.1 (2026-10-09)
+- Removed the pdpc.gov.eg link from the controls catalogue and `docs/MARKET_AND_STANDARDS.md`.
+- **Telegram is a core owner channel** (owner decision 09:26):
+  - Control Center `TelegramChannel` is on as soon as `TELEGRAM_BOT_TOKEN` and `TELEGRAM_OWNER_CHAT_ID` are set (the `CC_TG_*` names still work);
+  - it has no switch, and settings refuse to turn it off; tests cover this.
+- The WhatsApp owner-alert open point is superseded by Telegram.
+- Design (`docs/CUSTOMER_PATCH_PIPELINE.md` §7): Telegram patch-approval notices, and owner `/status` and `/incidents` through the relay webhook, restricted to the owner's chat id.
+
 ## 0.8.0 (2026-10-09)
 - **Control Center 0.2.0: telemetry ingest and alerts:**
   - signed gzip batches through `POST /api/agent/events` or pulled from the relay, checked for HMAC, a 5-minute window, nonce replay and the firm limits (checked again on arrival);

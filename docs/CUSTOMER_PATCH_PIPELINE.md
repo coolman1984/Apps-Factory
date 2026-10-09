@@ -40,17 +40,15 @@ Rules:
 | 1 | **In-app notice (primary)** | The program already talks to the relay. It learns of a newer release that fixes one of its incidents and shows «تحديث متاح» with a download/install button that links to the incident and the release notes. | free |
 | 2 | Email | A link to the release, sent through the **Resend free tier** (3,000 emails per month, 100 per day) or plain SMTP. The sending domain must be verified with DNS records, which is free. | free |
 | 3 | WhatsApp, manual | The dashboard builds a `https://wa.me/<number>?text=<prefilled Arabic text + link>` click-to-chat link. The **owner sends it by hand** from his own WhatsApp. Nothing is automated. | free |
-| 4 | Telegram bot (optional, §5) | The bot sends the patch link to customers who linked their installation. | free |
+| 4 | Customer Telegram bot (optional, §5) | The bot sends the patch link to customers who linked their installation. | free |
 
 - **Decided and rejected:** WhatsApp Cloud API utility templates for customer delivery.
   - Quoted price: about $0.0036 per message plus 14% VAT in Egypt (rates from 2026-10-01, unverified).
   - It needs a Meta business account and a payment method.
   - The owner decided all customer delivery stays free, so this option is **rejected (no payment)**. It is not an open point.
 - **No automated WhatsApp to customers.** This is the anti-ban rule MSG-01: one message at a time, sent by a person.
-- The separate WhatsApp **owner-alert** channel in the Control Center is a different item. Its open point in
-  [OPEN_POINTS.md](OPEN_POINTS.md) is unchanged.
-- **Recommendation for owner alerts:** the Telegram alert channel, which is free and already built (disabled by default),
-  in place of the paid WhatsApp API.
+- **Owner alerts** go to Telegram + email + dashboard. Telegram is a **core** channel (decided 09:26), on as soon as it is
+  configured. The WhatsApp owner-alert open point is **superseded by Telegram** (see §7 and [OPEN_POINTS.md](OPEN_POINTS.md)).
 
 ### 3.1 In-app notice: proposed contract
 
@@ -123,4 +121,17 @@ This happens after PR3 (Control Center + relay) is merged, as its own PR. It cov
 - the signed `/latest` endpoint;
 - the in-app notice in af-telemetry's JS;
 - the dashboard "patch delivery" view with Resend/SMTP email and wa.me link buttons;
-- the Telegram webhook on the relay.
+- the Telegram webhook on the relay (customer bot §5 and owner commands §7).
+
+## 7. Owner Telegram bot (core channel; decided 2026-10-09 09:26)
+
+All of this is free: one BotFather bot (the same bot as §5 or a second one) plus the existing Cloudflare Worker relay.
+
+| Part | Status | How |
+|---|---|---|
+| **Owner alerts** (customer problems, crashes, licence, and the other alert rules) | **implemented** in the Control Center | `TelegramChannel` is a core channel. It is **on as soon as** `TELEGRAM_BOT_TOKEN` and `TELEGRAM_OWNER_CHAT_ID` are set (the older `CC_TG_*` names still work). It has no separate switch, and settings cannot turn it off. It runs in the same parallel fan-out as email and the dashboard. |
+| **Patch approvals** | design | When a fix PR from this pipeline is waiting for approval, the Control Center sends the owner «إصلاح مستني موافقتك» with the PR link and the incident id. Source: a `patch.awaiting_approval` alert raised by the owner/bot that opened the PR, or by a GitHub webhook to the relay. |
+| **Owner commands** `/status`, `/incidents` | design | Telegram calls the relay webhook (`/telegram/<secret path>` plus the `X-Telegram-Bot-Api-Secret-Token` header). The Worker **ignores every chat except `OWNER_CHAT_ID`** and queues the command in D1. The Control Center picks it up on its next relay pull (or through a short-poll endpoint) and replies with `sendMessage`, using dashboard data: open alerts, open incidents, silent installations, and per-product versions as counts and ids. No customer records are sent. |
+
+Privacy: owner messages carry rule names, counts, product/version and incident ids only, the same as the other alert channels.
+

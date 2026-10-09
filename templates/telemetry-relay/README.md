@@ -56,7 +56,7 @@ Rough load per installation: one batch per hour, plus one for each urgent error.
   - If a proxy in front ever decompresses request bodies, the Control Center will refuse the batches (bad signature) and
     nothing wrong is stored.
   - Check this on the first real deployment.
-- **Planned (design only):** the customer Telegram bot webhook and the signed `/latest` update endpoint. See
+- **Planned (design only):** the Telegram webhook (customer bot and owner `/status`/`/incidents`, owner chat id only) and the signed `/latest` update endpoint. See
   `docs/CUSTOMER_PATCH_PIPELINE.md`.
 
 ## Test
