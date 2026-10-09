@@ -4,6 +4,9 @@ Dated owner decisions, newest first. Only decisions recorded in the repository a
 
 ## Decided
 
+### 2026-10-09 — Al-Store owner recovery is a paper code
+- At setup the program shows a one-time recovery code to print; «نسيت كلمة السر؟» uses it to set a new password and then shows a new code. Only its hash is kept; there is no vendor master password. Store 1.4.0 (IAM-01 verified).
+
 ### 2026-10-09 — Al-Store sells with cash only at first
 - Every Al-Store shop, new or updated, takes **cash only**. Card, mobile wallet, InstaPay, finance companies, on account and shop instalments stay built and tested, hidden and refused by the server until the shop owner ticks them in Settings. They are shown only when a customer asks for them. Store 1.3.0.
 - The road to the first paying shop is `docs/03-ready-to-sell.md` in coolman1984/Store; the per-control status is `control_evidence` in `examples/al-store-product.json`.
@@ -70,7 +73,7 @@ Nothing below is decided, bought or signed up for. Anything that depends on an o
 | Cloudflare Workers + D1 (telemetry relay) | The free plan limits requests, storage and rows; fleet traffic may exceed them. |
 | Windows code-signing certificate | Paid, needs organisation validation; trigger is in ADR-0004. |
 | Optional commercial features start turned off (factory-wide rule?) | Proposed after the Al-Store cash-only decision: every product would ship its optional ways (payments, credit, instalments) off and let the shop owner turn them on. Needs owner approval before it becomes a control. |
-| Owner password recovery as an explicit IAM-01 acceptance item | Al-Store has no safe recovery yet; the first support call is likely «نسيت كلمة السر». |
+| Owner password recovery as an explicit IAM-01 acceptance item for every product | Al-Store now has a paper recovery code (1.4.0); the other products have none yet. |
 | How customers pay for their licence | Manual transfer (InstaPay / wallet) plus a code by hand until about 10 customers; automated payment stays with the Paymob / Fawry item below. |
 | Paymob / Fawry / InstaPay | Merchant onboarding needs company documents; transactions carry fees. |
 | Cloud provider, hosting region, monthly ceiling per customer | ADR-0001 open decision 1. |

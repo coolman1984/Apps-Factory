@@ -2,6 +2,10 @@
 
 Factory versions (the `README.md` version line). The control catalogue has its own `catalog_version` in `factory/controls.json`.
 
+## 0.11.2 (2026-10-09)
+- **af-guide 0.1.2:** the guide button no longer reads «الدليلnull» when the person has no course (signed out, or a role without one). `replaceChildren` printed the missing badge. A new browser test fails on 0.1.1. Store vendors 0.1.2.
+- `examples/al-store-product.json`: IAM-01 is `verified` by Store 1.4.0's owner recovery code. `DECISIONS.md` records it.
+
 ## 0.11.1 (2026-10-09)
 Al-Store evidence and stale facts. No code, package or catalogue change.
 - `examples/al-store-product.json`: the core journey is cash only (owner decision); `control_evidence` now records each of the 32 core controls with its real proof in Store 1.3.0 (20 `verified` by green tests, 12 `implemented` with what is still missing). `--release` now lists 12 missing proofs plus the two field items instead of 32.

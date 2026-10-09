@@ -55,7 +55,7 @@
   "features": ["pos", "serials-warranty", "returns", "shop-instalments", "shifts-drawer-safe", "stock-places-shelves", "bulk-dated-prices", "owner-eye", "reports", "local-backup", "licence-codes"],
   "exclusions": ["eta-e-receipt", "multi-branch-sync", "online-store", "supplier-returns", "label-printing"],
   "control_evidence": {
-    "IAM-01": {"status": "implemented", "proof": "PENDING: first owner once is tested (SetupTests.test_first_run_creates_owner_once); no safe owner password recovery yet"},
+    "IAM-01": {"status": "verified", "proof": "coolman1984/Store 1.4.0, tests green 2026-10-09 (171 passed, 0 skips, Chromium): SetupTests.test_first_run_creates_owner_once; owner recovery by a one-time paper code, hash only, throttled, no master password (test_api.RecoveryTests, browser OwnerRecovery)"},
     "IAM-02": {"status": "verified", "proof": "coolman1984/Store 1.3.0, tests green 2026-10-09 (164 passed, 0 skips, Chromium): ApiTests.test_wrong_password_is_vague_and_locks; approvals checked before the transaction"},
     "IAM-03": {"status": "verified", "proof": "coolman1984/Store 1.3.0, tests green 2026-10-09 (164 passed, 0 skips, Chromium): ApiTests.test_cashier_sees_no_cost_and_cannot_manage, test_storekeeper_cannot_sell, test_access.Http.test_pages_follow_the_ticks_on_the_server"},
     "IAM-06": {"status": "implemented", "proof": "PENDING: practice shop is a separate folder and port; no negative test that demo passwords are refused in a real shop"},
