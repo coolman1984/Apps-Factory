@@ -34,7 +34,9 @@ const today = () => new Date().toISOString().slice(0, 10);
 const addDays = (d, n) => { const x = new Date(d + 'T12:00:00'); x.setDate(x.getDate() + n); return x.toISOString().slice(0, 10); };
 const fmt = (d) => (d ? d.split('-').reverse().join('/') : '');
 const STATUS = { active: 'شغال', grace: 'سماح', expired: 'خلص', not_started: 'لسه مبدأش' };
-const EDITION = { trial: 'تجربة', standard: 'عادي', pro: 'برو' };
+const EDITION = { trial: 'تجربة 14 يوم', monthly: 'اشتراك 30 يوم', lifetime: 'شراء دائم', standard: 'عادي', pro: 'برو' };
+const DURATION = { trial: 14, monthly: 30, lifetime: 1 };
+const deadline = (c) => c.edition === 'lifetime' ? 'مدى الحياة، بدون تجديد' : `لحد ${fmt(c.last_day)}`;
 
 let ST = {}, PRODUCTS = [];
 
@@ -117,16 +119,16 @@ const head = (title, sub, actions = '') => html`<div class="page-head"><div clas
 
 async function issue(page, p) {
   const prod = PRODUCTS.find((x) => x.id === p.product) || PRODUCTS[0];
-  put(page, html`${head('طلّع كود', 'كود التجربة بيتربط بجهاز العميل ومدته 14 يوم. البرنامج اللي عند العميل بيوريه «رقم الجهاز» في الإعدادات ← الرخصة.')}
+  put(page, html`${head('طلّع كود', 'اختار تجربة 14 يوم، أو اشتراك 30 يوم، أو شراء دائم. كل كود مرتبط بجهاز العميل.')}
     <div class="two"><form class="card form" id="f">
       <div class="cols"><div class="field"><label for="pr">البرنامج</label><select id="pr" class="input">${PRODUCTS.map((x) => html`<option value="${x.id}" ${x.id === prod?.id ? raw('selected') : ''}>${x.name}</option>`)}</select></div>
-        <div class="field"><span class="label">النوع</span><div class="seg" id="ed">${Object.entries(EDITION).map(([k, v]) => html`<button type="button" data-v="${k}" aria-pressed="${k === (p.edition || 'trial')}">${v}</button>`)}</div></div></div>
+        <div class="field"><span class="label">النوع</span><div class="seg" id="ed">${['trial', 'monthly', 'lifetime'].map((k) => [k, EDITION[k]]).map(([k, v]) => html`<button type="button" data-v="${k}" aria-pressed="${k === (p.edition || 'trial')}">${v}</button>`)}</div></div></div>
       <div class="field"><label for="dv">رقم الجهاز</label><input id="dv" class="input device-in" placeholder="XXXXX-XXXXX" value="${p.device || ''}" autocomplete="off" maxlength="11" autofocus>
         <span class="hint">10 حروف وأرقام. لو العميل كتب O بدل 0 أو I بدل 1 البرنامج بيصلحها لوحده.</span></div>
       <div class="cols"><div class="field"><label for="cu">اسم العميل / المحل</label><input id="cu" class="input" value="${p.customer || ''}"></div>
         <div class="field"><label for="ph">الموبايل (للواتساب)</label><input id="ph" class="input mono" value="${p.phone || ''}" inputmode="tel"></div></div>
-      <div class="cols"><div class="field"><span class="label">المدة (أيام)</span><div class="row wrap" id="dz">${[14, 30, 90, 365].map((n) => html`<button type="button" class="chip" data-d="${n}">${n}</button>`)}
-        <input id="days" class="input q-in mono" value="${p.days || prod?.trial_days || 14}" inputmode="numeric"></div></div>
+      <div class="cols"><div class="field"><span class="label">المدة</span><div class="row wrap" id="dz">
+        <input id="days" class="input q-in mono" value="14" readonly aria-label="المدة بالأيام"></div></div>
         <div class="field"><label for="fd">من يوم</label><input id="fd" type="date" class="input" value="${today()}" min="${today()}"></div>
         <div class="field"><label for="gr">أيام سماح</label><input id="gr" class="input mono" value="0" inputmode="numeric"></div></div>
       <div class="field"><label for="nt">ملاحظة</label><input id="nt" class="input" value="${p.note || ''}"></div>
@@ -134,17 +136,19 @@ async function issue(page, p) {
       <p class="err small" id="e"></p>
       <button class="btn volt lg">${icon('key')}اعمل الكود</button></form>
       <div id="out" class="stack"><div class="card"><div class="empty">${icon('key')}<h3>الكود هيظهر هنا</h3><p>انسخه وابعته للعميل على واتساب.</p></div></div></div></div>`);
-  let edition = p.edition || 'trial';
+  let edition = DURATION[p.edition] ? p.edition : 'trial';
   const pv = () => {
-    const d = +$('#days').value || 0;
-    put($('#pv'), html`${icon('calendar')}<span>${EDITION[edition]} · <b>${d}</b> يوم · من <span class="mono">${fmt($('#fd').value)}</span> لحد <span class="mono">${fmt(addDays($('#fd').value, d - 1))}</span>
-      ${$('#dv').value ? html` · مربوط بجهاز <span class="mono">${$('#dv').value.toUpperCase()}</span>` : html` · <b>مش مربوط بجهاز</b>`}</span>`);
+    const d = DURATION[edition];
+    $('#days').value = String(d);
+    const period = edition === 'lifetime' ? 'دائم، بدون تاريخ انتهاء أو تجديد' : `${d} يوم · من ${fmt($('#fd').value)} لحد ${fmt(addDays($('#fd').value, d - 1))}`;
+    put($('#pv'), html`${icon('calendar')}<span>${EDITION[edition]} · <b>${period}</b>
+      ${$('#dv').value ? html` · مربوط بجهاز <span class="mono">${$('#dv').value.toUpperCase()}</span>` : html` · <b>رقم الجهاز مطلوب</b>`}</span>`);
   };
-  $$('#ed button').forEach((b) => b.addEventListener('click', () => { edition = b.dataset.v; $$('#ed button').forEach((x) => x.setAttribute('aria-pressed', String(x === b))); if (edition !== 'trial' && +$('#days').value === 14) $('#days').value = 365; pv(); }));
+  $$('#ed button').forEach((b) => b.addEventListener('click', () => { edition = b.dataset.v; $$('#ed button').forEach((x) => x.setAttribute('aria-pressed', String(x === b))); pv(); }));
   $$('[data-d]').forEach((b) => b.addEventListener('click', () => { $('#days').value = b.dataset.d; pv(); }));
   ['#days', '#fd', '#dv'].forEach((s) => $(s).addEventListener('input', pv));
   $('#dv').addEventListener('input', (e) => { const v = e.target.value.toUpperCase().replace(/[^0-9A-Z]/g, '').slice(0, 10); e.target.value = v.length > 5 ? v.slice(0, 5) + '-' + v.slice(5) : v; pv(); });
-  $('#pr').addEventListener('change', (e) => { const x = PRODUCTS.find((y) => y.id === e.target.value); if (edition === 'trial') $('#days').value = x.trial_days; pv(); });
+  $('#pr').addEventListener('change', pv);
   pv();
   $('#f').addEventListener('submit', async (ev) => {
     ev.preventDefault();
@@ -162,14 +166,14 @@ async function issue(page, p) {
 
 function waLink(c) {
   const prod = PRODUCTS.find((x) => x.id === c.product)?.name || c.product;
-  const text = `أهلًا ${c.customer || ''}\nده كود تشغيل ${prod} (${EDITION[c.edition]}) لحد ${fmt(c.last_day)}:\n\n${c.code}\n\nافتح البرنامج ← الإعدادات ← الرخصة، والصق الكود، ودوس «شغّل بالكود».`;
+  const text = `أهلًا ${c.customer || ''}\nده كود تشغيل ${prod} (${EDITION[c.edition]}) ${deadline(c)}:\n\n${c.code}\n\nافتح البرنامج ← الإعدادات ← الرخصة، والصق الكود، ودوس «شغّل بالكود».`;
   let ph = (c.phone || '').replace(/\D/g, ''); if (ph.startsWith('0')) ph = '2' + ph;
   return `https://wa.me/${ph}?text=${encodeURIComponent(text)}`;
 }
 
 function showCode(box, c) {
   put(box, html`<div class="card volt-card"><div class="row between"><h2>${c.customer || 'كود جديد'}</h2><span class="badge">${EDITION[c.edition]}</span></div>
-    <p class="small">لحد <b class="mono">${fmt(c.last_day)}</b> · رقم الكود <span class="mono">${c.serial}</span>${c.device ? html` · جهاز <span class="mono">${c.device}</span>` : ''}</p></div>
+    <p class="small">${deadline(c)} · رقم الكود <span class="mono">${c.serial}</span>${c.device ? html` · جهاز <span class="mono">${c.device}</span>` : ''}</p></div>
     <div class="card"><div class="code-out" id="code">${c.code}</div><div class="row wrap">
       <button class="btn primary" id="cp">${icon('clipboard')}انسخ الكود</button>
       <a class="btn" target="_blank" rel="noopener" href="${waLink(c)}">${icon('message')}ابعته واتساب</a></div></div>`);
@@ -186,8 +190,8 @@ async function codes(page, p) {
     const rows = await get('/api/codes?' + new URLSearchParams({ q: $('#q').value, status }));
     put($('#list'), rows.length ? html`<div class="card pad-0"><div class="table-wrap"><table class="t"><thead><tr><th>العميل</th><th>البرنامج</th><th>النوع</th><th>الجهاز</th>
       <th>لحد</th><th>الحالة</th><th>اتعمل بواسطة</th></tr></thead><tbody>${rows.map((c) => html`<tr class="click" data-s="${c.serial}"><td class="name">${c.customer || '—'}<div class="xs faint mono">${c.serial}</div></td>
-      <td>${c.product}</td><td>${EDITION[c.edition]}</td><td class="mono">${c.device || '—'}</td><td class="mono">${fmt(c.last_day)}</td>
-      <td><span class="badge status-${c.status}">${STATUS[c.status]}${c.status === 'active' ? ' · ' + c.days_left + ' يوم' : ''}</span></td><td>${c.issued_by === 'agent' ? 'الإيجنت' : 'صاحب البرنامج'}</td></tr>`)}</tbody></table></div></div>`
+      <td>${c.product}</td><td>${EDITION[c.edition]}</td><td class="mono">${c.device || '—'}</td><td class="mono">${c.edition === 'lifetime' ? 'دائم' : fmt(c.last_day)}</td>
+      <td><span class="badge status-${c.status}">${STATUS[c.status]}${c.status === 'active' ? (c.permanent ? ' · دائم' : ' · ' + c.days_left + ' يوم') : ''}</span></td><td>${c.issued_by === 'agent' ? 'الإيجنت' : 'صاحب البرنامج'}</td></tr>`)}</tbody></table></div></div>`
       : html`<div class="card"><div class="empty">${icon('receipt')}<h3>مفيش أكواد</h3></div></div>`);
     $$('tr[data-s]').forEach((tr) => tr.addEventListener('click', () => codeFile(rows.find((r) => r.serial === tr.dataset.s))));
   };
@@ -201,13 +205,13 @@ function codeFile(c) {
   scrim.className = 'scrim side';
   put(scrim, html`<div class="panel"><div class="dialog-head"><h2>${c.customer || c.serial}</h2><button class="icon-btn" data-x>${icon('x')}</button></div>
     <div class="dialog-body"><div class="grid kpis"><div class="kpi"><span class="label">الحالة</span><span class="value">${STATUS[c.status]}</span></div>
-    <div class="kpi"><span class="label">لحد</span><span class="value mono">${fmt(c.last_day)}</span></div></div>
+    <div class="kpi"><span class="label">لحد</span><span class="value mono">${c.permanent ? 'دائم' : fmt(c.last_day)}</span></div></div>
     <div class="stat-line"><span>البرنامج</span><b>${c.product}</b></div><div class="stat-line"><span>النوع</span><b>${EDITION[c.edition]}</b></div>
     <div class="stat-line"><span>الجهاز</span><b class="mono">${c.device || '—'}</b></div><div class="stat-line"><span>الموبايل</span><b class="mono">${c.phone || '—'}</b></div>
     <div class="stat-line"><span>اتعمل</span><b class="mono">${c.issued_at}</b></div>${c.note ? html`<div class="stat-line"><span>ملاحظة</span><b>${c.note}</b></div>` : ''}
     <div class="code-out">${c.code}</div></div>
     <div class="dialog-foot"><button class="btn" data-cp>${icon('clipboard')}نسخ</button><a class="btn" target="_blank" rel="noopener" href="${waLink(c)}">${icon('message')}واتساب</a>
-    <a class="btn volt" href="#/issue?${new URLSearchParams({ product: c.product, device: c.device || '', customer: c.customer, phone: c.phone, edition: c.edition })}">${icon('refresh')}كود جديد لنفس الجهاز</a></div></div>`);
+    <a class="btn volt" href="#/issue?${new URLSearchParams({ product: c.product, device: c.device || '', customer: c.customer, phone: c.phone, edition: DURATION[c.edition] ? c.edition : 'monthly' })}">${icon('refresh')}كود جديد لنفس الجهاز</a></div></div>`);
   document.body.appendChild(scrim);
   const close = () => scrim.remove();
   $('[data-x]', scrim).addEventListener('click', close);
@@ -220,7 +224,7 @@ async function requests(page) {
   const rows = await get('/api/requests?status=');
   put(page, html`${head('طلبات الإيجنت', 'الإيجنت مايقدرش يطلّع أكواد مدفوعة: بيطلبها، وإنت توافق أو ترفض.')}
     ${rows.length ? html`<div class="stack">${rows.map((r) => html`<div class="watch-item ${r.status === 'pending' ? 'warn' : ''}"><span class="ic">${icon('message')}</span>
-      <div><b>${r.customer}</b> · ${r.product} · ${EDITION[r.edition]} · ${r.days} يوم ${r.device ? html`· <span class="mono">${r.device}</span>` : ''}<div class="small muted">${r.note} · ${r.requested_at}</div></div>
+      <div><b>${r.customer}</b> · ${r.product} · ${EDITION[r.edition]} · ${r.edition === 'lifetime' ? 'بدون انتهاء' : r.days + ' يوم'} ${r.device ? html`· <span class="mono">${r.device}</span>` : ''}<div class="small muted">${r.note} · ${r.requested_at}</div></div>
       <div class="row">${r.status === 'pending' ? html`<button class="btn sm" data-no="${r.id}">ارفض</button><button class="btn sm volt" data-yes="${r.id}">وافق واعمل الكود</button>`
         : html`<span class="badge ${r.status === 'approved' ? 'ok' : 'bad'}">${r.status === 'approved' ? 'اتوافق' : 'اترفض'}</span>`}</div></div>`)}</div>`
       : html`<div class="card"><div class="empty">${icon('message')}<h3>مفيش طلبات</h3></div></div>`}`);
@@ -239,7 +243,7 @@ async function verify(page) {
   $('#go').addEventListener('click', async () => {
     const r = await post('/api/verify', { code: $('#vc').value, product: $('#vp').value, device: $('#vd').value || null });
     put($('#vr'), html`<div class="card ${r.valid && ['active', 'grace'].includes(r.state) ? 'volt-card' : ''}"><h2>${r.valid ? (STATUS[r.state] || r.state) : 'الكود مش سليم'}</h2>
-      <p>${REASONS[r.reason] || r.reason || 'الكود سليم.'}</p>${r.terms?.serial ? html`<div class="small">رقم الكود <span class="mono">${r.terms.serial}</span> · ${EDITION[r.terms.edition] || ''} · لحد <span class="mono">${fmt(r.terms.last_day)}</span>
+      <p>${REASONS[r.reason] || r.reason || 'الكود سليم.'}</p>${r.terms?.serial ? html`<div class="small">رقم الكود <span class="mono">${r.terms.serial}</span> · ${EDITION[r.terms.edition] || ''} · لحد <span class="mono">${r.terms.permanent ? 'دائم' : fmt(r.terms.last_day)}</span>
       · ${r.terms.device_bound ? 'مربوط بجهاز' : 'مش مربوط بجهاز'}</div>` : ''}${r.issued_here ? html`<div class="small">اتعمل هنا للعميل: <b>${r.issued_here.customer}</b> (${r.issued_here.device || '—'})</div>` : ''}</div>`);
   });
 }
