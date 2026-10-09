@@ -328,7 +328,7 @@ class FanOut(Base):
                 self.assertEqual(status["email"], "sent", "LinkedIn's limit does not block the others")
                 hosts = {urlparse(u).hostname for u, _ in posts}
                 self.assertIn("api.telegram.org", hosts)
-                self.assertFalse(any(h.endswith("linkedin.com") for h in hosts))
+                self.assertEqual(hosts, {"graph.facebook.com", "api.telegram.org"}, "nothing was sent to LinkedIn")
         finally:
             for k in list(os.environ):
                 if k.startswith(("CC_SMTP", "CC_ALERT", "CC_WA_", "CC_TG_", "CC_LINKEDIN")):
