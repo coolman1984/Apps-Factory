@@ -35,6 +35,15 @@ Report exactly what you ran, and what you skipped.
 - Set the Windows job as a **required GitHub branch protection check** through a repository administrator; CI alone cannot enforce a required check. Never merge pending/failed builds. The separate clean-PC backup restore and customer trial are still required.
 - For new commercial plans use optional manifest `commercial_plan: solo | connected | mobile_ops | cloud_business`, see [commercial tiers](docs/SMB_COMMERCIAL_TIERS.md). On `--release` it requires extra backup/sync/mobile evidence.
 
+### Company portfolio work: start at the decision map
+Before tasking an agent with a new Store/Pixel Plus feature, read [the unified execution roadmap](docs/PIXEL_PLUS_EXECUTION_ROADMAP_2026.md), [Telegram-approved activation](docs/TELEGRAM_APPROVED_ACTIVATION.md), [Rafaa proposal](docs/RAFAA_GROWTH_DECISION_ADDON_PROPOSAL.md), and [Pixel Plus–Sanad handoff](docs/PIXEL_PLUS_SANAD_PARTNER_OPERATING_MODEL.md) as applicable. Do not expand a paid pilot into an unapproved cloud platform.
+
+- Track every strategic idea as `planned` until *code exists*, `implemented` until tested, `verified` until field-tested, and `field_accepted` only when real client acceptance is documented.
+- Never claim outgoing Telegram owner alerts mean the inbound 14-day approval flow already works. Make sign/approve/delivery separate permissions; private signing key never leaves the owner's encrypted local Studio.
+- For UI/code audit use an **independent reviewer**, record selector → click → JS handler → API → server permission → DB effect → customer-visible state, with actual screenshots from real browser and negative tests, not only code inspection.
+- Site/demo/Sanad/referral implementations stay in separate narrow PRs with synthetic test data, explicit cross-company customer consent and no externally published promises until approved.
+- For every Windows product preserve PR and main-push installer workflow and restore-on-clean-PC field proof; no test skip used as a fake green signal.
+
 ## 2. Check that vendored copies have not drifted
 Products hold byte-identical copies of af-access, af-license codes, af-guide, af-consent and af-telemetry. The drift tests look for the product repositories next to this one and **skip** when they are absent, so a green local run proves nothing without them. CI runs them for real against the public product repos (`.github/workflows/vendored-drift.yml`, on every factory change and daily).
 To run locally, clone the products into one folder and set `AF_STORE_REPO`, `AF_TEACHERS_REPO`, `AF_YOUSEF_TRANSPORTATION_REPO`, `AF_MR_AYMAN_HR_REPO`, then:
