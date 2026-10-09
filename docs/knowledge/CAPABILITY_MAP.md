@@ -16,7 +16,7 @@ Status words follow the constitution: `planned` → `implemented` → `verified`
 | Measured layout sweep | Pattern in `Store/tests/test_e2e_browser.py`, `Teachers/tests/test_layout_overflow.py` | verified in 2 products | UX-08 |
 | Office mesh sync | Hessa `server/sync.py` | implemented in Hessa | Products whose PCs must keep working alone |
 | The Watch / owner's eye | Hessa `journal`/watch, Al-Store `server/reports.py::watch` | implemented in 2 products | Money-leak detection |
-| Help standard (Guide me / Solve a problem, Egyptian Arabic) | `docs/HELP_AND_GUIDANCE_STANDARD.md`, `Store/web/i18n/help-*.js` | implemented | Every product |
+| Help standard (learning path per role, Guide me, Solve a problem, simple formal Arabic) | `docs/HELP_AND_GUIDANCE_STANDARD.md`, gate `packages/af-guide` (`scripts/vendor_guide.py`), engine reference Hessa `js/views/guides.js` | implemented in Hessa, Al-Store, Trip Orders | Every product |
 | Compiled Windows build + installer | `templates/windows-installer` (from Al-Store: Nuitka + Inno Setup + smoke test + workflow); Hessa, BAMS, Atrium have their own | **verified** on a real Windows runner (Al-Store, Actions run 3); clean-PC install by a person still pending | Every Windows product |
 | Junk-input robustness test | Al-Store `tests/test_fuzz.py` (control QA-02) | verified in Al-Store; found 20+ crashes and 6 real bugs | Every product with write routes |
 | Product → Control Center heartbeat | Al-Store `server/support.py` (opt-in, exact fields, secrets outside the DB); contract-tested against the Control Center model | implemented, contract-tested | SUP-01/04 in every product |

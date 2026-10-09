@@ -36,6 +36,7 @@ For requests involving icons, motion graphics, layers, parallax, scroll transiti
 - `packages/af-license/af_license/codes.py`: short device-bound licence codes (trials and paid) with a stdlib verifier; copy into a product with `python scripts/vendor_licence.py <product-dir>`.
 - `apps/licence-studio`: the owner's code program (loopback web UI + MCP). Agents read, verify and request; trial issuing only when the owner enables it; paid codes owner-only.
 - `packages/af-access`: access-and-administration gate (permission catalogue rules, lock-out guards, who-can-do-what matrix); copy into a product with `python scripts/vendor_access.py <product-dir>` and run `afaccess.errors(auth.catalogue())` in its tests (IAM-08…IAM-12).
+- `packages/af-guide`: help gate (guides complete in every language, a learning path per role with facts for "you are here", every page reached, every problem with a guide, simple formal Arabic lint); copy with `python scripts/vendor_guide.py <product-dir>` and assert `afguide.errors(catalogue) == []` in the product's tests (HELP-01…HELP-08).
 - `packages/af-ui`: the Showroom design system (tokens, components, fonts, icons, motion). Re-brand tokens only (UX-09).
 - `tools/ui-lab`: performance + accessibility gate against `factory/ui-budgets.json` (PERF-01, PERF-02, A11Y-01); every UI release candidate commits its report.
 - `.claude/skills/`: new-product, ui-quality-pass, licence-codes, factory-knowledge.

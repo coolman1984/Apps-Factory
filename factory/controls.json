@@ -1210,8 +1210,8 @@
         "lan",
         "saas"
       ],
-      "requirement": "Help written in polished Egyptian Arabic a 12-year-old understands; reading pass by a non-developer each release",
-      "acceptance_evidence": "Release evidence names the reviewer",
+      "requirement": "Help written in simple formal Arabic (العربية المبسطة: between office Arabic and street Egyptian) a 12-year-old understands; reading pass by a non-developer each release",
+      "acceptance_evidence": "af-guide register() finds no street or stiff word in the Arabic help; reading pass recorded",
       "required_if_applies": true,
       "implementation_status": "planned"
     },
@@ -1615,6 +1615,20 @@
       ],
       "requirement": "Every change to a person, profile, tick, scope or limit is logged with who, when, added and removed; concurrent edits by two administrators are refused, not overwritten",
       "acceptance_evidence": "Audit row sample with added/removed lists; stale-version save refused",
+      "required_if_applies": true,
+      "implementation_status": "implemented"
+    },
+    {
+      "id": "HELP-08",
+      "slug": "learning-path",
+      "category": "experience",
+      "profiles": [
+        "desktop",
+        "lan",
+        "saas"
+      ],
+      "requirement": "A learning path (المنهج) for every role: ordered lessons from setup to daily work, each a guide; the program shows where the person stands from real records (facts) and starts Guide me for the next lesson; a card on the first page until the path is complete",
+      "acceptance_evidence": "af-guide check passes (a path per role, admin path starts with setup, facts known); browser test: a fresh install shows lesson 1, doing the work moves 'you are here'",
       "required_if_applies": true,
       "implementation_status": "implemented"
     }
