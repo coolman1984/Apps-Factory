@@ -298,6 +298,26 @@
         },
         "last_approved_by": {
           "type": "string"
+        },
+        "off_device_cloud_restore": {
+          "type": "string",
+          "description": "Evidence, never a claim of readiness without actual customer/device proof."
+        },
+        "multi_device_sync_acceptance": {
+          "type": "string",
+          "description": "Evidence, never a claim of readiness without actual customer/device proof."
+        },
+        "owner_mobile_read_only_acceptance": {
+          "type": "string",
+          "description": "Evidence, never a claim of readiness without actual customer/device proof."
+        },
+        "mobile_write_acceptance": {
+          "type": "string",
+          "description": "Evidence, never a claim of readiness without actual customer/device proof."
+        },
+        "hosted_business_acceptance": {
+          "type": "string",
+          "description": "Evidence, never a claim of readiness without actual customer/device proof."
         }
       }
     },
@@ -358,6 +378,15 @@
       "required": [
         "rollout"
       ]
+    },
+    "commercial_plan": {
+      "enum": [
+        "solo",
+        "connected",
+        "mobile_ops",
+        "cloud_business"
+      ],
+      "description": "Optional retail package, independent of connectivity.tier. See docs/SMB_COMMERCIAL_TIERS.md; release requires plan-specific acceptance."
     }
   },
   "allOf": [
