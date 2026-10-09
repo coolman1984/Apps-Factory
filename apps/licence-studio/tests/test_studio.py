@@ -65,6 +65,22 @@ class ServiceTests(unittest.TestCase):
         with self.assertRaises(Exception):
             self.s.db.execute("UPDATE codes SET last_day = '2099-01-01'")
 
+    def test_the_three_kinds_a_shop_buys(self):
+        """Trial 14 days, monthly subscription (30 days + 3 grace), perpetual (device-bound, never expires)."""
+        self.s.create_key(PASS)
+        trial = self.s.issue('al-store', 'trial', DEVICE, 'Shop')
+        self.assertEqual(trial['last_day'], (date.today() + timedelta(days=13)).isoformat())
+        monthly = self.s.issue('al-store', 'standard', DEVICE, 'Shop', days=30, grace_days=3)
+        self.assertEqual((monthly['last_day'], monthly['grace_days']), ((date.today() + timedelta(days=29)).isoformat(), 3))
+        with self.assertRaises(StudioError):
+            self.s.issue('al-store', 'perpetual', None)  # a perpetual code is always tied to one PC
+        forever = self.s.issue('al-store', 'perpetual', DEVICE, 'Shop', grace_days=9)
+        self.assertEqual((forever['last_day'], forever['days_left'], forever['status'], forever['grace_days']),
+                         ('perpetual', None, 'active', 0))
+        v = self.s.verify(forever['code'], 'al-store', DEVICE)
+        self.assertEqual((v['state'], v['terms']['edition'], v['terms']['last_day']), ('active', 'perpetual', None))
+        self.assertEqual(len(self.s.list_codes()), 3)
+
     def test_wrong_passphrases_are_throttled(self):
         self.s.create_key(PASS)
         fresh = Studio(self.dir)
@@ -217,6 +233,14 @@ class WebAndMcpTests(unittest.TestCase):
         self.assertEqual(json.loads(ok.stdout)['state'], 'trial', ok.stderr)
         other = subprocess.run([sys.executable, '-c', check], cwd=store, env={**env, 'STORE_DEVICE_ID': 'another-pc'}, capture_output=True, text=True, timeout=60)
         self.assertIn('other_device', other.stderr)
+        for edition, days, state in (('standard', 30, 'active'), ('perpetual', None, 'active')):
+            c = self.studio.issue('al-store', edition, dev, 'Pilot shop', days=days)
+            check = ('import os,sys,json; sys.path.insert(0, "server"); import app, licence;'
+                     'a = app.build(os.environ["SHOP_HOME"], practice=False);'
+                     f'print(json.dumps(licence.activate(a.db, {c["code"]!r})))')
+            ok = subprocess.run([sys.executable, '-c', check], cwd=store, env=env, capture_output=True, text=True, timeout=60)
+            got = json.loads(ok.stdout)
+            self.assertEqual((got['state'], got['edition'], got['full']), (state, edition, True), ok.stderr)
 
 
 if __name__ == '__main__':

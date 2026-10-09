@@ -4,6 +4,10 @@ Dated owner decisions, newest first. Only decisions recorded in the repository a
 
 ## Decided
 
+### 2026-10-09 — Al-Store activation kinds
+- The owner asked for three kinds of activation code: a **14-day trial**, a **monthly subscription** and a **permanent activation**. A permanent code is device-bound and never ends. The Studio defaults for a monthly code are 30 days + 3 grace days. The owner can change both in the Studio.
+- Prices are **not** decided here (still open below).
+
 ### 2026-10-09 — Al-Store owner recovery is a paper code
 - At setup the program shows a one-time recovery code to print; «نسيت كلمة السر؟» uses it to set a new password and then shows a new code. Only its hash is kept; there is no vendor master password. Store 1.4.0 (IAM-01 verified).
 

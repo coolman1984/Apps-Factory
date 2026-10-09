@@ -80,3 +80,13 @@ Each lesson comes from a real history file. A rule that caught a real bug outran
 | "Polished Egyptian" help drifted: some texts street-colloquial, some stiff; nobody could check 761 texts by eye | One register (simple formal Arabic) and a word-list lint (`af_guide.lint`, `style/ar-lexicon.json`) every product runs on its whole catalogue | A language rule holds only when a test reads every text |
 | A path whose lessons have no server state only shows "done" after the person finishes the guide, even if they did the job long ago | A guide's `done: {"state": …}` ties it to a state computed from the real rows | Measure progress from the work, not from clicks on the help |
 | Review of Hessa's paths: a teacher's path held a lesson about balances teachers cannot see; a new receptionist skipped "add a student" because somebody else had added students | `role-perm` (each guide's permission checked against its role in the `af-access` catalogue); states of daily lessons count the person's own rows | A lesson is for the person in front of the screen: their rights, their own work |
+
+## Release proofs (Al-Store → factory, 2026-10-09)
+| What happened | Fix | Rule |
+|---|---|---|
+| A kill drill stopped the program in the middle of a backup in 2 of 5 runs; the half copy already had the final backup name, so it was listed, offered for restore and counted as "a recent backup" | Write `name.db.part`, switch the copy to `journal_mode=DELETE`, check, fsync, then rename; prune old parts | A file gets its final name only after it passed its check |
+| A read-only integrity check of a WAL-mode copy left `-wal`/`-shm` files beside every backup | The copy is made a one-file database before the check | A backup is one file that survives being copied to a USB stick |
+| A new shop's home reminder showed «{hours}»: the hint text was rendered without the value its sibling title got | Pass the same values to title and hint; a separate text when there is no value | Look at the program with an empty database before a release; tests full of sample data hide empty states |
+| "Permanent" licences did not fit a dated code | A new edition id whose last day is the largest day; older readers refuse an unknown edition | Extend a signed format by adding values older readers refuse, never by changing what old values mean |
+| The Windows workflow proved install and uninstall but not that a real shop survives an update | `tools/journey_exe.py` runs set-up → licence → stock → cash sale → backup on the installed program, then again after installing over it | Prove the update with a real shop folder, not with an empty one |
+

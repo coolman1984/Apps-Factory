@@ -34,7 +34,8 @@ except ImportError:  # running from the repository checkout
 
 LOCK_AFTER_SECONDS = 30 * 60
 AGENT_MAX_TRIAL_DAYS = 14
-EDITIONS = ('trial', 'standard', 'pro')
+EDITIONS = ('trial', 'standard', 'pro', 'perpetual')
+PERPETUAL = 'perpetual'  # stored as the last day of a code that never expires
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS products (id TEXT PRIMARY KEY, name TEXT NOT NULL, trial_days INTEGER NOT NULL DEFAULT 14,
@@ -213,7 +214,7 @@ class Studio:
         if not self.one('SELECT 1 FROM products WHERE id = ?', product):
             raise StudioError('product.unknown', 'Unknown product. Add it on the Products page first.', 404)
         if edition not in EDITIONS:
-            raise StudioError('edition', 'Edition must be trial, standard or pro.')
+            raise StudioError('edition', 'Edition must be trial, standard, pro or perpetual.')
         if device:
             try:
                 norm = codes.normalize(device)
@@ -231,8 +232,10 @@ class Studio:
         prod = self.one('SELECT * FROM products WHERE id = ?', product)
         days = int(days or (prod['trial_days'] if prod and edition == 'trial' else 365))
         device = self._check_terms(product, edition, device, days)
-        if edition == 'trial' and not device:
-            raise StudioError('device.required', 'A trial code must be tied to the customer\'s device code (so it cannot be passed on).')
+        if edition in ('trial', 'perpetual') and not device:
+            raise StudioError('device.required', 'A trial or perpetual code must be tied to the customer\'s device code (so it cannot be passed on).')
+        if edition == 'perpetual':
+            grace_days = 0
         first = date.fromisoformat(first_day) if first_day else date.today()
         if first < date.today() - timedelta(days=1):
             raise StudioError('first_day', 'The first day cannot be in the past.')
@@ -242,7 +245,7 @@ class Studio:
             self.db.execute('INSERT INTO codes(serial, product, edition, device, customer, phone, first_day, last_day, grace_days, seats, code, kid, '
                             'note, issued_at, issued_by, request_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
                             (out['serial'], product, edition, device, (customer or '').strip()[:80], (phone or '').strip()[:20], out['first_day'],
-                             out['last_day'], int(grace_days), int(seats), out['code'], kid, (note or '').strip()[:300], now_iso(), actor,
+                             out['last_day'] or PERPETUAL, int(grace_days), int(seats), out['code'], kid, (note or '').strip()[:300], now_iso(), actor,
                              request_id))
         self.audit(actor, 'code.issue', {'serial': out['serial'], 'product': product, 'edition': edition, 'device': device,
                                          'days': days, 'customer': customer})
@@ -256,6 +259,10 @@ class Studio:
 
     def _decorate(self, c):
         today = date.today()
+        if c['last_day'] == PERPETUAL:
+            c['days_left'], c['expiring_soon'] = None, False
+            c['status'] = 'not_started' if date.fromisoformat(c['first_day']) > today else 'active'
+            return c
         last = date.fromisoformat(c['last_day'])
         c['days_left'] = (last - today).days + 1
         c['status'] = ('not_started' if date.fromisoformat(c['first_day']) > today else 'active' if today <= last

@@ -2,6 +2,12 @@
 
 Factory versions (the `README.md` version line). The control catalogue has its own `catalog_version` in `factory/controls.json`.
 
+## 0.12.0 (2026-10-09)
+- **af-license 0.3.0:** new code edition `perpetual`. It never expires: its last day is stored as day 65535 and readers report no last day. Older readers refuse it (`unknown_edition`). Tests cover a monthly code (days → grace → expired), a perpetual code (2299, other device, not yet valid) and an older reader.
+- **Licence Studio:** quick buttons «تجربة 14 يوم», «اشتراك شهري» (standard 30 days + 3 grace) and «تفعيل دائم» (device-bound). The codes list, WhatsApp text and verify page show «دائم». The MCP `request_code` accepts `perpetual`. The full-chain test proves that each kind unlocks Al-Store.
+- `docs/knowledge/LESSONS.md`: release-proof lessons from Al-Store 1.5.0 (backup `.part`, one-file copies, empty-database review, extending a signed format, a real shop through an update).
+- `examples/al-store-product.json`: evidence from Store 1.5.0.
+
 ## 0.11.2 (2026-10-09)
 - **af-guide 0.1.2:** the guide button no longer reads «الدليلnull» when the person has no course (signed out, or a role without one). `replaceChildren` printed the missing badge. A new browser test fails on 0.1.1. Store vendors 0.1.2.
 - `examples/al-store-product.json`: IAM-01 is `verified` by Store 1.4.0's owner recovery code. `DECISIONS.md` records it.
