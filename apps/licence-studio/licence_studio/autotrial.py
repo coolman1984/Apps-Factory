@@ -17,7 +17,6 @@ from __future__ import annotations
 import threading
 import time
 import uuid
-from datetime import date
 
 from .relay import DEVICE, KIND_AR, KIND_EDITION, MACHINE, REASON_AR, UUID, RelayError, telegram
 from .service import MONTHLY_DAYS, StudioError, now_iso
@@ -55,7 +54,8 @@ class AutoTrial:
                 return 'reissue', '', had
             return 'refuse', 'already_used', None
         pol = s.policy()
-        done = s.one("SELECT COUNT(*) AS n FROM codes WHERE issued_by = 'auto-trial' AND substr(issued_at, 1, 10) = ?", date.today().isoformat())['n']
+        # issued_at is stored in UTC, so the day is counted in UTC too: one reset a day, never two (review of PR #34)
+        done = s.one("SELECT COUNT(*) AS n FROM codes WHERE issued_by = 'auto-trial' AND substr(issued_at, 1, 10) = ?", time.strftime('%Y-%m-%d', time.gmtime()))['n']
         if done >= pol['auto_trial_daily_cap']:
             return 'hold', 'daily_cap', None
         if r.get('src') and s.one("SELECT COUNT(*) AS n FROM requests WHERE source = 'relay' AND src = ? AND requested_at >= ?", r['src'],
@@ -96,7 +96,7 @@ class AutoTrial:
         """Hand a decided relay request's outcome back through the relay. A failure leaves it for the next cycle."""
         s = self.s
         r = s.one('SELECT * FROM requests WHERE id = ?', r['id'])
-        if not r or r['source'] != 'relay' or r['relayed'] or r['status'] == 'pending':
+        if not r or r['source'] != 'relay' or r['relayed'] or r['status'] not in ('approved', 'refused'):
             return False
         try:
             if r['status'] == 'approved':
@@ -105,9 +105,13 @@ class AutoTrial:
             else:
                 s.relay.refuse(r['relay_id'], r['held'] if r['held'] in REASON_AR else 'owner_refused')
         except RelayError as e:
-            if e.status not in (404, 409):  # closed or gone on the relay (the shop asked again): nothing left to deliver
-                self.last.update(ok=False, error=e.key)
-                return False
+            if e.status in (404, 409):  # closed or gone on the relay: the shop will never get this answer from it. Not "sent" (review of PR #34)
+                with s.lock:
+                    s.db.execute('UPDATE requests SET relayed = 2 WHERE id = ?', (r['id'],))
+                s.audit('auto-trial' if r['decided_by'] == 'auto-trial' else 'owner', 'request.undeliverable', {'id': r['id'], 'status': e.status})
+                self.tell('undeliverable', r['id'], f'⚠️ قرارك على طلب الجهاز {r["device"]} مااتبعتش: الطلب اتقفل عند الوسيط. ابعت الكود للمحل يدوي.')
+            self.last.update(ok=False, error=e.key)
+            return False
         with s.lock:
             s.db.execute('UPDATE requests SET relayed = 1 WHERE id = ?', (r['id'],))
         s.audit('auto-trial' if r['decided_by'] == 'auto-trial' else 'owner', 'request.delivered', {'id': r['id'], 'status': r['status']})
@@ -126,7 +130,7 @@ class AutoTrial:
                 self.last.update(ok=None, error='relay.off')
                 return dict(self.last)
             try:
-                for item in s.relay.pending():
+                for item in s.relay.pending_all():
                     if self.ingest(item):
                         self.last['pulled'] += 1
             except RelayError as e:
@@ -136,7 +140,7 @@ class AutoTrial:
             if pol['auto_trials']:
                 for r in s.rows("SELECT * FROM requests WHERE source = 'relay' AND status = 'pending' ORDER BY requested_at"):
                     self.decide_by_policy(r)
-            for r in s.rows("SELECT * FROM requests WHERE source = 'relay' AND status != 'pending' AND relayed = 0 ORDER BY requested_at"):
+            for r in s.rows("SELECT * FROM requests WHERE source = 'relay' AND status IN ('approved', 'refused') AND relayed = 0 ORDER BY requested_at"):
                 self.deliver(r)
             return dict(self.last)
         finally:
@@ -165,6 +169,8 @@ class AutoTrial:
                 self.last['held'] += 1
                 self.tell('locked', r['id'], f'🔒 فيه طلب تجربة مستني والبرنامج مقفول\nالجهاز: {r["device"]}\nافتح برنامج التراخيص واكتب كلمة السر.')
             return
+        if not s.claim(r['id']):  # the owner decided it a moment ago
+            return
         try:
             if kind == 'reissue':
                 serial = existing['serial']
@@ -173,13 +179,14 @@ class AutoTrial:
                                actor='auto-trial', request_id=r['id'], machine=r['machine'])
                 serial = code['serial']
         except StudioError as e:
+            s.release(r['id'])
             if e.key == 'key.locked':
                 return
             self._close(r, 'refused', 'already_used' if e.key == 'trial.repeat' else 'bad_device')
             self.last['refused'] += 1
             return
         with s.lock:
-            s.db.execute("UPDATE requests SET status = 'approved', decided_at = ?, decided_by = 'auto-trial', serial = ?, held = '' WHERE id = ?",
+            s.db.execute("UPDATE requests SET status = 'approved', decided_at = ?, decided_by = 'auto-trial', serial = ?, held = '' WHERE id = ? AND status = 'deciding'",
                          (now_iso(), serial, r['id']))
         s.audit('auto-trial', 'request.approve', {'id': r['id'], 'serial': serial, 'reissued': kind == 'reissue'})
         self.last['issued'] += 1

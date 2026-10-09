@@ -40,6 +40,9 @@ const MEMORY_DAYS = 400;           // who already had a trial is remembered for 
 const EVENT_DAYS = 90;
 
 // Text typed by a shop is untrusted: no control characters, no direction overrides, short.
+// Free text from a shop is not kept in the cloud beyond what the owner needs to recognise the shop: no payment references (the
+// payment is confirmed by the owner in the Studio, not here) and no runs of digits that could be a phone or account number.
+const plain = (v, n) => clean(v, n).replace(/\d[\d\s-]{5,}\d/g, '…');
 const clean = (v, n) => String(v ?? '').replace(/[\u0000-\u001f\u007f‎‏‪-‮⁦-⁩]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, n);
 
 async function note(env, now, requestId, event, detail = '') {
@@ -82,7 +85,7 @@ async function create(request, env, ctx, now) {
   if (typeof d.nonce !== 'string' || !UUID.test(d.nonce)) return bad('nonce');
   const row = {
     id: crypto.randomUUID(), product: d.product, kind: d.kind, device: d.device, machine: d.machine || null, nonce: d.nonce,
-    shop: clean(d.shop, 60), ref: clean(d.ref, 60), version: clean(d.version, 20),
+    shop: plain(d.shop, 60), ref: '', version: clean(d.version, 20),
   };
   const pollToken = 'lp_' + Array.from(crypto.getRandomValues(new Uint8Array(24)), (b) => b.toString(16).padStart(2, '0')).join('');
   const pollHash = await sha256hex(pollToken);
@@ -102,6 +105,16 @@ async function create(request, env, ctx, now) {
     + 'VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)').bind(row.id, row.product, row.kind, row.device, row.machine, row.nonce, pollHash, row.shop, row.ref,
     row.version, src, status, reason, code, now, status === 'pending' ? null : now);
   const store = (status, reason, code = null) => insert(status, reason, code).run();
+  // The limits and the insert of a new waiting request are ONE statement: concurrent requests cannot all pass the counts before any
+  // of them is written (review of PR #33). It writes nothing when a limit is reached.
+  const storeWithinLimits = () => env.DB.prepare(
+    'INSERT INTO licence_requests (id, product, kind, device, machine, nonce, poll_hash, shop, ref, version, src, status, reason, code, created_at, decided_at) '
+    + "SELECT ?,?,?,?,?,?,?,?,?,?,?,'pending','',NULL,?,NULL WHERE "
+    + '(SELECT COUNT(*) FROM licence_requests WHERE src = ? AND created_at > ?) < ? AND '
+    + '(SELECT COUNT(*) FROM licence_requests WHERE device = ? AND created_at > ?) < ? AND '
+    + "(SELECT COUNT(*) FROM licence_requests WHERE status = 'pending') < ?")
+    .bind(row.id, row.product, row.kind, row.device, row.machine, row.nonce, pollHash, row.shop, row.ref, row.version, src, now,
+      src, now - DAY, num(env.LICENCE_PER_SOURCE_DAY, 10), row.device, now - DAY, num(env.LICENCE_PER_DEVICE_DAY, 3), num(env.LICENCE_PENDING_MAX, 300)).run();
   // 3. the code for this very device is already waiting (the shop lost its poll token): hand the same code to the new request
   const waiting = await env.DB.prepare("SELECT id, code FROM licence_requests WHERE product = ? AND device = ? AND kind = ? AND status = 'issued' "
     + 'ORDER BY created_at DESC LIMIT 1').bind(row.product, row.device, row.kind).first();
@@ -114,7 +127,7 @@ async function create(request, env, ctx, now) {
   }
   // 4. one trial per machine and per device: refused here, quietly (the owner is not woken)
   if (row.kind === 'trial') {
-    const used = await env.DB.prepare("SELECT 1 AS x FROM licence_requests WHERE product = ? AND kind = 'trial' AND status IN ('issued', 'delivered') "
+    const used = await env.DB.prepare("SELECT 1 AS x FROM licence_requests WHERE product = ? AND kind = 'trial' AND (status IN ('issued', 'delivered') OR (status = 'expired' AND reason = 'unacked')) "
       + 'AND (machine = ? OR device = ?) LIMIT 1').bind(row.product, row.machine, row.device).first();
     if (used) {
       await store('refused', 'already_used');
@@ -128,7 +141,7 @@ async function create(request, env, ctx, now) {
   // 6. the waiting list is capped
   const pending = await env.DB.prepare("SELECT COUNT(*) AS n FROM licence_requests WHERE status = 'pending'").first();
   if (pending.n >= num(env.LICENCE_PENDING_MAX, 300)) return reply({error: 'full'}, 503, now);
-  await store('pending', '');
+  if (!(await storeWithinLimits()).meta.changes) return reply({error: 'rate'}, 429, now);  // another request took the last place meanwhile
   await note(env, now, row.id, 'created', `${row.kind} src ${src.slice(0, 6)}`);
   const told = telegram(env, alertText(row));
   if (ctx && typeof ctx.waitUntil === 'function') ctx.waitUntil(told); else await told;
@@ -166,8 +179,12 @@ const adminOk = (request, env) => !!env.LICENCE_ADMIN_TOKEN && same(bearer(reque
 
 async function pending(env, url, now) {
   const limit = Math.min(100, Math.max(1, Math.floor(num(url.searchParams.get('limit'), 50)) || 50));
+  // `after=<created_at>:<id>` reads the next page: requests that wait for the owner must not hide newer ones (review of PR #34)
+  const [at, aid] = String(url.searchParams.get('after') || '').split(':');
+  const afterAt = Number.isFinite(Number(at)) && at !== '' ? Number(at) : -1;
   const {results} = await env.DB.prepare("SELECT id, product, kind, device, machine, shop, ref, version, src, created_at FROM licence_requests "
-    + "WHERE status = 'pending' ORDER BY created_at LIMIT ?").bind(limit).all();
+    + "WHERE status = 'pending' AND (created_at > ? OR (created_at = ? AND id > ?)) ORDER BY created_at, id LIMIT ?")
+    .bind(afterAt, afterAt, aid || '', limit).all();
   return reply({requests: results}, 200, now);
 }
 
@@ -215,7 +232,10 @@ export async function handleLicence(request, env, ctx, now, url) {
 // Daily clean-up: a request nobody decided in two weeks is closed and its code dropped; old events go; a trial is remembered for a year.
 export async function cleanupLicence(env, now) {
   let n = 0;
-  n += (await env.DB.prepare("UPDATE licence_requests SET status = 'expired', reason = 'timeout', code = NULL WHERE status IN ('pending', 'issued') AND created_at < ?")
+  // an issued code nobody collected still counts as a trial given (review of PR #33): it expires as 'unacked', not 'timeout'
+  n += (await env.DB.prepare("UPDATE licence_requests SET status = 'expired', reason = 'unacked', code = NULL WHERE status = 'issued' AND created_at < ?")
+    .bind(now - PENDING_DAYS * DAY).run()).meta.changes;
+  n += (await env.DB.prepare("UPDATE licence_requests SET status = 'expired', reason = 'timeout', code = NULL WHERE status = 'pending' AND created_at < ?")
     .bind(now - PENDING_DAYS * DAY).run()).meta.changes;
   n += (await env.DB.prepare("DELETE FROM licence_requests WHERE status IN ('refused', 'expired') AND created_at < ?").bind(now - MEMORY_DAYS * DAY).run()).meta.changes;
   n += (await env.DB.prepare("DELETE FROM licence_requests WHERE status = 'delivered' AND created_at < ?").bind(now - MEMORY_DAYS * DAY).run()).meta.changes;

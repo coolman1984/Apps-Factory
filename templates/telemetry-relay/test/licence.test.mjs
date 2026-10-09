@@ -312,3 +312,38 @@ test('template carries no licence secret', async () => {
   assert.doesNotMatch(toml, /LICENCE_ADMIN_TOKEN\s*=|TELEGRAM_BOT_TOKEN\s*=|TELEGRAM_OWNER_CHAT_ID\s*=/);
   assert.match(toml, /LICENCE_PRODUCTS/);
 });
+
+// ---- review of PR #33 ----
+test('a burst of requests from one address cannot pass the daily limit together (the limit and the insert are one statement)', async () => {
+  stubTelegram();
+  const e = env({LICENCE_PER_SOURCE_DAY: '5', LICENCE_PER_DEVICE_DAY: '50'});
+  const devices = Array.from({length: 15}, (_, i) => `B${'CDEFGHJKMNPQRST'[i]}2M4-QX9TP`);
+  const answers = await Promise.all(devices.map((d) => ask(e, {device: d, machine: createHash('sha256').update(d).digest('hex')})));
+  const created = answers.filter((r) => r.status === 202).length;
+  assert.equal(created, 5);
+  assert.equal(rowCount(e), 5, 'nothing beyond the limit was stored');
+  assert.ok(telegram.length <= 5, 'and the owner was not woken more often than the limit');
+});
+
+test('an issued trial nobody collected still counts as given after it expires', async () => {
+  stubTelegram();
+  const e = env();
+  const a = await (await ask(e)).json();
+  const id = (await pendingList(e))[0].id;
+  assert.equal((await decide(e, {id, action: 'issue', code: CODE})).status, 200);
+  await cleanupLicence(e, NOW + 15 * DAY);  // never collected: it times out
+  assert.equal(e.DB.raw.prepare('SELECT status, reason FROM licence_requests WHERE id = ?').get(a.id).reason, 'unacked');
+  const again = await (await ask(e, {device: '9KD2M-QX9TP'}, {}, NOW + 16 * DAY)).json();
+  assert.equal(again.status, 'refused');
+  assert.equal(again.reason, 'already_used');
+});
+
+test('no payment reference and no phone-like digits are kept in the cloud', async () => {
+  stubTelegram();
+  const e = env();
+  await ask(e, {shop: 'Ahmed 01012345678 shop', ref: 'InstaPay 0101 234 5678'});
+  const row = e.DB.raw.prepare('SELECT shop, ref FROM licence_requests').get();
+  assert.equal(row.ref, '');
+  assert.ok(!/\d{6,}/.test(row.shop.replace(/\s/g, '')), row.shop);
+  assert.match(row.shop, /Ahmed/);
+});

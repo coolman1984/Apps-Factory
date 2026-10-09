@@ -201,7 +201,7 @@ class Chain(unittest.TestCase):
         self.s.auto.cycle()
         [req] = self.s.requests()
         self.assertEqual((req['status'], req['policy']['reason']), ('pending', 'payment_needed'))
-        self.assertEqual(req['payment_ref'], 'InstaPay 5521', 'what the shop typed is shown as text for the owner to compare')
+        self.assertEqual(req['payment_ref'], '', 'a payment reference typed in the shop is not kept in the cloud: the owner writes his own (review of PR #33)')
         self.assertEqual(self.s.one('SELECT COUNT(*) AS n FROM codes')['n'], 0)
         with self.assertRaises(StudioError) as e:
             self.s.decide(req['id'], True)  # no payment confirmation
@@ -303,6 +303,55 @@ class Chain(unittest.TestCase):
         self.assertLessEqual(self.s._keep_until - time.time(), 12 * 3600 + 5, 'never more than a working day')
         self.s.lock_key()
         self.assertEqual(self.s._keep_until, 0.0)
+
+    # ---- review of PR #34
+    def test_automatic_signing_never_keeps_the_key_open_past_the_owners_deadline(self):
+        self.s.set_setting('auto_trials', True)
+        self.s.keep_unlocked(1)
+        self.s._unlocked_at -= 3 * 3600  # the owner left 3 hours ago
+        self.ask()
+        self.assertEqual(self.s.auto.cycle()['issued'], 1, 'inside the kept-open time the policy signs')
+        self.assertLess(self.s._unlocked_at, time.time() - 3600, 'and that signing did not count as the owner being here')
+        self.s._keep_until = time.time() - 1  # the owner's deadline passes
+        self.assertFalse(self.s.unlocked(), 'locked, whatever the automatic traffic just before')
+
+    def test_one_decision_per_request_even_when_the_owner_and_the_round_meet(self):
+        _, _, d = self.ask(kind='monthly')
+        self.s.auto.cycle()
+        rid = self.s.requests()[0]['id']
+        self.assertTrue(self.s.claim(rid), 'the automatic round takes it first')
+        with self.assertRaises(StudioError) as e:
+            self.s.decide(rid, False)  # the owner presses refuse at the same moment
+        self.assertEqual(e.exception.key, 'request.closed')
+        self.s.release(rid)
+        self.s.decide(rid, False)
+        self.assertEqual(self.status(d)['status'], 'refused')
+
+    def test_a_request_the_relay_closed_is_not_reported_as_sent(self):
+        _, _, d = self.ask()
+        self.s.auto.cycle()
+        rid = self.s.requests()[0]['id']
+        real = self.s.relay.refuse
+
+        def gone(*a, **k):
+            raise relay_mod.RelayError('relay.http_409', 'closed', 409)
+        self.s.relay.refuse = gone
+        try:
+            self.s.decide(rid, False)
+        finally:
+            self.s.relay.refuse = real
+        row = self.s.one('SELECT relayed FROM requests WHERE id = ?', rid)
+        self.assertEqual(row['relayed'], 2, 'not "sent": the owner is told to send it by hand')
+        self.assertIn('request.undeliverable', [a['action'] for a in self.s.rows('SELECT action FROM audit')])
+
+    def test_requests_waiting_for_the_owner_do_not_hide_newer_ones(self):
+        for i in range(12):  # paid requests wait for the owner and stay pending on the relay
+            self.ask(pc=f'paid-{i}', install=f'i-{i}', kind='monthly')
+        self.ask(pc='new-pc', install='new-install')
+        self.assertEqual(len(self.s.relay.pending(5)), 5, 'one page')
+        every = self.s.relay.pending_all(page=5)
+        self.assertEqual(len(every), 13, 'page by page, the newest request is reached too')
+        self.assertEqual(len({r['id'] for r in every}), 13, 'no request twice')
 
     def test_the_relay_address_must_be_https_and_the_telegram_override_is_local_only(self):
         for bad in ('http://example.com', 'ftp://x', 'https://user:pw@example.com', 'example.com', ''):

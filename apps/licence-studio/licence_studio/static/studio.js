@@ -284,7 +284,7 @@ async function requests(page) {
         ${r.status === 'pending' && r.policy ? html`<div class="xs faint">${POLICY_SAYS[r.policy.verdict]}${r.policy.reason ? ' (' + (HELD[r.policy.reason] || r.policy.reason) + ')' : ''}</div>` : ''}
         ${r.status === 'pending' && r.source === 'relay' && r.kind !== 'trial' ? html`<div class="row wrap"><label class="check"><input type="checkbox" data-paid="${r.id}">الدفع وصل</label>
           <input class="input mono" data-ref="${r.id}" placeholder="مرجع الدفع" value="${r.payment_ref || ''}" maxlength="60" autocomplete="off"></div>` : ''}
-        ${r.status !== 'pending' && r.source === 'relay' ? html`<div class="xs faint">${r.relayed ? 'اتبعت للمحل' : 'لسه ماتبعتش للمحل: هيتحاول تاني'}</div>` : ''}</div>
+        ${r.status !== 'pending' && r.source === 'relay' ? html`<div class="xs faint">${r.relayed === 1 ? 'اتبعت للمحل' : r.relayed === 2 ? 'الوسيط قفل الطلب: ابعت الكود للمحل يدوي' : 'لسه ماتبعتش للمحل: هيتحاول تاني'}</div>` : ''}</div>
       <div class="row">${r.status === 'pending' ? html`<button class="btn sm" data-no="${r.id}">ارفض</button><button class="btn sm volt" data-yes="${r.id}">وافق واعمل الكود</button>`
         : html`<span class="badge ${r.status === 'approved' ? 'ok' : 'bad'}">${r.status === 'approved' ? 'اتوافق' : 'اترفض'}</span>`}</div></div>`)}</div>`
       : html`<div class="card"><div class="empty">${icon('message')}<h3>مفيش طلبات</h3></div></div>`}`);

@@ -36,7 +36,7 @@ Every page: Arabic first (RTL), English one click away, same address structure i
    A static site cannot run Al-Store's Python server, so route 3 means a separately hosted back end. Until it exists the site must **not** show a "Try live" button.
 
 ## 5. Offers, trials and leads
-- **Form fields (all optional except one way to reach the person):** name, shop type, city, which product, which plan, number of PCs, the person's own phone or e-mail, preferred time to be contacted, consent tick (unticked by default), free text (limited, stripped of markup).
+- **Form fields:** two are required: one way to reach the person (their own phone or e-mail) **and the consent tick** (unticked by default; without it nothing is stored or forwarded, and the form says why). Optional: name, shop type, city, which product, which plan, number of PCs, preferred time to be contacted, free text (limited, stripped of markup).
 - **Where it goes:** a small relay service of the same kind as the licence mailbox (`templates/telemetry-relay`): the page holds no secret; the request carries a nonce so a double click creates one lead; per-address and total daily caps; a hidden honeypot field; bodies size-limited; text cleaned. The owner is alerted on **Telegram** (the owner's decision of 9 October 2026), with the product, plan and city only: never the person's phone or free text in the alert. Leads wait in the relay until the owner's side pulls them.
 - **No automated WhatsApp or SMS to the visitor** (factory rule MSG-01). The owner or a person on the owner's side contacts them, once, and the visitor can say "stop".
 - **Statuses on the owner's side only:** new → contacted → demo → offer → pilot → sale / closed. A spreadsheet is enough at first.
@@ -54,9 +54,9 @@ Every page: Arabic first (RTL), English one click away, same address structure i
 ## 7. Acceptance checks (all must pass before anything is announced)
 1. Every link works (internal and external); every page exists in both languages; no page links to a feature the product does not have.
 2. Screenshot and video versions equal the shipped version (test).
-3. Real-browser run at 360, 768 and 1366 px in Arabic and English: no horizontal scroll, no overlap, keyboard path to the form, focus visible, contrast measured.
+3. Real-browser run of the factory's visual matrix (`design-factory/AGENTS.md`): 360, 390×844, 768, 1366 and 1440×900, light **and** dark, 200% zoom, in Arabic and English: no horizontal scroll, no overlap, keyboard path to the form, focus visible, contrast measured.
 4. Page weight and load time within §6 on a throttled profile.
-5. Form: one click twice = one lead; empty, huge, markup, emoji, right-to-left and script-injection inputs are handled; the daily cap holds; the honeypot drops bots; the Telegram alert contains no personal data; deletion works.
+5. Form: without the consent tick nothing is stored or forwarded (tested); one click twice = one lead; empty, huge, markup, emoji, right-to-left and script-injection inputs are handled; the daily cap holds; the honeypot drops bots; the Telegram alert contains no personal data; deletion works.
 6. Secret scan of the site and relay repositories is clean; no key, token or real phone number in any file.
 7. For route 3 only: the negative tests listed in the roadmap (cannot read or change real data, one session cannot see another, outbound blocked, true reset returns the seeded state, expiry removes access, 100 parallel sessions obey the quotas).
 8. The owner has signed off in writing on the brand assets, domain, contact details, legal text and (route 3) the monthly ceiling.

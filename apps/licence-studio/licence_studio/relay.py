@@ -16,7 +16,7 @@ import re
 import urllib.error
 import urllib.request
 from pathlib import Path
-from urllib.parse import urlparse
+from urllib.parse import quote, urlparse
 
 DEVICE = re.compile(r'^[0-9A-HJKMNP-TV-Z]{5}-[0-9A-HJKMNP-TV-Z]{5}$')
 MACHINE = re.compile(r'^[0-9a-f]{64}$')
@@ -109,8 +109,20 @@ class Relay:
         except (urllib.error.URLError, OSError, ValueError, TimeoutError) as e:
             raise RelayError('relay.down', f'The relay cannot be reached ({e.__class__.__name__}).') from None
 
-    def pending(self, limit: int = 50) -> list[dict]:
-        return self._call('GET', f'/licence/pending?limit={int(limit)}').get('requests') or []
+    def pending(self, limit: int = 50, after: str = '') -> list[dict]:
+        return self._call('GET', f'/licence/pending?limit={int(limit)}' + (f'&after={quote(after)}' if after else '')).get('requests') or []
+
+    def pending_all(self, page: int = 50, pages: int = 20) -> list[dict]:
+        """Every waiting request, page by page: 50 that wait for the owner (paid ones, or while the policy is off) must not hide the
+        newer ones behind them (review of PR #34)."""
+        out, after = [], ''
+        for _ in range(pages):
+            got = self.pending(page, after)
+            out += got
+            if len(got) < page:
+                break
+            after = f"{got[-1]['created_at']}:{got[-1]['id']}"
+        return out
 
     def issue(self, relay_id: str, code: str):
         return self._call('POST', '/licence/decide', {'id': relay_id, 'action': 'issue', 'code': code})

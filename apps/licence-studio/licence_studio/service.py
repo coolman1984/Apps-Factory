@@ -226,10 +226,11 @@ class Studio:
             self._key = None
         return self._key is not None
 
-    def _pem(self):
+    def _pem(self, owner=True):
         if not self.unlocked():
             raise StudioError('key.locked', 'The studio is locked. The owner unlocks it with the passphrase.', 423)
-        self._unlocked_at = time.time()
+        if owner:  # only the owner's own use keeps the key open; automatic signing never does (review of PR #34: it could keep it open for ever)
+            self._unlocked_at = time.time()
         return self._key.private_bytes(serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8, serialization.NoEncryption())
 
     # ------------------------------------------------------------------ products
@@ -286,7 +287,7 @@ class Studio:
         first = date.fromisoformat(first_day) if first_day else date.today()
         if first < date.today() - timedelta(days=1):
             raise StudioError('first_day', 'The first day cannot be in the past.')
-        out = codes.issue_code(self._pem(), product, edition, first, days, device, int(grace_days), int(seats), date.today())
+        out = codes.issue_code(self._pem(owner=actor != 'auto-trial'), product, edition, first, days, device, int(grace_days), int(seats), date.today())
         kid = (self.public_key() or ':').split(':', 1)[0]
         with self.lock:
             self.db.execute('BEGIN IMMEDIATE')
@@ -390,6 +391,29 @@ class Studio:
         ref = (payment_ref or r['payment_ref'] or '').strip()[:60]
         if approve and paid and (not payment_confirmed or len(ref) < 3):  # a paid code is never given before the owner confirms the money arrived
             raise StudioError('payment.required', 'Tick that the payment arrived and write its reference first.', 400)
+        if not self.claim(rid):  # the automatic round took it a moment ago
+            raise StudioError('request.closed', 'This request was decided a moment ago.', 409)
+        try:
+            serial = self._decide_claimed(r, approve, actor, relay, paid, ref)
+        except BaseException:
+            self.release(rid)
+            raise
+        if relay:
+            self.auto.owner_decided(rid)
+        return self.one('SELECT * FROM requests WHERE id = ?', rid)
+
+    def claim(self, rid):
+        """One decision per request: whoever moves it from pending to deciding decides it (the owner or the automatic round), and only
+        that one signs and delivers (review of PR #34: both could decide the same request and the relay and the Studio disagreed)."""
+        with self.lock:
+            return self.db.execute("UPDATE requests SET status = 'deciding' WHERE id = ? AND status = 'pending'", (rid,)).rowcount == 1
+
+    def release(self, rid):
+        with self.lock:
+            self.db.execute("UPDATE requests SET status = 'pending' WHERE id = ? AND status = 'deciding'", (rid,))
+
+    def _decide_claimed(self, r, approve, actor, relay, paid, ref):
+        rid = r['id']
         serial = None
         if approve:
             days, grace = r['days'], 0
@@ -405,9 +429,7 @@ class Studio:
                             'WHERE id = ?', ('approved' if approve else 'refused', now_iso(), actor, serial, '' if approve else 'owner_refused', ref,
                                              1 if (approve and paid) else 0, rid))
         self.audit(actor, 'request.' + ('approve' if approve else 'refuse'), {'id': rid, 'serial': serial, **({'payment_ref': ref} if paid and approve else {})})
-        if relay:
-            self.auto.owner_decided(rid)
-        return self.one('SELECT * FROM requests WHERE id = ?', rid)
+        return serial
 
     def agent_issue_trial(self, product, device, customer, phone='', days=None, note=''):
         """The agent's only direct way to make a code: trial, device-bound, ≤ 14 days, daily limit, owner switched it on."""
