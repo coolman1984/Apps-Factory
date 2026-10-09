@@ -10,6 +10,7 @@ import csv
 import io
 import json
 import mimetypes
+import os
 import secrets
 import sqlite3
 import threading
@@ -17,6 +18,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
+from .relay import RelayError
 from .service import Studio, StudioError
 
 STATIC = Path(__file__).parent / 'static'
@@ -101,7 +103,7 @@ def make_handler(app: App):
                 return self.send(421, {'error': 'unknown host'})
             url = urlparse(self.path)
             if url.path.startswith('/api/') or url.path.startswith('/agent/'):
-                return self.guard(lambda: self.api('GET', url.path, {k: v[-1] for k, v in parse_qs(url.query).items()}, {}))
+                return self.guard(lambda: self.api('GET', url.path, {k: v[-1] for k, v in parse_qs(url.query, keep_blank_values=True).items()}, {}))
             base = STATIC
             rel = 'index.html' if url.path in ('/', '/index.html') else url.path.lstrip('/')
             if rel.startswith('af-ui/'):
@@ -127,6 +129,8 @@ def make_handler(app: App):
                 fn()
             except StudioError as e:
                 self.send(e.status, {'error': str(e), 'key': e.key})
+            except RelayError as e:  # the relay is a different computer: its trouble is a calm 502, never a crash
+                self.send(502, {'error': str(e), 'key': e.key})
             except (ValueError, KeyError, TypeError, AttributeError, OverflowError, sqlite3.Error, json.JSONDecodeError) as e:
                 self.send(400, {'error': f'Bad request: {e}', 'key': 'bad_request'})
 
@@ -162,6 +166,8 @@ def make_handler(app: App):
                     return self.send(200, S.audit_log())
                 if path == '/api/tokens':
                     return self.send(200, S.tokens())
+                if path == '/api/relay':
+                    return self.send(200, {**S.relay.public(), 'last': dict(S.auto.last), 'policy': S.policy()})
                 if path == '/api/export.csv':
                     out = io.StringIO()
                     out.write('﻿')
@@ -185,13 +191,28 @@ def make_handler(app: App):
                 if path == '/api/product/save':
                     return self.send(200, {'id': S.add_product(d.get('id'), d.get('name'), d.get('trial_days', 14))})
                 if path == '/api/request/decide':
-                    return self.send(200, S.decide(d.get('id'), bool(d.get('approve'))))
+                    return self.send(200, S.decide(d.get('id'), bool(d.get('approve')), payment_confirmed=d.get('payment_confirmed') is True,
+                                                   payment_ref=str(d.get('payment_ref') or '')))
                 if path == '/api/policy':
                     if 'agent_may_issue_trials' in d:
                         S.set_setting('agent_may_issue_trials', bool(d['agent_may_issue_trials']))
                     if 'agent_daily_limit' in d:
                         S.set_setting('agent_daily_limit', max(0, min(100, int(d['agent_daily_limit']))))
+                    if 'auto_trials' in d:
+                        S.set_setting('auto_trials', d['auto_trials'] is True)
+                    if 'auto_trial_days' in d:
+                        S.set_setting('auto_trial_days', max(1, min(14, int(d['auto_trial_days']))))
+                    if 'auto_trial_daily_cap' in d:
+                        S.set_setting('auto_trial_daily_cap', max(0, min(100, int(d['auto_trial_daily_cap']))))
                     return self.send(200, S.policy())
+                if path == '/api/relay/save':
+                    S.relay.save(d.get('url'), d.get('token') or None)
+                    S.audit('owner', 'relay.save', {'host': S.relay.public()['host']})
+                    return self.send(200, S.relay.public())
+                if path == '/api/relay/pull':
+                    return self.send(200, S.auto.cycle())
+                if path == '/api/auto/keep':
+                    return self.send(200, S.keep_unlocked(float(d.get('hours') or 0)))
                 if path == '/api/token/new':
                     return self.send(200, {'token': S.new_agent_token(d.get('name') or 'AI agent'), 'url': f'http://127.0.0.1:{app.port}'})
                 if path == '/api/tokens/revoke':
@@ -232,4 +253,6 @@ def serve(studio: Studio, port: int = 8770):
     app = App(studio, port)
     httpd = ThreadingHTTPServer(('127.0.0.1', port), make_handler(app))
     httpd.daemon_threads = True
+    every = float(os.environ.get('LS_RELAY_EVERY', 60))  # 0 switches the background round off (tests, or a PC that must stay quiet)
+    app.stop_auto = studio.auto.start(every) if every > 0 else None
     return httpd, app
