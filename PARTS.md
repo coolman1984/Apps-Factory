@@ -14,7 +14,7 @@ Product use below was read from the product clones on 2026-10-09 (Store, Teacher
 - **Used by:** Store, Teachers, Yousef-Transportation (vendored). Mr.Ayman-HR has its own access code and has not vendored it.
 
 ### af-license — signed licences, licence codes, update manifests
-- **Version:** 0.2.0 (`packages/af-license/af_license/__init__.py`; the package README header still says 0.1.0). Ed25519 through the `cryptography` library; `requirements.txt` is for the factory side only.
+- **Version:** 0.3.0 (`packages/af-license/af_license/__init__.py`; the package README header is historical). Supports 14-day trials, 30-day monthly codes and perpetual device-bound licences; legacy codes still verify. Ed25519 through the `cryptography` library; `requirements.txt` is for the factory side only.
 - **Vendor:** `python3 scripts/vendor_licence.py <product>` → `server/afcodes.py` and `server/ed25519.py` (stdlib verifier, public key only).
 - **Spec:** `docs/PROTECTION_UPDATES_AND_SUPPORT.md`; package `packages/af-license/README.md`. Controls LIC-01, BIZ-03.
 - **Used by:** Store (vendored codes). Teachers, Yousef-Transportation and Mr.Ayman-HR carry their own Ed25519 code and are not on the vendored copy.
@@ -53,7 +53,7 @@ Product use below was read from the product clones on 2026-10-09 (Store, Teacher
 - **Used by:** the owner. Store sends its heartbeat to it (contract-tested in `tests/test_product_heartbeat.py`).
 
 ### apps/licence-studio — the owner's licence-code program (UI + MCP)
-- **Version:** 1.0.0 (`licence_studio/__init__.py`).
+- **Version:** 1.1.0 (`licence_studio/__init__.py`). Three sales types: trial, monthly and lifetime; paid issuance requires the owner.
 - **Run:** `pip install -r requirements.txt`, then `python3 -m licence_studio serve` (loopback only). MCP: `python3 -m licence_studio mcp`. Skill: `.claude/skills/licence-codes`.
 - **Spec:** `apps/licence-studio/README.md`; codes format in `packages/af-license`.
 - **Used by:** the owner issues the codes that Store verifies.
