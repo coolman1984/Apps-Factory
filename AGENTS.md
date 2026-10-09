@@ -5,6 +5,8 @@
 2. [RULES.md](RULES.md): the 32 core controls, the firm privacy limits, the agent workflow.
 3. [PARTS.md](PARTS.md): the shared parts, their versions and how products take them.
 
+For cross-product Pixel Plus/Store work, begin with [the unified owner execution roadmap](docs/PIXEL_PLUS_EXECUTION_ROADMAP_2026.md); do not mistake its planned features for shipped code. For Telegram owner approvals, Rafaa or Sanad use only the linked scope specs, and preserve privacy/payment approval boundaries.
+
 Then read only the spec for the part you touch (linked from PARTS.md). Read [DECISIONS.md](DECISIONS.md) when a business choice is involved (price, sensitive data, anything paid). Look up a control or an old id with `python3 scripts/factory.py controls <ID>`. Day-to-day commands (tests, releases, drift checks) are in [PLAYBOOK.md](PLAYBOOK.md).
 
 ## Visual/UI work
