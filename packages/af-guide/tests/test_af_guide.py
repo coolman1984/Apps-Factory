@@ -55,6 +55,8 @@ class Catalogue(unittest.TestCase):
             ('role-without-path', lambda c: c['roles'].append('storekeeper')),
             ('problem-unknown-guide', lambda c: c['situations'][0].update(guide='nope')),
             ('no-guides', lambda c: c.update(guides=[], paths=[], situations=[])),
+            ('lesson-not-allowed', lambda c: (c['guides'][0].update(perm='settings.edit'), c.update(role_perms={'owner': '*', 'cashier': ['pos.sell']}),
+                                              c['paths'][1]['lessons'].append({'guide': 'setup'}))),
         ]
         for code, breaks in cases:
             with self.subTest(code=code):

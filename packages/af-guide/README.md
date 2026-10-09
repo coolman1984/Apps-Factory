@@ -1,4 +1,4 @@
-# af-guide v0.1.0 • guides, learning paths, problems and simple Arabic gate
+# af-guide v0.1.1 • guides, learning paths, problems and simple Arabic gate
 
 **Status:** `implemented` (unit-tested here; Hessa's full help passes). Standard:
 [docs/HELP_AND_GUIDANCE_STANDARD.md](../../docs/HELP_AND_GUIDANCE_STANDARD.md). Controls `HELP-01`…`HELP-08`.
@@ -33,11 +33,13 @@ server reports and its menu pages, then asserts `afguide.errors(cat) == []` in a
   finished its guide.
 * `roles`: the ready-made profiles (`af-access`); each must be on a path.
 * `setup_guides`: the guides the administrator's path may start with.
+* optional `role_perms` (`{role: [perm…] | "*"}`) and a guide's `perm` (one id or a list, any one is enough): every lesson must be
+  one its role can do (Hessa review: a teacher's path held a lesson about balances teachers cannot see).
 
 ## Rules (`check`)
 Errors: `words-missing`, `register`, `guide-id`, `guide-short`, `page-without-guide`, `no-paths`, `no-admin-path`,
 `path-duplicate`, `path-short`, `lesson-unknown-guide`, `lesson-unknown-fact`, `admin-path-order`, `role-without-path`,
-`problem-unknown-guide`, `no-guides`.
+`problem-unknown-guide`, `no-guides`, `lesson-not-allowed` (when `role_perms` and guide `perm` are given: a lesson its role has no right for).
 Warnings: `path-unchecked` (fewer than half the lessons have a fact), `problem-without-guide`.
 
 ## Helpers

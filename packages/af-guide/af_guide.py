@@ -18,7 +18,7 @@ import json
 import re
 import sys
 
-__version__ = '0.1.0'
+__version__ = '0.1.1'
 
 ID_RE = re.compile(r'^[a-z][a-zA-Z0-9_-]*$')
 
@@ -123,6 +123,19 @@ def check(cat):
     for role in cat.get('roles') or []:
         if not any(role in (p.get('roles') or []) for p in paths):
             bad('role-without-path', role, 'Every ready-made role/profile has a learning path.')
+    # optional: the rights of each role ({role: [perm]}, "*" = all) and the right each guide needs (perm: id or [any of])
+    role_perms = cat.get('role_perms') or {}
+    for p in paths:
+        for role in p.get('roles') or []:
+            if role not in role_perms:
+                continue
+            held = role_perms[role]
+            for i, lesson in enumerate(p.get('lessons') or []):
+                need = (guides.get(lesson.get('guide')) or {}).get('perm')
+                need = [need] if isinstance(need, str) else list(need or [])
+                if need and held != '*' and not set(need) & set(held):
+                    bad('lesson-not-allowed', f'{p.get("id")}#{i + 1}', f'{role} cannot do "{lesson.get("guide")}" '
+                        f'(needs one of {need}); the screen would hide it and the path would skip a step.')
 
     for s in cat.get('situations') or []:
         sid = s.get('id')
