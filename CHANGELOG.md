@@ -2,6 +2,27 @@
 
 Factory versions (the `README.md` version line). The control catalogue has its own `catalog_version` in `factory/controls.json`.
 
+## 0.7.0 (2026-10-09)
+- New package `packages/af-consent` 0.1.0:
+  - two-level, append-only consent records with exact text ids;
+  - the prompt «أوافق حتى يستطيع [vendor] مساعدتي عن بُعد». The vendor name is one setting (`vendor_display_name`, default the product's `DEVELOPER`, fallback `coolman1984`);
+  - a first-sign-in card and the Settings «الخصوصية والمساعدة» block.
+- New package `packages/af-telemetry` 0.1.0:
+  - event taxonomy `events.json` (31 types);
+  - firm limits enforced in code: allowlisted IDs and counts only, a never-collect list, and `PrivacyError`;
+  - pseudonymous per-person references, consent gating, and a purge when consent is declined or withdrawn;
+  - error capture without message text;
+  - problem reports with redaction, a preview, a digest check, and no consent needed;
+  - a bounded outbox with hourly merge;
+  - signed gzip batches with backoff;
+  - the browser `track()` call, an error hook, and the report dialog.
+- `scripts/vendor_consent.py` and `scripts/vendor_telemetry.py`.
+- Controls (catalogue 1.9.0, 138 controls):
+  - new PRIV-01…06 (PRIV-05 is optional), TEL-01…03, FB-01 and ROLL-01;
+  - SUP-04 now points to af-telemetry.
+- Manifest: an optional `telemetry` block (`rollout`: off, practice or installations). `factory.py check` enforces ROLL-01.
+- Docs: `docs/PRIVACY_TELEMETRY_STANDARD.md` and ADR-0007.
+
 ## 0.6.0 (2026-10-09)
 - **New package `packages/af-guide` 0.1.0.** It contains:
   - a guide catalogue checker and the «العربية الميسّرة» style lint;

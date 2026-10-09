@@ -252,3 +252,31 @@ class GuideControls(unittest.TestCase):
             p = self.guide(d, "--release")
             self.assertEqual(p.returncode, 1)
             self.assertIn("banned-word", p.stdout)
+
+
+class PrivacyTelemetryControls(unittest.TestCase):
+    """PRIV-01..06, TEL-01..03, FB-01, ROLL-01 (packages/af-consent, packages/af-telemetry)."""
+
+    def test_controls_present(self):
+        by_id = {c["id"]: c for c in factory.catalog()}
+        for cid in ["PRIV-0%d" % n for n in range(1, 7)] + ["TEL-01", "TEL-02", "TEL-03", "FB-01", "ROLL-01"]:
+            self.assertIn(cid, by_id)
+        self.assertFalse(by_id["PRIV-05"]["required_if_applies"], "the «ماذا أُرسل؟» viewer is optional")
+        text = json.dumps([by_id[c] for c in by_id if c.startswith(("PRIV", "TEL", "FB", "ROLL"))]).lower()
+        for word in ("law", "lawyer", "legal", "151/2020", "gdpr"):
+            self.assertNotIn(word, text)
+
+    def test_roll_01_practice_first(self):
+        p = factory.load(ROOT / "examples/hessa-product.json")
+        p["telemetry"] = {"rollout": "practice"}
+        self.assertEqual(factory.valid_product(p)[0], [])
+        p["telemetry"] = {"rollout": "installations"}
+        self.assertTrue(any("ROLL-01" in e for e in factory.valid_product(p)[0]))
+        p["telemetry"] = {"rollout": "installations", "practice_evidence": "PENDING"}
+        self.assertTrue(any("ROLL-01" in e for e in factory.valid_product(p)[0]))
+        p["telemetry"] = {"rollout": "installations", "practice_evidence": "2026-10-20 demo shop, 3 days, 0 leaks"}
+        self.assertEqual(factory.valid_product(p)[0], [])
+        p["telemetry"] = {"rollout": "everyone"}
+        self.assertTrue(factory.valid_product(p)[0])
+        schema = factory.load(ROOT / "factory/product.schema.json")
+        self.assertEqual(schema["properties"]["telemetry"]["properties"]["rollout"]["enum"], ["off", "practice", "installations"])

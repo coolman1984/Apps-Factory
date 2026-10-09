@@ -33,3 +33,14 @@ The automation token that pushed this branch has no `workflow` scope, so GitHub 
         working-directory: packages/af-guide
         run: python -m unittest tests.test_browser -v
 ```
+
+## PR 2 (af-consent, af-telemetry): add to the `validate` job
+```yaml
+      - name: Consent and telemetry tests (af-consent, af-telemetry)
+        run: |
+          python -m unittest discover -s packages/af-consent/tests -v
+          python -m unittest discover -s packages/af-telemetry/tests -v
+          node --check packages/af-consent/af-consent.js
+          node --check packages/af-telemetry/af-telemetry.js
+          node --test packages/af-telemetry/tests/core.test.mjs
+```

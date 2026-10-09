@@ -1,6 +1,6 @@
 # Apps Factory | مصنع التطبيقات 🏭
 
-**Version:** 0.6.0 — adds the guided-onboarding engine `af-guide` (role courses, coach, per-page help, «العربية الميسّرة» lint; see [CHANGELOG](CHANGELOG.md)) • **Status:** standards, specs and tested shared pieces; first product built on them: [الستور](https://github.com/coolman1984/Store). Nothing here is field-verified yet.
+**Version:** 0.7.0 — adds consent (`af-consent`), consented telemetry and problem reports (`af-telemetry`) on top of the guide engine (`af-guide`); see [CHANGELOG](CHANGELOG.md) • **Status:** standards, specs and tested shared pieces; first product built on them: [الستور](https://github.com/coolman1984/Store). Nothing here is field-verified yet.
 
 مستودع القواعد الموحدة اللي كل تطبيق تجاري جديد عندك يبدأ منه: بحث السوق، تصميم ثابت، إدارة وصلاحيات، اشتراكات وتراخيص، خصوصية، أمان، بيانات، نسخ احتياطي، اختبار، تشغيل ودعم. **التخصص فقط بيتغير، القاعدة لا تُنسخ عشوائيًا.**
 
@@ -27,6 +27,13 @@
 - اختبار جاهزية بيع **يُفشل المسودات عمدًا**: `python scripts/factory.py check test-app.json --release`
 - اختبارات أداة المصنع: `python -m unittest discover -s tests -v`
 - اختبارات قطعة الرخص: `cd packages/af-license && pip install -r requirements.txt && python -m unittest discover -s tests -v`
+
+## الجديد في 0.7 ✨
+- 🤝 **الموافقة** [packages/af-consent](packages/af-consent/README.md): «أوافق حتى يستطيع [اسم البائع] مساعدتي عن بُعد». الموافقة على مستويين: المنشأة، ثم كل شخص. تستطيع سحب الموافقة في أي وقت.
+- 📡 **القياس وبلاغات المشكلات** [packages/af-telemetry](packages/af-telemetry/README.md) • [المعيار](docs/PRIVACY_TELEMETRY_STANDARD.md):
+  - يُرسَل فقط أرقام تعريف وعدّادات، ولا تُرسَل أبدًا كلمات السر أو ما يُكتب أو صور الشاشة أو بيانات العملاء أو المبالغ. القيود مطبّقة في الكود والاختبارات.
+  - زر «أبلغ عن مشكلة» يعمل بدون موافقة، مع معاينة كاملة لما سيُرسَل.
+- 🧪 **القاعدة ROLL-01:** التجربة على بيانات التدريب أولًا، ثم على أجهزة العملاء.
 
 ## الجديد في 0.6 ✨
 - 🧭 **الدليل التفاعلي** [packages/af-guide](packages/af-guide/README.md) • [المعيار](docs/GUIDED_ONBOARDING_STANDARD.md):
