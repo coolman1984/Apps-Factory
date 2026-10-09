@@ -4,7 +4,8 @@ Status words follow the constitution: `planned` → `implemented` → `verified`
 
 | Capability | Where | Status | Use it for |
 |---|---|---|---|
-| Product specification gate | `scripts/factory.py new/check/doctor`, `factory/product.schema.json`, `controls.json` (116 controls) | implemented | Every new product starts with a manifest (`examples/al-store-product.json`) |
+| Product specification gate | `scripts/factory.py new/check/doctor`, `factory/product.schema.json`, `controls.json` (121 controls) | implemented | Every new product starts with a manifest (`examples/al-store-product.json`) |
+| **People, profiles and permissions** (BAMS model) | `docs/ACCESS_AND_ADMINISTRATION_STANDARD.md`, gate `packages/af-access` vendored by `scripts/vendor_access.py`; reference BAMS `server/auth.py` | implemented; gate in Al-Store, Hessa, Trip Orders tests | Every product with more than one person |
 | Signed licences (JSON documents) | `packages/af-license` core | implemented | Paid editions, update manifests |
 | **Licence codes** (144-char, device-bound, Ed25519) | `packages/af-license/af_license/codes.py` + stdlib verifier `ed25519_verify.py`, vendored by `scripts/vendor_licence.py` | implemented, cross-tested with Al-Store | 14-day trials that cannot be passed to another PC |
 | **Licence Studio** (برنامج الأكواد) | `apps/licence-studio` — encrypted key, issue/verify/list, agent requests, audit, WhatsApp hand-off | implemented | The owner makes codes; agents check and request |

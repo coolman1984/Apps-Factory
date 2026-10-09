@@ -1,7 +1,7 @@
 # Mandatory instructions for every AI coding agent
 
 ## Read order
-1. README.md → FACTORY_CONSTITUTION.md → docs/decisions/ (ADRs) → docs/PLATFORM_ARCHITECTURE.md → docs/CONNECTIVITY_AND_SYNC.md → docs/PROTECTION_UPDATES_AND_SUPPORT.md → docs/HELP_AND_GUIDANCE_STANDARD.md → docs/DIAGNOSTICS_AND_REMOTE_FIX.md → docs/HESSA_FACTORY_ALIGNMENT.md (proven patterns from the first product)
+1. README.md → FACTORY_CONSTITUTION.md → docs/decisions/ (ADRs) → docs/PLATFORM_ARCHITECTURE.md → docs/CONNECTIVITY_AND_SYNC.md → docs/PROTECTION_UPDATES_AND_SUPPORT.md → docs/HELP_AND_GUIDANCE_STANDARD.md → docs/DIAGNOSTICS_AND_REMOTE_FIX.md → docs/HESSA_FACTORY_ALIGNMENT.md (proven patterns from the first product) → docs/ACCESS_AND_ADMINISTRATION_STANDARD.md (people, profiles, pages, permissions: learned from BAMS)
 1b. docs/knowledge/README.md (repo map, capability map, lessons, GitHub radar) → docs/DESIGN_SYSTEM.md → docs/PERFORMANCE_STANDARD.md → docs/QUALITY_SYSTEM.md
 2. docs/MARKET_AND_STANDARDS.md → docs/REPOSITORY_AUDIT.md
 3. factory/controls.json → factory/product.schema.json → templates/*
@@ -35,6 +35,7 @@ For requests involving icons, motion graphics, layers, parallax, scroll transiti
 - `packages/af-license`: signed licences and update manifests (Ed25519 via `cryptography`). Use it instead of any copied signing file. Private keys never enter a repository, CI secret or build.
 - `packages/af-license/af_license/codes.py`: short device-bound licence codes (trials and paid) with a stdlib verifier; copy into a product with `python scripts/vendor_licence.py <product-dir>`.
 - `apps/licence-studio`: the owner's code program (loopback web UI + MCP). Agents read, verify and request; trial issuing only when the owner enables it; paid codes owner-only.
+- `packages/af-access`: access-and-administration gate (permission catalogue rules, lock-out guards, who-can-do-what matrix); copy into a product with `python scripts/vendor_access.py <product-dir>` and run `afaccess.errors(auth.catalogue())` in its tests (IAM-08…IAM-12).
 - `packages/af-ui`: the Showroom design system (tokens, components, fonts, icons, motion). Re-brand tokens only (UX-09).
 - `tools/ui-lab`: performance + accessibility gate against `factory/ui-budgets.json` (PERF-01, PERF-02, A11Y-01); every UI release candidate commits its report.
 - `.claude/skills/`: new-product, ui-quality-pass, licence-codes, factory-knowledge.

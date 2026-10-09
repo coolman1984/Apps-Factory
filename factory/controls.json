@@ -1,6 +1,6 @@
 {
   "catalog_version": "1.7.0",
-  "updated": "2026-10-08",
+  "updated": "2026-10-09",
   "policy": "Required-if-applicable, never auto-certifies an implementation. Profiles: desktop, lan, saas, paid, ai, regulated, sync, mesh, mobile, multi_site, multi_owner, windows. Connectivity tier cloud_sync activates sync and saas.",
   "references": [
     "https://owasp.org/projects/asvs",
@@ -1545,6 +1545,76 @@
       ],
       "requirement": "The Windows installer is built by a workflow on a real Windows runner, the built program folder and the silently installed copy are started and checked to serve their pages, and uninstall keeps the customer data (templates/windows-installer)",
       "acceptance_evidence": "A green workflow run id recorded in the product release notes; the clean-PC install by a person remains a separate gate (OPS-02)",
+      "required_if_applies": true,
+      "implementation_status": "implemented"
+    },
+    {
+      "id": "IAM-08",
+      "slug": "permission-catalogue",
+      "category": "identity",
+      "profiles": [
+        "desktop",
+        "lan",
+        "saas"
+      ],
+      "requirement": "Grouped permission catalogue: one permission per page, per data-changing action and per sensitive field, plain-words labels in every product language, one administrator group shown apart",
+      "acceptance_evidence": "packages/af-access check passes in the product's unit tests (catalogue exported from the server's own permission list)",
+      "required_if_applies": true,
+      "implementation_status": "implemented"
+    },
+    {
+      "id": "IAM-09",
+      "slug": "editable-profiles",
+      "category": "identity",
+      "profiles": [
+        "desktop",
+        "lan",
+        "saas"
+      ],
+      "requirement": "Ready-made profiles for the real jobs; the administrator can rename, change (optionally for everybody who has it), delete (people keep their ticks, shown as Custom) and create profiles; one locked administrator profile holds every permission",
+      "acceptance_evidence": "API tests for save/apply/delete profile and refusal to change the locked one; browser walkthrough",
+      "required_if_applies": true,
+      "implementation_status": "implemented"
+    },
+    {
+      "id": "IAM-10",
+      "slug": "lockout-guards",
+      "category": "identity",
+      "profiles": [
+        "desktop",
+        "lan",
+        "saas"
+      ],
+      "requirement": "The server refuses any change to people or profiles that leaves no active person able to manage people, removes the actor's own right, or gives an administrator right to a personal-link account",
+      "acceptance_evidence": "af_access.admin_safety cases mirrored as API negative tests",
+      "required_if_applies": true,
+      "implementation_status": "implemented"
+    },
+    {
+      "id": "IAM-11",
+      "slug": "page-visibility",
+      "category": "identity",
+      "profiles": [
+        "desktop",
+        "lan",
+        "saas"
+      ],
+      "requirement": "Menu, palette, dock and direct URL follow the page permissions; the server returns no data of a page the person cannot open; sensitive fields are removed by the server",
+      "acceptance_evidence": "Role-denial tests per page and per sensitive field",
+      "required_if_applies": true,
+      "implementation_status": "implemented"
+    },
+    {
+      "id": "IAM-12",
+      "slug": "permission-change-audit",
+      "category": "identity",
+      "profiles": [
+        "desktop",
+        "lan",
+        "saas"
+      ],
+      "requirement": "Every change to a person, profile, tick, scope or limit is logged with who, when, added and removed; concurrent edits by two administrators are refused, not overwritten",
+      "acceptance_evidence": "Audit row sample with added/removed lists; stale-version save refused",
       "required_if_applies": true,
       "implementation_status": "implemented"
     }
