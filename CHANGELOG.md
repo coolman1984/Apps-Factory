@@ -2,6 +2,12 @@
 
 Factory versions (the `README.md` version line). The control catalogue has its own `catalog_version` in `factory/controls.json`.
 
+## 0.11.1 (2026-10-09)
+Al-Store evidence and stale facts. No code, package or catalogue change.
+- `examples/al-store-product.json`: the core journey is cash only (owner decision); `control_evidence` now records each of the 32 core controls with its real proof in Store 1.3.0 (20 `verified` by green tests, 12 `implemented` with what is still missing). `--release` now lists 12 missing proofs plus the two field items instead of 32.
+- `PARTS.md`: Store vendors af-guide 0.1.1, af-consent 0.1.0 and af-telemetry 0.2.0 (byte-identical below the header); the "no product has vendored it yet" lines were wrong.
+- `DECISIONS.md`: Al-Store cash-only decision; three new open items (optional features start off as a factory rule, owner password recovery in IAM-01, how customers pay for their licence).
+
 ## 0.11.0 (2026-10-09)
 Docs diet (review item A12). Agents and people read three files, not 27. No code, package, template, workflow or catalogue change; the only edits outside Markdown are two lines of text: the `prompt` command's reading list in `scripts/factory.py` and the doc links in `CONTROL_CENTER.html`.
 - **Five living docs:** `README.md`, `RULES.md` (32 core controls with how each is checked, firm privacy limits, agent workflow, Arabic standard), `PARTS.md` (every shared part: version, vendoring, spec, users), `PLAYBOOK.md` (tests, drift check, release, controls, products, alerts), `DECISIONS.md` (dated decisions, ADR index, open items).
