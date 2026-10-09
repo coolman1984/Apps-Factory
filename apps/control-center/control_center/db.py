@@ -59,6 +59,21 @@ MIGRATIONS = [
     CREATE INDEX alert_deliveries_alert ON alert_deliveries(alert_id);
     CREATE TABLE settings (k TEXT PRIMARY KEY, v TEXT NOT NULL);
     """,
+    # 3: telemetry hardening (0.9.0): new PCs wait as pending installs instead of being dropped; batches that cannot be
+    # stored are kept (quarantine) instead of lost; alerts are queued and sent outside the database lock; clock skew
+    """
+    ALTER TABLE installs ADD COLUMN clock_skew_s INTEGER;
+    ALTER TABLE installs ADD COLUMN last_contact TEXT;
+    ALTER TABLE alerts ADD COLUMN delivery TEXT NOT NULL DEFAULT 'done';
+    CREATE INDEX alerts_delivery ON alerts(delivery);
+    CREATE TABLE pending_installs (id TEXT PRIMARY KEY, token_hash TEXT NOT NULL, product TEXT, node TEXT, version TEXT,
+        source TEXT NOT NULL, first_seen TEXT NOT NULL, last_seen TEXT NOT NULL, batches INTEGER NOT NULL, bytes INTEGER NOT NULL);
+    CREATE TABLE pending_batches (id TEXT PRIMARY KEY, install_id TEXT NOT NULL REFERENCES pending_installs(id),
+        body BLOB NOT NULL, sent_at INTEGER, received_at TEXT NOT NULL);
+    CREATE INDEX pending_batches_install ON pending_batches(install_id);
+    CREATE TABLE rejected_batches (id TEXT PRIMARY KEY, install_id TEXT, source TEXT NOT NULL, reason TEXT NOT NULL,
+        size INTEGER NOT NULL, body BLOB, received_at TEXT NOT NULL);
+    """,
 ]
 
 

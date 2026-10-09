@@ -18,7 +18,15 @@ Firm limits, enforced here in code and in tests (never by convention):
     tel.emit('use.page', {'page': 'sell'}, user=me.id, role=me.role)
     tel.capture(exc, where='sales:checkout')                           # err.server, no message text
     tel.feedback('problem', text, page='sell', user=me.id)             # always allowed; redacted
-    tel.send_once(relay_url, install_token)                            # batch, gzip, sign, POST; backoff on failure
+    tel.send_once(relay_url, install_token)                            # batch, gzip, POST over HTTPS with the
+                                                                       # install token; backoff, then dead-letter
+
+Transport (protocol 2, since 0.2.0): `Authorization: Bearer <install token>` over HTTPS, `X-AF-Install`, `X-AF-Sent-At`
+(this PC's corrected clock) and a gzip JSON list. Replays are harmless because every event has a unique id and the
+receiver stores ids with INSERT OR IGNORE. The receiver answers with its own clock (`server_time`); the outbox keeps
+the difference (`clock_offset`) and stamps later events with corrected time, so a PC with a wrong clock is never
+refused forever. A batch the receiver refuses as malformed (400/413/422), or one refused `max_tries` times, goes to
+the `dead` table (visible through dead_letters()) instead of being retried forever.
 """
 import gzip
 import hashlib
@@ -30,12 +38,14 @@ import secrets
 import sqlite3
 import time
 import traceback
+import urllib.error
 import urllib.request
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
-__version__ = '0.1.0'
+__version__ = '0.2.0'
+PROTOCOL = 2
 
 
 def _taxonomy():
@@ -54,7 +64,9 @@ LONG_DIGITS = re.compile(r'\d{8,}')
 # be refused by the LONG_DIGITS rule (a phone or national-id guard).
 HEX_LETTERS = str.maketrans('0123456789', 'ghijklmnop')
 LIMITS = {'max_events': 5000, 'max_bytes': 5 * 1024 * 1024, 'max_age_days': 30, 'batch_bytes': 256 * 1024,
-          'feedback_chars': 2000, 'sent_log': 200, 'backoff_min_s': 60, 'backoff_max_s': 6 * 3600}
+          'feedback_chars': 2000, 'sent_log': 200, 'backoff_min_s': 60, 'backoff_max_s': 6 * 3600,
+          'max_tries': 12, 'dead_log': 500, 'clock_tolerance_s': 30}
+DEAD_STATUSES = {400, 413, 422}   # the receiver says this batch itself is bad: retrying cannot help
 ENVS = {'real', 'practice'}
 SEVS = {'info', 'warn', 'error'}
 
@@ -84,6 +96,13 @@ def uuid7(t=None):
     return str(uuid.UUID(int=value))
 
 
+def new_identity():
+    """(install_id, install_token) for a PC that was not registered on the Control Center beforehand. Store both in the
+    product's settings on first run and keep them. The Control Center parks this PC's batches as a «new PC» until the
+    owner approves it (and pins this token on first contact), so nothing is lost and nothing is trusted early."""
+    return uuid7(), 'ins_' + secrets.token_urlsafe(32)
+
+
 def redact(text):
     for rx, rep in REDACT:
         text = rx.sub(rep, text)
@@ -93,22 +112,6 @@ def redact(text):
 def pseudonym(secret, user_id):
     """Stable per installation, meaningless elsewhere: p_ + 16 hex of HMAC-SHA256(install secret, person id)."""
     return 'p_' + hmac.new(secret.encode() if isinstance(secret, str) else secret, str(user_id).encode(), hashlib.sha256).hexdigest()[:16]
-
-
-def sign(token, ts, nonce, body):
-    """X-AF-Signature: HMAC-SHA256 keyed with sha256(install token) over ts \\n nonce \\n sha256(body). The Control
-    Center keeps only sha256(token), so it can verify without storing the token itself."""
-    key = hashlib.sha256(token.encode()).digest()
-    msg = f'{ts}\n{nonce}\n{hashlib.sha256(body).hexdigest()}'.encode()
-    return hmac.new(key, msg, hashlib.sha256).hexdigest()
-
-
-def verify(token_hash_hex, ts, nonce, body, signature, now=None, window=300):
-    if abs((now if now is not None else time.time()) - int(ts)) > window:
-        return False
-    key = bytes.fromhex(token_hash_hex)
-    msg = f'{ts}\n{nonce}\n{hashlib.sha256(body).hexdigest()}'.encode()
-    return hmac.compare_digest(hmac.new(key, msg, hashlib.sha256).hexdigest(), str(signature))
 
 
 def check_taxonomy(tax):
@@ -127,6 +130,9 @@ def check_taxonomy(tax):
                 out.append(f'{name}.{field}: unknown type')
             if f.get('type') in ('feedback_text', 'diagnostics') and spec.get('level') != 'feedback':
                 out.append(f'{name}.{field}: free text only in feedback events')
+        for field in spec.get('required', []):
+            if field not in spec.get('data', {}):
+                out.append(f'{name}.{field}: required but not an allowed field')
     return out
 
 
@@ -170,6 +176,9 @@ def clean_data(tax, etype, data):
                         (isinstance(dv, str) and (not ID_RE.match(dv) or LONG_DIGITS.search(dv))):
                     raise PrivacyError(f'diagnostics.{dk}: counts and versions only')
             out[k] = dict(v)
+    for k in spec.get('required', []):
+        if k not in out:
+            raise PrivacyError(f'{etype}.{k}: required')
     if 'contact' in out and out['contact'] not in tax.get('contact', []):
         raise PrivacyError('contact must be one of ' + ', '.join(tax.get('contact', [])))
     return out
@@ -183,6 +192,7 @@ CREATE INDEX IF NOT EXISTS outbox_order ON outbox (prio, created);
 CREATE TABLE IF NOT EXISTS sent (id TEXT PRIMARY KEY, at REAL NOT NULL, body TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS state (k TEXT PRIMARY KEY, v TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS counters (k TEXT PRIMARY KEY, n INTEGER NOT NULL);
+CREATE TABLE IF NOT EXISTS dead (id TEXT PRIMARY KEY, at REAL NOT NULL, reason TEXT NOT NULL, body TEXT NOT NULL);
 """
 
 
@@ -197,6 +207,8 @@ class Telemetry:
             raise PrivacyError('; '.join(bad))
         self.db = sqlite3.connect(str(path), check_same_thread=False, isolation_level=None)
         self.db.executescript(OUTBOX_SQL)
+        if 'tries' not in [r[1] for r in self.db.execute('PRAGMA table_info(outbox)')]:   # 0.1.0 outboxes
+            self.db.execute('ALTER TABLE outbox ADD COLUMN tries INTEGER NOT NULL DEFAULT 0')
         self.install_id, self.node, self.product, self.version, self.env = install_id, node, product, version, env
         self.secret, self.consent, self.clock = secret, consent, clock
         self.limits = dict(LIMITS, **(limits or {}))
@@ -205,6 +217,11 @@ class Telemetry:
         self.db.close()
 
     # ---------------------------------------------------------------- queue
+    def now(self):
+        """This PC's clock corrected by the receiver's (see send_once). Used for event time stamps only; the outbox's
+        own bookkeeping (age limits, backoff) stays on the local clock so a correction can never expire events."""
+        return self.clock() + (self._state('clock_offset', 0) or 0)
+
     def _count(self, key, n=1):
         self.db.execute('INSERT INTO counters (k, n) VALUES (?, ?) ON CONFLICT(k) DO UPDATE SET n = n + ?', (key, n, n))
 
@@ -238,8 +255,9 @@ class Telemetry:
         else:
             subject, role = None, None
         t = self.clock()
+        stamp = self.now()
         ev = {'v': 1, 'id': uuid7(t), 'install_id': self.install_id, 'node': self.node, 'product': self.product,
-              'version': self.version, 'env': self.env, 'ts': now_iso(t), 'type': etype, 'sev': sev,
+              'version': self.version, 'env': self.env, 'ts': now_iso(stamp), 'type': etype, 'sev': sev,
               'anon': subject is None, 'subject': subject, 'role': role, 'page': page, 'data': data}
         merge = spec.get('merge')
         key = None
@@ -392,26 +410,69 @@ class Telemetry:
     def due(self):
         return self.clock() >= self._state('next_try', 0)
 
+    def dead_letters(self, limit=50):
+        """Events given up on, newest first, with the reason (for diagnostics and the «ماذا أُرسل؟» viewer)."""
+        return [{'id': i, 'at': at, 'reason': r, 'event': json.loads(b)} for i, at, r, b in self.db.execute(
+            'SELECT id, at, reason, body FROM dead ORDER BY at DESC LIMIT ?', (limit,))]
+
+    def _dead(self, ids, reason):
+        t = self.clock()
+        for eid in ids:
+            row = self.db.execute('SELECT body FROM outbox WHERE id = ?', (eid,)).fetchone()
+            if row:
+                self.db.execute('INSERT OR REPLACE INTO dead (id, at, reason, body) VALUES (?, ?, ?, ?)', (eid, t, reason, row[0]))
+                self.db.execute('DELETE FROM outbox WHERE id = ?', (eid,))
+                self._count('dead.' + reason.split(' ')[0])
+        self.db.execute('DELETE FROM dead WHERE id NOT IN (SELECT id FROM dead ORDER BY at DESC LIMIT ?)', (self.limits['dead_log'],))
+
+    def _learn_clock(self, server_time):
+        """Keep the receiver's clock minus ours, when it is off by more than clock_tolerance_s."""
+        try:
+            offset = float(server_time) - self.clock()
+        except (TypeError, ValueError):
+            return
+        if abs(offset) > self.limits['clock_tolerance_s']:
+            self._set('clock_offset', round(offset))
+            self._count('clock.corrected')
+        else:
+            self._set('clock_offset', 0)
+
     def send_once(self, url, token, post=None):
-        """Send one batch if due. post(url, body, headers) -> HTTP status (default: urllib). Returns
-        ('sent', n) | ('idle', 0) | ('backoff', seconds) | ('failed', status)."""
+        """Send one batch if due. post(url, body, headers) -> HTTP status, or (status, server_time) (default: urllib).
+        Returns ('sent', n) | ('idle', 0) | ('backoff', seconds) | ('failed', status) | ('dead', n).
+
+        No network (status 0) only backs off: an offline shop is normal and its events wait (up to max_age_days).
+        A refusal by the receiver backs off too and counts a try on every event in the batch; after max_tries the
+        events go to the dead-letter table. 400/413/422 mean the batch itself is bad: dead-lettered at once."""
         if not self.due():
             return 'backoff', int(self._state('next_try', 0) - self.clock())
         ids, body = self.batch()
         if not ids:
             return 'idle', 0
-        ts, nonce = str(int(self.clock())), secrets.token_hex(12)
-        headers = {'Content-Type': 'application/json', 'Content-Encoding': 'gzip', 'X-AF-Install': self.install_id,
-                   'X-AF-Timestamp': ts, 'X-AF-Nonce': nonce, 'X-AF-Signature': sign(token, ts, nonce, body)}
+        headers = {'Content-Type': 'application/json', 'Content-Encoding': 'gzip', 'Authorization': 'Bearer ' + token,
+                   'X-AF-Install': self.install_id, 'X-AF-Sent-At': str(int(self.now())), 'X-AF-Protocol': str(PROTOCOL)}
         try:
-            status = (post or _post)(url, body, headers)
+            got = (post or _post)(url, body, headers)
         except OSError:
-            status = 0
+            got = 0
+        status, server_time = got if isinstance(got, tuple) else (got, None)
+        if server_time is not None:
+            self._learn_clock(server_time)
         if 200 <= status < 300:
             self.mark_sent(ids)
             self._set('fails', 0)
             self._set('next_try', 0)
             return 'sent', len(ids)
+        if status in DEAD_STATUSES:
+            self._dead(ids, f'http_{status}')
+            return 'dead', len(ids)
+        if status:   # the receiver answered and refused: count a try; give up on events that keep failing
+            marks = ','.join('?' * len(ids))
+            self.db.execute(f'UPDATE outbox SET tries = tries + 1 WHERE id IN ({marks})', ids)
+            spent = [r[0] for r in self.db.execute(f'SELECT id FROM outbox WHERE id IN ({marks}) AND tries >= ?',
+                                                   (*ids, self.limits['max_tries']))]
+            if spent:
+                self._dead(spent, f'tries_{status}')
         fails = self._state('fails', 0) + 1
         wait = min(self.limits['backoff_max_s'], self.limits['backoff_min_s'] * 2 ** (fails - 1))
         self._set('fails', fails)
@@ -423,10 +484,29 @@ def _digest(etype, data):
     return hashlib.sha256(json.dumps([etype, data], ensure_ascii=False, sort_keys=True).encode()).hexdigest()
 
 
+def _server_time(raw, date_header):
+    try:
+        value = json.loads(raw or b'{}').get('server_time')
+        if isinstance(value, (int, float)) and not isinstance(value, bool):
+            return value
+    except (ValueError, AttributeError):
+        pass
+    if date_header:
+        try:
+            from email.utils import parsedate_to_datetime
+            return parsedate_to_datetime(date_header).timestamp()
+        except (TypeError, ValueError):
+            return None
+    return None
+
+
 def _post(url, body, headers):
+    """(status, server_time or None). server_time comes from the JSON answer, else the HTTP Date header."""
+    if not str(url).lower().startswith('https://') and not str(url).startswith(('http://127.0.0.1', 'http://localhost')):
+        raise OSError('the install token is only sent over HTTPS')
     req = urllib.request.Request(url, data=body, headers=headers, method='POST')
     try:
         with urllib.request.urlopen(req, timeout=20) as r:
-            return r.status
+            return r.status, _server_time(r.read(65536), r.headers.get('Date'))
     except urllib.error.HTTPError as e:
-        return e.code
+        return e.code, _server_time(e.read(65536) if e.fp else b'', e.headers.get('Date') if e.headers else None)

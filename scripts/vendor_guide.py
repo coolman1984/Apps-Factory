@@ -1,9 +1,11 @@
 """Copy the guide engine into a product that ships without third-party packages.
 
-    python scripts/vendor_guide.py ../Store     # writes server/afguide.py, <js>/vendor/af-guide.js, <css>/af-guide.css
+    python scripts/vendor_guide.py ../Store     # writes server/afguide.py, server/afguide_ar_lexicon.json,
+                                                # <js>/vendor/af-guide.js, <css>/af-guide.css
 
-<js> is web/js or js, <css> is web/css or css (whichever the product has). Every copy carries a two-line header and
-is otherwise byte-identical; packages/af-guide/tests/test_af_guide.py fails when a known product holds a stale copy.
+<js> is web/js or js, <css> is web/css or css (whichever the product has). Every code copy carries a two-line header
+and is otherwise byte-identical; the style lexicon (needed by afguide.lint/errors) is JSON, so it is copied exactly,
+without a header; packages/af-guide/tests/test_af_guide.py fails when a known product holds a stale copy.
 Also check the product's guide in its own tests:  afguide.errors(catalogue, texts, ui=..., access=auth.catalogue())
 """
 import sys
@@ -26,11 +28,14 @@ def destinations(repo):
     js = _first(repo, 'web/js', 'js')
     css = _first(repo, 'web/css', 'css')
     return [(PKG / 'af_guide.py', repo / 'server' / 'afguide.py'),
+            (PKG / 'style' / 'ar-lexicon.json', repo / 'server' / 'afguide_ar_lexicon.json'),
             (PKG / 'af-guide.js', js / 'vendor' / 'af-guide.js'),
             (PKG / 'af-guide.css', css / 'af-guide.css')]
 
 
 def header(dest):
+    if dest.suffix == '.json':
+        return ''   # JSON has no comments; copied byte-identical
     a = f'Vendored from Apps-Factory packages/af-guide {VERSION} - do not edit here.'
     b = 'Update with: python scripts/vendor_guide.py <product repo> (from the Apps-Factory checkout)'
     if dest.suffix == '.py':

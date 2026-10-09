@@ -25,7 +25,9 @@ FILES = {'/': (PKG / 'demo' / 'index.html', 'text/html'), '/demo.js': (PKG / 'de
          '/af-guide.js': (PKG / 'af-guide.js', 'text/javascript'), '/af-guide.css': (PKG / 'af-guide.css', 'text/css')}
 for name in ('catalogue', 'ar', 'en', 'ui-ar', 'ui-en'):
     FILES[f'/guide/{name}.json'] = (EXAMPLE / f'{name}.json', 'application/json')
-CSP = "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; frame-ancestors 'none'"
+# The strictest product policy in the fleet (Store's): no inline script or style, no eval, nothing from elsewhere.
+CSP = ("default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; "
+       "object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'")
 LOCK = threading.Lock()
 DB = sqlite3.connect(':memory:', check_same_thread=False)
 DB.execute(af_guide.SQL)

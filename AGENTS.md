@@ -40,7 +40,7 @@ For requests involving icons, motion graphics, layers, parallax, scroll transiti
 - `packages/af-access`: access-and-administration gate (permission catalogue rules, lock-out guards, who-can-do-what matrix); copy into a product with `python scripts/vendor_access.py <product-dir>` and run `afaccess.errors(auth.catalogue())` in its tests (IAM-08…IAM-12).
 - `packages/af-guide`: guided onboarding (role courses with per-person server progress, auto-advancing coach, per-page "?", error→problem links, per-guide language switch, «العربية الميسّرة» style lint, browser walker); copy with `python scripts/vendor_guide.py <product-dir>`, check with `python scripts/factory.py guide <product>/guide …` (HELP-04, HELP-07…HELP-12; [standard](docs/GUIDED_ONBOARDING_STANDARD.md)).
 - `packages/af-consent` and `packages/af-telemetry`: two-level consent and ids-and-counts telemetry.
-  - Includes the offline outbox, signed batches and problem reports that work without consent.
+  - Includes the offline outbox, token-authenticated batches over HTTPS (protocol 2, 0.9.0) and problem reports that work without consent.
   - Copy them with `python scripts/vendor_consent.py` and `python scripts/vendor_telemetry.py`.
   - Never add a never-list field or free text outside `fb.*` (PRIV/TEL/FB/ROLL controls; [standard](docs/PRIVACY_TELEMETRY_STANDARD.md)).
 - `packages/af-ui`: the Showroom design system (tokens, components, fonts, icons, motion). Re-brand tokens only (UX-09).

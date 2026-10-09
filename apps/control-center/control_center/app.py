@@ -10,13 +10,15 @@ import json
 import os
 import sys
 import threading
+import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Literal, Optional
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Request
-from fastapi.responses import FileResponse
-from pydantic import BaseModel, ConfigDict, Field
+from fastapi.concurrency import run_in_threadpool
+from fastapi.responses import FileResponse, JSONResponse
+from pydantic import BaseModel, ConfigDict, Field, StrictBool
 
 from . import alerts, db, telemetry
 from .redact import redact
@@ -41,7 +43,7 @@ HEARTBEAT_STALE_HOURS = 26
 BACKUP_STALE_HOURS = 48
 MAX_GRANT_MINUTES = 120
 STATIC = Path(__file__).parent / "static"
-VERSION = "0.2.0"
+VERSION = "0.3.0"
 
 
 class Strict(BaseModel):
@@ -105,6 +107,14 @@ class AlertSettingsIn(Strict):
     channels: Optional[dict[str, bool]] = None
     rules: Optional[dict[str, dict]] = None
     dedupe_hours: Optional[int] = None
+    saturday_off: Optional[StrictBool] = None
+
+
+class PendingApproveIn(Strict):
+    customer_id: str
+    tier: str
+    label: Optional[str] = Field(default=None, max_length=80)
+    product: Optional[str] = Field(default=None, pattern=r"^[a-z][a-z0-9-]{2,48}$")
 
 
 class IncidentUpdate(Strict):
@@ -172,6 +182,13 @@ def create_app(db_path: Optional[str] = None) -> FastAPI:
                   dependencies=[Depends(one_at_a_time)])
     app.state.conn = conn
     app.state.lock = lock
+    app.state.deliverer = alerts.Deliverer(conn, lock)   # sends queued alerts outside the lock (started on first use)
+
+    def close():
+        app.state.deliverer.stop()
+        with lock:
+            conn.close()
+    app.state.close = close
 
     def one(sql: str, *args):
         row = conn.execute(sql, args).fetchone()
@@ -256,7 +273,8 @@ def create_app(db_path: Optional[str] = None) -> FastAPI:
     def list_installs(caller: dict = Depends(vendor)):
         now = datetime.now(timezone.utc)
         out = []
-        for item in rows("SELECT i.id, i.product, i.tier, i.label, i.active, i.created_at, c.name AS customer "
+        for item in rows("SELECT i.id, i.product, i.tier, i.label, i.active, i.created_at, i.clock_skew_s, i.last_contact, "
+                         "c.name AS customer "
                          "FROM installs i JOIN customers c ON c.id = i.customer_id ORDER BY c.name"):
             beat = latest_beat(item["id"])
             lic = one("SELECT licence_id, expires FROM licences WHERE install_id = ? AND revoked = 0 "
@@ -265,6 +283,31 @@ def create_app(db_path: Optional[str] = None) -> FastAPI:
                         "open_tickets": one("SELECT COUNT(*) AS n FROM tickets WHERE install_id = ? AND status != 'resolved'",
                                             item["id"])["n"]})
         return out
+
+    @app.get("/api/installs/pending")
+    def pending_installs(caller: dict = Depends(vendor)):
+        """PCs that sent telemetry before being registered. Nothing from them is used until the owner approves."""
+        return telemetry.list_pending(conn)
+
+    @app.post("/api/installs/pending/{pending_id}/approve", status_code=201)
+    def approve_pending(pending_id: str, body: PendingApproveIn, caller: dict = Depends(owner)):
+        if body.tier not in TIERS:
+            raise HTTPException(422, "unknown tier")
+        if not one("SELECT id FROM customers WHERE id = ?", body.customer_id):
+            raise HTTPException(404, "customer not found")
+        try:
+            out = telemetry.approve_pending(conn, pending_id, body.customer_id, body.tier, body.label, caller["name"],
+                                            product=body.product)
+        except telemetry.Rejected as error:
+            raise HTTPException(error.status, error.reason) from error
+        app.state.deliverer.wake()
+        return out
+
+    @app.post("/api/installs/pending/{pending_id}/discard")
+    def discard_pending(pending_id: str, caller: dict = Depends(owner)):
+        if not telemetry.discard_pending(conn, pending_id, caller["name"]):
+            raise HTTPException(404, "no pending install with this id")
+        return {"ok": True}
 
     @app.get("/api/installs/{install_id}/licence-claims")
     def licence_claims(install_id: str, days: int = 30, caller: dict = Depends(owner)):
@@ -323,7 +366,9 @@ def create_app(db_path: Optional[str] = None) -> FastAPI:
                 "active_grants": len(rows("SELECT id FROM grants WHERE ended_at IS NULL AND expires_at > ?", db.now_iso())),
                 "expiring_licences": len(expiring(14, caller)),
                 "open_alerts": one("SELECT COUNT(*) AS n FROM alerts WHERE acked_at IS NULL")["n"],
-                "open_incidents": one("SELECT COUNT(*) AS n FROM incidents WHERE status != 'fixed'")["n"]}
+                "open_incidents": one("SELECT COUNT(*) AS n FROM incidents WHERE status != 'fixed'")["n"],
+                "pending_installs": one("SELECT COUNT(*) AS n FROM pending_installs")["n"],
+                "quarantined_batches": one("SELECT COUNT(*) AS n FROM rejected_batches")["n"]}
 
     @app.get("/api/tickets")
     def list_tickets(status: Optional[str] = None, caller: dict = Depends(vendor)):
@@ -416,23 +461,26 @@ def create_app(db_path: Optional[str] = None) -> FastAPI:
     def read_alert_settings(caller: dict = Depends(vendor)):
         s = alerts.get_settings(conn)
         return {"channels": alerts.channel_status(conn), "rules": s["rules"], "dedupe_hours": s["dedupe_hours"],
+                "saturday_off": s["saturday_off"], "weekend": ["fri", "sat"] if s["saturday_off"] else ["fri"],
                 "note": "Secrets are read from environment variables only and are never shown or stored here."}
 
     @app.put("/api/alert-settings")
     def write_alert_settings(body: AlertSettingsIn, caller: dict = Depends(owner)):
         try:
-            alerts.save_settings(conn, body.channels, body.rules, body.dedupe_hours)
+            alerts.save_settings(conn, body.channels, body.rules, body.dedupe_hours, body.saturday_off)
         except ValueError as error:
             raise HTTPException(422, str(error)) from error
         db.audit(conn, caller["name"], "alerts.settings", None, channels=body.channels, rules=body.rules,
-                 dedupe_hours=body.dedupe_hours)
+                 dedupe_hours=body.dedupe_hours, saturday_off=body.saturday_off)
         return read_alert_settings(caller)
 
     @app.post("/api/alerts/test")
     def test_alert(caller: dict = Depends(owner)):
-        """Sends one test alert on every enabled channel and returns each channel's result."""
-        a = alerts.raise_alert(conn, "problem_report", None, f"تنبيه تجريبي من {caller['name']}", db.uuid7())
+        """Queues one test alert for every enabled channel; it is sent in the background (outside the database lock)
+        and each channel's result appears under /api/alerts a few seconds later."""
+        a = alerts.raise_alert(conn, "problem_report", None, f"تنبيه تجريبي من {caller['name']}", db.uuid7(), deliver=False)
         db.audit(conn, caller["name"], "alerts.test", a["id"] if a else None)
+        app.state.deliverer.wake()
         return a
 
     @app.get("/api/incidents")
@@ -494,21 +542,32 @@ def create_app(db_path: Optional[str] = None) -> FastAPI:
         url, token = os.environ.get("CC_RELAY_URL", ""), os.environ.get("CC_RELAY_TOKEN", "")
         if not url or not token:
             raise HTTPException(409, "CC_RELAY_URL and CC_RELAY_TOKEN are not set")
-        return telemetry.pull_relay(conn, url, token)
+        out = telemetry.pull_relay(conn, url, token)   # this request already holds the lock
+        app.state.deliverer.wake()
+        return out
 
     @app.post("/api/alerts/periodic")
     def run_periodic(caller: dict = Depends(owner)):
-        return {"fired": len(alerts.periodic(conn))}
+        fired = alerts.periodic(conn, deliver=False)
+        app.state.deliverer.wake()
+        return {"fired": len(fired)}
 
     # ---------- install (customer product) ----------
     @app.post("/api/agent/events", status_code=202)
     async def receive_events(request: Request):
-        """Signed gzip batch straight from a product (when this server is reachable); the relay path uses the same checks."""
+        """gzip batch straight from a product (when this server is reachable), with its install token; the relay path
+        uses the same checks. Storing runs on a worker thread and alerts are only queued, so neither the event loop nor
+        the dashboard ever waits for an e-mail or Telegram send. Every answer carries server_time for clock correction."""
         body = await request.body()
+        if len(body) > telemetry.MAX_GZIP:
+            return JSONResponse({"detail": "batch too large", "server_time": int(time.time())}, status_code=413)
         try:
-            return telemetry.receive(conn, dict(request.headers), body)
+            out = await run_in_threadpool(telemetry.receive, conn, dict(request.headers), body)
         except telemetry.Rejected as error:
-            raise HTTPException(error.status, error.reason) from error
+            return JSONResponse({"detail": error.reason, "server_time": int(time.time())},
+                                status_code=error.status if error.permanent else 503)
+        app.state.deliverer.wake()
+        return JSONResponse(out, status_code=202)
 
     @app.post("/api/agent/heartbeat")
     def heartbeat(body: Heartbeat, me: dict = Depends(install)):

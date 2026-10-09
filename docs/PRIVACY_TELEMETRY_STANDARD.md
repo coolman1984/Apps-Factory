@@ -52,8 +52,15 @@
 - **Separate `telemetry.db`.** It holds at most 5,000 events, 5 MB, or 30 days of events. When a limit is reached, the least important events are dropped first.
 - **Hourly merge.** Usage and repeated errors are merged per hour into counts.
 - **Batches.** Each batch is at most 256 KB and gzip-compressed.
-- **Signature.** Each batch is signed with `HMAC(sha256(install token), ts \n nonce \n sha256(body))` and is valid for 5 minutes.
-- **Retry.** A failed send waits before retrying, starting at 1 minute and growing to at most 6 hours.
+- **Transport (protocol 2, factory 0.9.0).** Each batch goes over HTTPS with the installation's token (`Authorization: Bearer`, `X-AF-Install`, `X-AF-Sent-At`). There is no signature, nonce or time window. Every event has a unique id and the receiver stores ids once, so a replay only counts duplicates.
+- **Clock.** Every answer carries the receiver's `server_time`. The outbox keeps the difference and stamps later events with corrected time. The Control Center also corrects a batch whose clock is more than 2 minutes off, and shows the difference per installation. A wrong clock is never a reason to refuse.
+- **Retry.** A failed send waits before retrying, starting at 1 minute and growing to at most 6 hours. Some batches go to the bounded `dead` table (see `dead_letters()`) instead of being retried forever:
+  - a batch the receiver refuses as bad (400/413/422);
+  - events refused 12 times.
+
+  No network at all only waits; the 30-day limit still applies.
+- **Required fields.** `events.json` can mark fields as `required` (for example `code` and `fingerprint` of `err.*`). An event without them is refused on the PC, and again on arrival.
+- **New PCs.** A PC that was not registered first may create its own id and token (`af_telemetry.new_identity()`). Its batches wait as «new PC» until the owner approves it on the dashboard; nothing from it is used before that.
 - **Browser events** go only to the product's own server (`POST /api/telemetry/events`), which applies consent and the limits. The person always comes from the session, never from the request body.
 
 ## 5. Rollout (ROLL-01)
@@ -84,15 +91,17 @@ The manifest records this:
 
 ## Server side (Control Center)
 - **Arrival checks:** every batch is checked again on arrival:
-  - signature, 5-minute window and single-use nonce;
+  - the installation's token (sha256 compared with the stored hash) and an active installation;
+  - unknown installations are parked (small caps) until the owner approves them;
   - exact envelope;
   - `p_` pseudonyms only;
   - allowlisted fields;
   - a second redaction of report text.
 
-  Rejected events are counted in the audit log and never stored.
+  Rejected events are counted, with a reason, in the audit log and never stored. Each event is its own savepoint inside one transaction per batch. A bad event never takes the rest of the batch with it, and the relay deletes a batch only after it was stored (or kept in quarantine).
 - **Alert fan-out:** alerts go to every enabled channel in parallel, and each channel's result is logged.
   - Channel secrets live only in environment variables.
-  - Alert text carries rule names, counts and ids, never customer records.
+  - Alert text carries rule names, counts and ids, never customer records. A problem report goes out as its ticket number, category, page and a dashboard link. The customer's own words stay on the dashboard.
+  - Alerts are queued while events are stored, and sent afterwards by a background sender, outside the database lock. A slow mail server never freezes the dashboard.
 
 Open cost and verification points for the relay and the alert channels are listed in [OPEN_POINTS.md](OPEN_POINTS.md).

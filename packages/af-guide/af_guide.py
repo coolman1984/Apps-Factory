@@ -23,7 +23,7 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
-__version__ = '0.1.0'
+__version__ = '0.1.1'
 FORMAT = 1
 
 ID_RE = re.compile(r'^[a-z][a-z0-9]*(-[a-z0-9]+)*$')
@@ -36,7 +36,11 @@ LANGS = {'ar', 'en'}
 GUIDE_TEXTS = ('title', 'why', 'ok')
 PROBLEM_TEXTS = ('see', 'why', 'do.1')
 ROLE_TEXTS = ('title', 'intro')
-STYLE = Path(__file__).resolve().parent / 'style' / 'ar-lexicon.json'
+_HERE = Path(__file__).resolve().parent
+# In the package: style/ar-lexicon.json. Vendored into a product (scripts/vendor_guide.py): afguide_ar_lexicon.json
+# next to server/afguide.py.
+STYLE = next((p for p in (_HERE / 'style' / 'ar-lexicon.json', _HERE / 'afguide_ar_lexicon.json') if p.exists()),
+             _HERE / 'style' / 'ar-lexicon.json')
 
 
 class Finding:

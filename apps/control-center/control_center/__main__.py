@@ -17,9 +17,10 @@ from . import db
 from .security import new_token, token_hash
 
 
-def background(conn, every_s: int | None = None, lock=None) -> None:
+def background(conn, every_s: int | None = None, lock=None, deliverer=None) -> None:
     """Every CC_RELAY_EVERY seconds (default 300): pull the relay if configured, run the time-based alert rules;
-    once a day: retention. Errors are printed and the loop goes on."""
+    once a day: retention. Errors are printed and the loop goes on. The lock is held only for database work: relay
+    calls and alert sends happen outside it, so the dashboard never waits for the network."""
     import threading
     import time
     from . import alerts, telemetry
@@ -31,13 +32,17 @@ def background(conn, every_s: int | None = None, lock=None) -> None:
         last_retention = 0.0
         while True:
             try:
+                if os.environ.get("CC_RELAY_URL") and os.environ.get("CC_RELAY_TOKEN"):
+                    telemetry.pull_relay(conn, os.environ["CC_RELAY_URL"], os.environ["CC_RELAY_TOKEN"], lock=lock)
                 with guard:
-                    if os.environ.get("CC_RELAY_URL") and os.environ.get("CC_RELAY_TOKEN"):
-                        telemetry.pull_relay(conn, os.environ["CC_RELAY_URL"], os.environ["CC_RELAY_TOKEN"])
-                    alerts.periodic(conn)
+                    alerts.periodic(conn, deliver=False)
                     if time.time() - last_retention > 86400:
                         telemetry.retention(conn)
                         last_retention = time.time()
+                if deliverer is not None:
+                    deliverer.wake()
+                else:
+                    alerts.deliver_queued(conn, lock)
             except Exception as error:  # noqa: BLE001 - keep the loop alive; the dashboard shows staleness
                 print("background:", type(error).__name__, error, file=sys.stderr)
             time.sleep(every)
@@ -64,7 +69,7 @@ def main(argv=None) -> int:
         import uvicorn
         from .app import create_app
         app = create_app(args.db)
-        background(app.state.conn, lock=app.state.lock)
+        background(app.state.conn, lock=app.state.lock, deliverer=app.state.deliverer)
         uvicorn.run(app, host=args.host, port=args.port)
         return 0
     conn = db.connect(args.db)
@@ -76,7 +81,9 @@ def main(argv=None) -> int:
             if not url or not token:
                 print("set CC_RELAY_URL and CC_RELAY_TOKEN", file=sys.stderr)
                 return 2
-            print(json.dumps(telemetry.pull_relay(conn, url, token)))
+            out = telemetry.pull_relay(conn, url, token)
+            out["alerts_sent"] = alerts.deliver_queued(conn)
+            print(json.dumps(out))
         elif args.action == "alerts":
             print(json.dumps({"fired": len(alerts.periodic(conn))}))
         else:
