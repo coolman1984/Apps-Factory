@@ -42,9 +42,6 @@
     "A second clean PC restore recovers trips, users and reports."
   ],
   "evidence": {
-    "market_review": "PENDING",
-    "privacy_review": "PENDING",
-    "security_review": "PENDING target Windows",
     "clean_device_restore": "PENDING",
     "core_user_acceptance": "PENDING"
   },

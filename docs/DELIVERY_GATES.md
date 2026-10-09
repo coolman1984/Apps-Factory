@@ -1,5 +1,7 @@
 # Evidence gates • NO-GO defaults
 
+**What `scripts/factory.py check --release` enforces (0.10.0):** every applicable `core` control needs verified proof, plus two evidence items: `clean_device_restore` and `core_user_acceptance`. `reference` controls are advice and never block a release. The gates below describe the full working method; the later docs rewrite will trim them to match.
+
 A product is not ready merely because a plan says "done." Each gate produces auditable paths, responsible reviewer, timestamp and result. `unknown` and `skipped` are NOT passes.
 
 | Gate | Required output | Pass criteria |

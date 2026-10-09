@@ -26,7 +26,7 @@ For requests involving icons, motion graphics, layers, parallax, scroll transiti
 5. Reuse a versioned shared capability; feature-specific code stays in product-owned folders.
 6. Deliver one thin customer workflow **end-to-end**: correct permissions, save/retry, errors, audit, report and recovery.
 7. Tests: unit, integration, role-denial, tenant/scope, rollback, backups/restoration, browser UI including AR/EN/RTL, accessible keyboard use; target OS installer where relevant.
-8. Record evidence at every release gate; unresolved security/financial/data-integrity issues are NO-GO.
+8. Record evidence at every release gate; unresolved security/financial/data-integrity issues are NO-GO. `check --release` gates only on the applicable `core` controls (32 in the catalogue) plus two evidence items (`clean_device_restore`, `core_user_acceptance`); `reference` controls are advice and never block a release. Old ids still resolve: `python scripts/factory.py controls <ID>` says "merged into …" or "retired: …".
 9. Use a PR, review, CI and small safe merge; do not force-push or mass-merge unrelated divergent branches.
 10. Return: what changed, exact commit/PR, tests actually run, checks skipped, field checks pending, and next commercial decision.
 
