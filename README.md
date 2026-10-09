@@ -1,6 +1,6 @@
 # Apps Factory | مصنع التطبيقات 🏭
 
-**Version:** 0.8.1 — Telegram is a core owner-alert channel; adds telemetry ingest, incidents, per-person usage and parallel multi-channel alerts to the Control Center, plus a Cloudflare relay template, on top of consent/telemetry (0.7.0) and the guide engine (0.6.0); see [CHANGELOG](CHANGELOG.md) • **Status:** standards, specs and tested shared pieces; first product built on them: [الستور](https://github.com/coolman1984/Store). Nothing here is field-verified yet.
+**Version:** 0.9.0 — telemetry hardening (token transport, nothing lost mid-batch, new PCs wait for approval, alerts sent outside the lock); Telegram is a core owner-alert channel; adds telemetry ingest, incidents, per-person usage and parallel multi-channel alerts to the Control Center, plus a Cloudflare relay template, on top of consent/telemetry (0.7.0) and the guide engine (0.6.0); see [CHANGELOG](CHANGELOG.md) • **Status:** standards, specs and tested shared pieces; first product built on them: [الستور](https://github.com/coolman1984/Store). Nothing here is field-verified yet.
 
 مستودع القواعد الموحدة اللي كل تطبيق تجاري جديد عندك يبدأ منه: بحث السوق، تصميم ثابت، إدارة وصلاحيات، اشتراكات وتراخيص، خصوصية، أمان، بيانات، نسخ احتياطي، اختبار، تشغيل ودعم. **التخصص فقط بيتغير، القاعدة لا تُنسخ عشوائيًا.**
 

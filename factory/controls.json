@@ -1,5 +1,5 @@
 {
-  "catalog_version": "1.9.0",
+  "catalog_version": "1.9.1",
   "updated": "2026-10-09",
   "policy": "Required-if-applicable, never auto-certifies an implementation. Profiles: desktop, lan, saas, paid, ai, regulated, sync, mesh, mobile, multi_site, multi_owner, windows. Connectivity tier cloud_sync activates sync and saas.",
   "references": [
@@ -1433,8 +1433,8 @@
         "lan",
         "saas"
       ],
-      "requirement": "Batches of at most 256 KB are gzip-compressed and signed (HMAC over timestamp, nonce and body hash with a 5-minute window, per-installation token) and sent to the vendor relay or Control Center with backoff from 1 minute to 6 hours",
-      "acceptance_evidence": "af_telemetry Sending tests; Control Center rejects a bad signature, an old timestamp and a reused nonce",
+      "requirement": "Batches of at most 256 KB are gzip-compressed and sent over HTTPS with the per-installation token (Authorization: Bearer); replays are harmless because every event id is stored once; the receiver answers with its own clock and the sender corrects its time stamps; failures back off from 1 minute to 6 hours, and batches the receiver refuses as bad (or that keep being refused) go to a bounded dead-letter table instead of being retried forever",
+      "acceptance_evidence": "af_telemetry Sending tests (token header, clock correction, dead-letter); Control Center refuses a wrong token and a deactivated install, counts a replay as duplicates, parks unknown installs as pending; relay tests (per-install caps, D1 limits)",
       "required_if_applies": true,
       "implementation_status": "implemented"
     },

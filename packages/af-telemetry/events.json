@@ -154,6 +154,7 @@
   "err.server": {
    "level": "install",
    "prio": 1,
+   "required": ["code", "fingerprint"],
    "data": {
     "code": {
      "type": "id"
@@ -179,6 +180,7 @@
   "err.client": {
    "level": "install",
    "prio": 1,
+   "required": ["code", "fingerprint"],
    "data": {
     "code": {
      "type": "id"

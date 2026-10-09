@@ -70,6 +70,19 @@ class Browser(unittest.TestCase):
                 self.assertIn('guide.start', kinds)
                 self.assertIn('guide.done', kinds)
 
+    def test_walker_needs_no_eval_under_a_strict_csp(self):
+        """Regression: walk_guides used wait_for_function, whose polling runs eval in the page; Store's policy refuses it."""
+        page = self.page('csp-walker')
+        csp = page.evaluate('() => fetch("/").then(r => r.headers.get("content-security-policy"))')
+        self.assertNotIn('unsafe-eval', csp)
+        self.assertIn("base-uri 'none'", csp)
+
+        def refuse(*a, **k):
+            raise AssertionError('the walker must not use wait_for_function')
+        page.wait_for_function = refuse
+        self.assertEqual(self.walk(page, CAT, only=['open-shift'], handle='__afguide'), [])
+        self.assertEqual(page.problems, [])
+
     def test_progress_follows_the_person_not_the_browser(self):
         page = self.page('roaming')
         page.evaluate('() => window.__afguide.start("open-shift")')

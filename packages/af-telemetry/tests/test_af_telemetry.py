@@ -1,5 +1,6 @@
 """af-telemetry: the firm limits hold in code (only ids and counts, never-list, consent, purge), problem reports work
-without consent and exactly as previewed, the outbox stays bounded, batches are signed, fresh copies."""
+without consent and exactly as previewed, the outbox stays bounded, batches carry the install token,
+clock skew is corrected, refused batches end in the dead-letter table, fresh copies."""
 import gzip
 import hashlib
 import json
@@ -241,12 +242,9 @@ class Sending(unittest.TestCase):
         events = json.loads(gzip.decompress(body))
         self.assertEqual(events[0]['type'], 'upgrade.fail', 'most important first')
         self.assertLessEqual(len(gzip.decompress(body)), 1500)
-        self.assertTrue(T.verify(hashlib.sha256(token.encode()).hexdigest(), h['X-AF-Timestamp'], h['X-AF-Nonce'], body,
-                                 h['X-AF-Signature'], now=clock.t))
-        self.assertFalse(T.verify(hashlib.sha256(token.encode()).hexdigest(), h['X-AF-Timestamp'], h['X-AF-Nonce'],
-                                  body + b'x', h['X-AF-Signature'], now=clock.t))
-        self.assertFalse(T.verify(hashlib.sha256(token.encode()).hexdigest(), h['X-AF-Timestamp'], h['X-AF-Nonce'], body,
-                                  h['X-AF-Signature'], now=clock.t + 301), 'five-minute window')
+        self.assertEqual(h['Authorization'], 'Bearer ' + token)
+        self.assertEqual((h['X-AF-Install'], h['X-AF-Sent-At'], h['X-AF-Protocol']), ('ins_demo', str(int(clock.t)), '2'))
+        self.assertNotIn('X-AF-Signature', h, 'protocol 2: token over HTTPS, no HMAC/nonce/time window')
         self.assertEqual(len(tel.recent_sent()), n)
         left = len(tel.pending())
         self.assertEqual(tel.send_once('u', token, post=lambda *a: 503), ('failed', 503))
@@ -261,6 +259,75 @@ class Sending(unittest.TestCase):
         while tel.send_once('u', token, post=ok)[0] == 'sent':
             pass
         self.assertEqual(tel.send_once('u', token, post=ok), ('idle', 0))
+
+    def test_error_events_need_a_fingerprint(self):
+        # Regression (fix 1): an err.* without code/fingerprint passed the gate and then crashed the server's ingest.
+        tel, _ = setup()
+        with self.assertRaises(T.PrivacyError):
+            tel.emit('err.server', {'code': 'KeyError', 'where': 'sales:pay'})
+        with self.assertRaises(T.PrivacyError):
+            T.clean_data(T.TAXONOMY, 'err.client', {'fingerprint': 'abc'})
+        self.assertTrue(tel.emit('err.server', {'code': 'KeyError', 'fingerprint': 'ghij', 'where': 'sales:pay'}))
+        self.assertIn('err.x.fp: required but not an allowed field', T.check_taxonomy(
+            {'types': {'err.x': {'level': 'install', 'prio': 1, 'data': {}, 'required': ['fp']}}}))
+
+    def test_clock_skew_is_corrected_from_the_server_time(self):
+        # Regression (fix 2): a PC 2 hours behind was refused forever by the 5-minute window.
+        clock = Clock()
+        tel, _ = setup(clock=clock)
+        tel.emit('hb', {})
+        server = clock.t + 7200
+        self.assertEqual(tel.send_once('https://r/ingest', 't', post=lambda *a: (202, server))[0], 'sent')
+        self.assertEqual(tel._state('clock_offset'), 7200)
+        tel.emit('hb', {})
+        self.assertEqual(tel.pending()[0]['ts'], T.now_iso(server), 'later events carry corrected time')
+        seen = []
+        tel.send_once('https://r/ingest', 't', post=lambda u, b, h: seen.append(h) or (202, server + 1))
+        self.assertEqual(int(seen[0]['X-AF-Sent-At']), int(server))
+        tel.emit('hb', {})
+        tel.send_once('https://r/ingest', 't', post=lambda *a: (202, clock.t + 5))
+        self.assertEqual(tel._state('clock_offset'), 0, 'small differences are ignored')
+        self.assertEqual(T._server_time(b'{"server_time": 123}', None), 123)
+        self.assertEqual(T._server_time(b'', 'Fri, 09 Oct 2026 10:00:00 GMT'), 1791540000.0)
+
+    def test_refused_batches_end_in_the_dead_letter_table(self):
+        # Regression (fix 2): a refused batch was retried forever.
+        clock = Clock()
+        tel, _ = setup(clock=clock, limits={'max_tries': 3})
+        tel.emit('hb', {})
+        self.assertEqual(tel.send_once('u', 't', post=lambda *a: 422), ('dead', 1), 'a bad batch is not retried')
+        self.assertEqual(tel.pending(), [])
+        self.assertEqual(tel.dead_letters()[0]['reason'], 'http_422')
+        tel.emit('backup.ok', {'size_mb': 1})
+        for i in range(3):
+            clock.t = max(clock.t, tel._state('next_try', 0))
+            self.assertEqual(tel.send_once('u', 't', post=lambda *a: 401), ('failed', 401))
+        self.assertEqual(tel.pending(), [], 'given up after max_tries refusals')
+        self.assertEqual(tel.dead_letters()[0]['reason'], 'tries_401')
+        self.assertEqual(tel.counters()['dead.tries_401'], 1)
+        tel.emit('hb', {})
+        for i in range(20):   # offline (no answer at all) never dead-letters: events wait, bounded by max_age_days
+            clock.t = max(clock.t, tel._state('next_try', 0))
+            tel.send_once('u', 't', post=lambda *a: (_ for _ in ()).throw(OSError()))
+        self.assertEqual(len(tel.pending()), 1)
+
+    def test_new_identity_for_unregistered_pcs(self):
+        iid, token = T.new_identity()
+        self.assertRegex(iid, r'^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$')
+        self.assertTrue(token.startswith('ins_') and len(token) >= 40)
+        self.assertNotEqual(T.new_identity(), (iid, token))
+
+    def test_token_only_over_https_and_old_outboxes_upgrade(self):
+        with self.assertRaises(OSError):
+            T._post('http://relay.example/ingest', b'', {})
+        d = tempfile.mkdtemp()
+        old = sqlite3.connect(Path(d) / 'telemetry.db')
+        old.executescript(T.OUTBOX_SQL.replace('CREATE TABLE IF NOT EXISTS dead', 'CREATE TABLE IF NOT EXISTS dead0'))
+        old.close()
+        db = sqlite3.connect(':memory:')
+        db.executescript(C.SQL)
+        tel = T.Telemetry(Path(d) / 'telemetry.db', 'ins_demo', 'pc1', 'al-store', '1.2.0', 'practice', 's', C.Consent(db))
+        self.assertIn('tries', [r[1] for r in tel.db.execute('PRAGMA table_info(outbox)')])
 
     def test_backoff_is_capped_at_six_hours(self):
         clock = Clock()

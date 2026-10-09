@@ -193,6 +193,19 @@ class JsCore(unittest.TestCase):
             self.assertFalse(bad in src, bad)
 
 
+class Walker(unittest.TestCase):
+    def test_walker_is_strict_csp_safe(self):
+        """walk_guides must work under script-src 'self' without 'unsafe-eval' (Store): no wait_for_function (eval
+        while polling) and no JavaScript built from strings; values go in as evaluate() arguments."""
+        import ast
+        tree = ast.parse((PKG / 'testing' / 'walk_guides.py').read_text(encoding='utf-8'))
+        calls = [n for n in ast.walk(tree) if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)]
+        self.assertNotIn('wait_for_function', {c.func.attr for c in calls})
+        for c in calls:
+            if c.func.attr == 'evaluate':
+                self.assertIsInstance(c.args[0], ast.Name, 'evaluate() gets a fixed script constant, never an f-string')
+
+
 class VendoredCopies(unittest.TestCase):
     def test_known_products_hold_a_fresh_copy(self):
         """Products copy the three files with a two-line header; a stale copy is a release blocker."""
@@ -204,9 +217,28 @@ class VendoredCopies(unittest.TestCase):
             for src, dest in V.destinations(repo):
                 if not dest.exists():
                     continue
-                body = dest.read_bytes().split(b'\n', 2)[2]
+                body = dest.read_bytes() if dest.suffix == '.json' else dest.read_bytes().split(b'\n', 2)[2]
                 self.assertEqual(hashlib.sha256(body).hexdigest(), hashlib.sha256(src.read_bytes()).hexdigest(),
                                  f'{dest} is stale: run python scripts/vendor_guide.py <product repo>')
+
+    def test_vendored_copy_works_on_its_own(self):
+        """Regression: the lexicon was not copied, so the vendored afguide.lint()/errors() crashed in the product."""
+        import tempfile
+        sys.path.insert(0, str(PKG.parents[1] / 'scripts'))
+        import vendor_guide as V
+        with tempfile.TemporaryDirectory() as d:
+            repo = Path(d)
+            (repo / 'server').mkdir()
+            (repo / 'web' / 'js').mkdir(parents=True)
+            self.assertEqual(V.main(['vendor_guide.py', str(repo)]), 0)
+            lex = repo / 'server' / 'afguide_ar_lexicon.json'
+            self.assertEqual(lex.read_bytes(), (PKG / 'style' / 'ar-lexicon.json').read_bytes())
+            self.assertTrue((repo / 'web' / 'js' / 'vendor' / 'af-guide.js').exists())
+            out = subprocess.run([sys.executable, '-c', 'import afguide, json; print(json.dumps(afguide.lint('
+                                  '{"g.title": "اضغط على الزرار"}, "ar") is not None))'],
+                                 cwd=repo / 'server', capture_output=True, text=True, env={**os.environ, 'PYTHONPATH': ''})
+            self.assertEqual(out.returncode, 0, out.stderr)
+            self.assertEqual(out.stdout.strip(), 'true')
 
 
 if __name__ == '__main__':

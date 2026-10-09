@@ -14,7 +14,7 @@
   else root.AFGuide = api;
 })(typeof window !== 'undefined' ? window : globalThis, function (root) {
   'use strict';
-  const VERSION = '0.1.0';
+  const VERSION = '0.1.1';
   const UI_REF = /\[\[([A-Za-z0-9_.\-]+)\]\]/g;
   const WORDS = {
     ar: {guide: 'الدليل', path: 'طريقك', page: 'هذه الصفحة', problems: 'مشكلات هذه الصفحة', start: 'ابدأ',

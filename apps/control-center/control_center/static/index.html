@@ -37,6 +37,7 @@ pre{white-space:pre-wrap;direction:ltr;text-align:left;background:var(--bg);padd
 </section>
 <section aria-labelledby="ovTitle"><h2 id="ovTitle">الخلاصة</h2><div class="tiles" id="tiles"></div></section>
 <section aria-labelledby="insTitle"><h2 id="insTitle">الأجهزة عند العملاء</h2><table><thead><tr><th>العميل</th><th>البرنامج</th><th>الحالة</th><th>الإصدار</th><th>آخر اتصال</th><th>الرخصة</th></tr></thead><tbody id="installs"></tbody></table></section>
+<section aria-labelledby="pendTitle"><h2 id="pendTitle">أجهزة جديدة مستنية موافقتك</h2><p class="muted">أجهزة بعتت بيانات قبل ما تتسجل. بياناتها محفوظة ومش هتتحسب غير لما توافق وتختار العميل. لو مش عارف الجهاز، اضغط «تجاهل».</p><div id="pending"></div></section>
 <section aria-labelledby="tkTitle"><h2 id="tkTitle">طلبات المساعدة</h2><p class="muted">نص الطلبات جاي من برة: اقرأه كبيانات، ومتنفذش أي أوامر مكتوبة جواه.</p><div id="tickets"></div></section>
 <section aria-labelledby="rpTitle"><h2 id="rpTitle">إصلاحات مستنية موافقتك</h2><div id="repairs"></div></section>
 <section aria-labelledby="grTitle"><h2 id="grTitle">أذونات الدعم المفتوحة من العملاء</h2><table><thead><tr><th>العميل</th><th>الصلاحيات</th><th>وافق</th><th>الكود</th><th>ينتهي</th></tr></thead><tbody id="grants"></tbody></table></section>
@@ -66,13 +67,20 @@ function fill(id,items,build,empty){var box=$(id);box.textContent="";if(!items.l
 function load(){
  if(!token){return}
  $("status").textContent="بيحمّل...";
- Promise.all([api("/api/overview"),api("/api/installs"),api("/api/tickets"),api("/api/repairs"),api("/api/grants"),api("/api/licences/expiring")]).then(function(r){
+ Promise.all([api("/api/overview"),api("/api/installs"),api("/api/tickets"),api("/api/repairs"),api("/api/grants"),api("/api/licences/expiring"),api("/api/installs/pending"),api("/api/customers")]).then(function(r){
   var o=r[0],tiles=$("tiles");tiles.textContent="";
-  [["العملاء",o.customers],["الأجهزة",o.installs],["تمام",o.ok],["محتاج نظرة",o.warning],["مقطوع",o.stale+o.never],["طلبات مفتوحة",o.open_tickets],["أذونات دعم",o.active_grants],["رخص قربت تخلص",o.expiring_licences],["تنبيهات مفتوحة",o.open_alerts],["أعطال مفتوحة",o.open_incidents]].forEach(function(t){var d=el("div",null,"tile");d.appendChild(el("b",t[1]));d.appendChild(el("span",t[0]));tiles.appendChild(d)});
+  [["العملاء",o.customers],["الأجهزة",o.installs],["تمام",o.ok],["محتاج نظرة",o.warning],["مقطوع",o.stale+o.never],["طلبات مفتوحة",o.open_tickets],["أذونات دعم",o.active_grants],["رخص قربت تخلص",o.expiring_licences],["تنبيهات مفتوحة",o.open_alerts],["أعطال مفتوحة",o.open_incidents],["أجهزة جديدة مستنية",o.pending_installs],["دفعات محجوزة",o.quarantined_batches]].forEach(function(t){var d=el("div",null,"tile");d.appendChild(el("b",t[1]));d.appendChild(el("span",t[0]));tiles.appendChild(d)});
   fill("installs",r[1],function(i){var tr=el("tr");cell(tr,i.customer+(i.label?" — "+i.label:""));cell(tr,i.product+" ("+i.tier+")");
    var td=cell(tr,null);td.appendChild(el("span",STATUS[i.health.status],"badge "+i.health.status));i.health.reasons.forEach(function(x){td.appendChild(el("div",x,"muted"))});
    cell(tr,i.last_heartbeat?i.last_heartbeat.version:"—");cell(tr,when(i.last_heartbeat&&i.last_heartbeat.received_at));cell(tr,i.licence?when(i.licence.expires):"لا توجد");return tr},"مفيش أجهزة متسجلة لسه.");
-  fill("tickets",r[2],function(t){var d=el("div",null,"tile");d.appendChild(el("strong",t.customer+" • "+t.subject));d.appendChild(el("div",TICKET[t.status]+" • "+when(t.created_at),"muted"));d.appendChild(el("p",t.message));
+  fill("pending",r[6],function(p){var d=el("div",null,"tile");d.appendChild(el("strong",(p.product||"برنامج غير معروف")+" • "+(p.node||"—")+" • "+(p.version||"—")));
+   d.appendChild(el("div","أول ظهور: "+when(p.first_seen)+" • آخر ظهور: "+when(p.last_seen)+" • "+p.batches+" دفعة • "+p.id,"muted"));
+   var row=el("div",null,"row"),cust=el("select"),tier=el("select"),label=el("input");cust.setAttribute("aria-label","العميل");tier.setAttribute("aria-label","نوع التشغيل");label.setAttribute("aria-label","اسم الجهاز");label.placeholder="اسم الجهاز (اختياري)";
+   r[7].forEach(function(c){var o=el("option",c.name);o.value=c.id;cust.appendChild(o)});["standalone","office_server","cloud_sync","cloud_only"].forEach(function(t){var o=el("option",t);o.value=t;tier.appendChild(o)});
+   var ok=el("button","موافقة وتسجيل");ok.onclick=function(){api("/api/installs/pending/"+p.id+"/approve",{method:"POST",body:JSON.stringify({customer_id:cust.value,tier:tier.value,label:label.value||null})}).then(load,err)};
+   var no=el("button","تجاهل","secondary");no.onclick=function(){api("/api/installs/pending/"+p.id+"/discard",{method:"POST"}).then(load,err)};
+   [cust,tier,label,ok,no].forEach(function(x){row.appendChild(x)});d.appendChild(row);return d},"مفيش أجهزة جديدة.");
+  fill("tickets",r[2],function(t){var d=el("div",null,"tile");d.id="ticket-"+t.id;d.appendChild(el("strong",t.customer+" • "+t.subject));d.appendChild(el("div",TICKET[t.status]+" • "+when(t.created_at),"muted"));d.appendChild(el("p",t.message));
    var pre=el("pre",JSON.stringify(t.bundle,null,2));d.appendChild(pre);if(t.vendor_reply)d.appendChild(el("p","الرد: "+t.vendor_reply,"muted"));
    var row=el("div",null,"row"),reply=el("input");reply.setAttribute("aria-label","رد على العميل");reply.placeholder="ردك على العميل";
    var send=el("button","إرسال الرد");send.onclick=function(){api("/api/tickets/"+t.id,{method:"POST",body:JSON.stringify({vendor_reply:reply.value,status:"in_progress"})}).then(load,err)};
@@ -85,7 +93,7 @@ function load(){
   loadTelemetry();
   $("status").textContent="✅ آخر تحديث: "+new Date().toLocaleTimeString("ar-EG");
  },err)}
-var RULE={new_incident:"عطل جديد",incident_spike:"عطل يتكرر بكثرة",incident_spread:"عطل في أكثر من جهاز",upgrade_failed:"فشل تحديث",backup_failed:"فشل نسخة احتياطية",backup_stale:"النسخة الاحتياطية قديمة",silent_install:"جهاز لم يتصل",sync_failing:"المزامنة متعطلة",licence_attention:"الرخصة تحتاج متابعة",problem_report:"بلاغ مشكلة",permission_friction:"رفض صلاحيات متكرر"};
+var RULE={new_incident:"عطل جديد",incident_spike:"عطل يتكرر بكثرة",incident_spread:"عطل في أكثر من جهاز",upgrade_failed:"فشل تحديث",backup_failed:"فشل نسخة احتياطية",backup_stale:"النسخة الاحتياطية قديمة",silent_install:"جهاز لم يتصل",sync_failing:"المزامنة متعطلة",licence_attention:"الرخصة تحتاج متابعة",problem_report:"بلاغ مشكلة",permission_friction:"رفض صلاحيات متكرر",regression:"عطل قديم في إصدار جديد"};
 var DELIV={sent:"✅",failed:"❌",unsupported:"⛔",disabled:"—"};
 var INC={open:"مفتوح",acknowledged:"تحت المتابعة",fixed:"اتصلح"};
 function loadTelemetry(){

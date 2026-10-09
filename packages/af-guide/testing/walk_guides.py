@@ -10,15 +10,41 @@ target; type: fills it; choose: picks the first real option; tip/warn: presses N
 until the coach moves on by itself (auto-advance, HELP-08) or presses Next for steps without "until".
 A failure is (guide id, step number, reason): a target that is missing on its page, or a step that never advances.
 Products give `prepare(guide_id)` to put the data in the right state first (for example "a shift is open").
-"""
 
-STEP = '[data-afg="coach"] .afg-bar'
+Strict-CSP safe (a product's own policy, e.g. Store's `script-src 'self'` without 'unsafe-eval'): the walker never
+uses wait_for_function (Playwright evaluates its string with eval while polling, which such a policy refuses) and never
+builds JavaScript from strings. It runs three fixed functions through page.evaluate, with the values passed as
+arguments, and polls from Python.
+"""
+import time
+
+# Fixed page functions (no string building, no eval in the page).
+_POS = """() => { const c = document.querySelector('[data-afg="coach"]');
+    if (!c || c.hidden) return -1; const b = c.querySelector('.afg-bar');
+    return b ? Number(b.getAttribute('aria-valuenow')) : -1; }"""
+_CALL = """([path, method, args]) => {
+    const ctl = String(path).replace(/^window\./, '').split('.').reduce((o, k) => (o == null ? o : o[k]), window);
+    if (!ctl || typeof ctl[method] !== 'function') throw new Error('no guide controller at ' + path);
+    return ctl[method](...args); }"""
 
 
 def _pos(page):
-    return page.evaluate("""() => { const c = document.querySelector('[data-afg="coach"]');
-        if (!c || c.hidden) return -1; const b = c.querySelector('.afg-bar');
-        return b ? Number(b.getAttribute('aria-valuenow')) : -1; }""")
+    return page.evaluate(_POS)
+
+
+def _call(page, handle, method, *args):
+    return page.evaluate(_CALL, [handle, method, list(args)])
+
+
+def _until_step(page, n, timeout_ms):
+    """Poll (from Python) until the coach shows step n."""
+    end = time.monotonic() + timeout_ms / 1000
+    while True:
+        if _pos(page) == n:
+            return True
+        if time.monotonic() >= end:
+            return False
+        page.wait_for_timeout(50)
 
 
 def walk(page, catalogue, handle='window.__afguide', fill='12', prepare=None, timeout=4000, only=None):
@@ -29,12 +55,9 @@ def walk(page, catalogue, handle='window.__afguide', fill='12', prepare=None, ti
             continue
         if prepare:
             prepare(g['id'])
-        page.evaluate(f'id => {handle}.start(id)', g['id'])
+        _call(page, handle, 'start', g['id'])
         for n, step in enumerate(g['steps'], 1):
-            try:
-                page.wait_for_function(f'() => {{ const b = document.querySelector(\'{STEP}\'); '
-                                       f'return b && Number(b.getAttribute("aria-valuenow")) === {n}; }}', timeout=timeout)
-            except Exception:
+            if not _until_step(page, n, timeout):
                 failures.append((g['id'], n, f'the coach did not reach step {n} (it is at {_pos(page)})'))
                 break
             k = step['k']
@@ -64,6 +87,6 @@ def walk(page, catalogue, handle='window.__afguide', fill='12', prepare=None, ti
                     page.click('[data-afg="next"]', timeout=timeout)
             except Exception as e:  # noqa: BLE001 - report every failure, keep walking the other guides
                 failures.append((g['id'], n, f'{k} step failed: {str(e).splitlines()[0]}'))
-                page.evaluate(f'() => {handle}.stop()')
+                _call(page, handle, 'stop')
                 break
     return failures
