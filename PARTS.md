@@ -14,10 +14,10 @@ Product use below was read from the product clones on 2026-10-09 (Store, Teacher
 - **Used by:** Store, Teachers, Yousef-Transportation (vendored). Mr.Ayman-HR has its own access code and has not vendored it.
 
 ### af-license — signed licences, licence codes, update manifests
-- **Version:** 0.2.0 (`packages/af-license/af_license/__init__.py`; the package README header still says 0.1.0). Ed25519 through the `cryptography` library; `requirements.txt` is for the factory side only.
+- **Version:** 0.3.0 (`packages/af-license/af_license/__init__.py`; the package README header still says 0.1.0). 0.3.0 adds the `perpetual` code edition (never expires, refused by older readers). Ed25519 through the `cryptography` library; `requirements.txt` is for the factory side only.
 - **Vendor:** `python3 scripts/vendor_licence.py <product>` → `server/afcodes.py` and `server/ed25519.py` (stdlib verifier, public key only).
 - **Spec:** `docs/PROTECTION_UPDATES_AND_SUPPORT.md`; package `packages/af-license/README.md`. Controls LIC-01, BIZ-03.
-- **Used by:** Store (vendored codes). Teachers, Yousef-Transportation and Mr.Ayman-HR carry their own Ed25519 code and are not on the vendored copy.
+- **Used by:** Store (vendored codes, 0.3.0: trial, monthly subscription and permanent codes). Teachers, Yousef-Transportation and Mr.Ayman-HR carry their own Ed25519 code and are not on the vendored copy.
 
 ### af-guide — guided onboarding (role courses, coach, "?", problem links, style lint)
 - **Version:** 0.1.2 (`packages/af-guide/af_guide.py`). Checker, Arabic style lint (`style/ar-lexicon.json`), browser walker (`testing/walk_guides.py`), JS engine and CSS.

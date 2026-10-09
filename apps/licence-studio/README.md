@@ -17,6 +17,15 @@ python -m licence_studio verify CODE --product al-store --device XXXXX-XXXXX
 Data lives in `~/.af-licence-studio` (or `LS_HOME`). The private key is stored **encrypted with the owner's passphrase**, is
 unlocked into memory only, and locks itself after 30 minutes. It never enters a repository, CI or a product.
 
+## The three kinds a shop buys
+The Issue page has three quick buttons. Each one fills the form, and the days and grace stay editable:
+| Button | Edition | Days | Grace | Device |
+|---|---|---|---|---|
+| «تجربة 14 يوم» | `trial` | 14 | 0 | required |
+| «اشتراك شهري» | `standard` | 30 | 3 | optional (bind it) |
+| «تفعيل دائم» | `perpetual` | never ends | — | required |
+A permanent code needs af-license 0.3.0 in the product. An older product refuses it as `unknown_edition`, so it is never granted by mistake.
+
 ## Pages
 Issue a code · Codes (search, copy, WhatsApp message, issue the next code) · Requests from agents · Verify · Products · Keys (create, unlock,
 export the **public** key for `licence_keys.txt`) · Agent access (tokens, trial policy).
@@ -35,3 +44,4 @@ and a daily limit when the owner turns it on. Paid codes always need the owner. 
 1. Put the public key line from the Keys page in the product's `licence_keys.txt`.
 2. The customer opens the product → Licence card shows the **device code** → sends it to you.
 3. Issue a 14-day trial for that device → paste the code → product unlocks. After the end day it locks to read/export/backup only.
+4. When the customer pays: a monthly code each month («اشتراك شهري»), or one permanent code («تفعيل دائم») for that device.

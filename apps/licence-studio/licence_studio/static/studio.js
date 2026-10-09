@@ -34,7 +34,10 @@ const today = () => new Date().toISOString().slice(0, 10);
 const addDays = (d, n) => { const x = new Date(d + 'T12:00:00'); x.setDate(x.getDate() + n); return x.toISOString().slice(0, 10); };
 const fmt = (d) => (d ? d.split('-').reverse().join('/') : '');
 const STATUS = { active: 'شغال', grace: 'سماح', expired: 'خلص', not_started: 'لسه مبدأش' };
-const EDITION = { trial: 'تجربة', standard: 'عادي', pro: 'برو' };
+const EDITION = { trial: 'تجربة', standard: 'عادي', pro: 'برو', perpetual: 'دائم' };
+// The three kinds a shop buys: [label, edition, days, grace days]. Days and grace stay editable after picking one.
+const PRESETS = [['تجربة 14 يوم', 'trial', 14, 0], ['اشتراك شهري', 'standard', 30, 3], ['تفعيل دائم', 'perpetual', 0, 0]];
+const until = (c) => (c.edition === 'perpetual' ? 'دائم، مش بيخلص' : fmt(c.last_day));
 
 let ST = {}, PRODUCTS = [];
 
@@ -121,6 +124,7 @@ async function issue(page, p) {
     <div class="two"><form class="card form" id="f">
       <div class="cols"><div class="field"><label for="pr">البرنامج</label><select id="pr" class="input">${PRODUCTS.map((x) => html`<option value="${x.id}" ${x.id === prod?.id ? raw('selected') : ''}>${x.name}</option>`)}</select></div>
         <div class="field"><span class="label">النوع</span><div class="seg" id="ed">${Object.entries(EDITION).map(([k, v]) => html`<button type="button" data-v="${k}" aria-pressed="${k === (p.edition || 'trial')}">${v}</button>`)}</div></div></div>
+      <div class="field"><span class="label">اختيار سريع</span><div class="row wrap" id="ps">${PRESETS.map(([label], i) => html`<button type="button" class="chip" data-preset="${i}">${label}</button>`)}</div></div>
       <div class="field"><label for="dv">رقم الجهاز</label><input id="dv" class="input device-in" placeholder="XXXXX-XXXXX" value="${p.device || ''}" autocomplete="off" maxlength="11" autofocus>
         <span class="hint">10 حروف وأرقام. لو العميل كتب O بدل 0 أو I بدل 1 البرنامج بيصلحها لوحده.</span></div>
       <div class="cols"><div class="field"><label for="cu">اسم العميل / المحل</label><input id="cu" class="input" value="${p.customer || ''}"></div>
@@ -135,16 +139,34 @@ async function issue(page, p) {
       <button class="btn volt lg">${icon('key')}اعمل الكود</button></form>
       <div id="out" class="stack"><div class="card"><div class="empty">${icon('key')}<h3>الكود هيظهر هنا</h3><p>انسخه وابعته للعميل على واتساب.</p></div></div></div></div>`);
   let edition = p.edition || 'trial';
+  const setEdition = (v) => {
+    edition = v;
+    $$('#ed button').forEach((x) => x.setAttribute('aria-pressed', String(x.dataset.v === v)));
+    ['#days', '#gr'].forEach((s) => { $(s).disabled = v === 'perpetual'; });
+  };
   const pv = () => {
     const d = +$('#days').value || 0;
+    if (edition === 'perpetual') {
+      put($('#pv'), html`${icon('calendar')}<span>${EDITION[edition]} · من <span class="mono">${fmt($('#fd').value)}</span> · <b>مش بيخلص</b>
+        ${$('#dv').value ? html` · مربوط بجهاز <span class="mono">${$('#dv').value.toUpperCase()}</span>` : html` · <b>لازم رقم الجهاز</b>`}</span>`);
+      return;
+    }
     put($('#pv'), html`${icon('calendar')}<span>${EDITION[edition]} · <b>${d}</b> يوم · من <span class="mono">${fmt($('#fd').value)}</span> لحد <span class="mono">${fmt(addDays($('#fd').value, d - 1))}</span>
       ${$('#dv').value ? html` · مربوط بجهاز <span class="mono">${$('#dv').value.toUpperCase()}</span>` : html` · <b>مش مربوط بجهاز</b>`}</span>`);
   };
-  $$('#ed button').forEach((b) => b.addEventListener('click', () => { edition = b.dataset.v; $$('#ed button').forEach((x) => x.setAttribute('aria-pressed', String(x === b))); if (edition !== 'trial' && +$('#days').value === 14) $('#days').value = 365; pv(); }));
+  $$('#ed button').forEach((b) => b.addEventListener('click', () => { setEdition(b.dataset.v); if (edition !== 'trial' && +$('#days').value === 14) $('#days').value = 365; pv(); }));
+  $$('[data-preset]').forEach((b) => b.addEventListener('click', () => {
+    const [, ed, days, grace] = PRESETS[+b.dataset.preset];
+    setEdition(ed);
+    if (days) $('#days').value = days;
+    $('#gr').value = grace;
+    pv();
+  }));
   $$('[data-d]').forEach((b) => b.addEventListener('click', () => { $('#days').value = b.dataset.d; pv(); }));
   ['#days', '#fd', '#dv'].forEach((s) => $(s).addEventListener('input', pv));
   $('#dv').addEventListener('input', (e) => { const v = e.target.value.toUpperCase().replace(/[^0-9A-Z]/g, '').slice(0, 10); e.target.value = v.length > 5 ? v.slice(0, 5) + '-' + v.slice(5) : v; pv(); });
   $('#pr').addEventListener('change', (e) => { const x = PRODUCTS.find((y) => y.id === e.target.value); if (edition === 'trial') $('#days').value = x.trial_days; pv(); });
+  setEdition(edition);
   pv();
   $('#f').addEventListener('submit', async (ev) => {
     ev.preventDefault();
@@ -162,14 +184,14 @@ async function issue(page, p) {
 
 function waLink(c) {
   const prod = PRODUCTS.find((x) => x.id === c.product)?.name || c.product;
-  const text = `أهلًا ${c.customer || ''}\nده كود تشغيل ${prod} (${EDITION[c.edition]}) لحد ${fmt(c.last_day)}:\n\n${c.code}\n\nافتح البرنامج ← الإعدادات ← الرخصة، والصق الكود، ودوس «شغّل بالكود».`;
+  const text = `أهلًا ${c.customer || ''}\nده كود تشغيل ${prod} (${EDITION[c.edition]}) ${c.edition === 'perpetual' ? 'دائم' : 'لحد ' + fmt(c.last_day)}:\n\n${c.code}\n\nافتح البرنامج ← الإعدادات ← الرخصة، والصق الكود، ودوس «شغّل بالكود».`;
   let ph = (c.phone || '').replace(/\D/g, ''); if (ph.startsWith('0')) ph = '2' + ph;
   return `https://wa.me/${ph}?text=${encodeURIComponent(text)}`;
 }
 
 function showCode(box, c) {
   put(box, html`<div class="card volt-card"><div class="row between"><h2>${c.customer || 'كود جديد'}</h2><span class="badge">${EDITION[c.edition]}</span></div>
-    <p class="small">لحد <b class="mono">${fmt(c.last_day)}</b> · رقم الكود <span class="mono">${c.serial}</span>${c.device ? html` · جهاز <span class="mono">${c.device}</span>` : ''}</p></div>
+    <p class="small">لحد <b class="mono">${until(c)}</b> · رقم الكود <span class="mono">${c.serial}</span>${c.device ? html` · جهاز <span class="mono">${c.device}</span>` : ''}</p></div>
     <div class="card"><div class="code-out" id="code">${c.code}</div><div class="row wrap">
       <button class="btn primary" id="cp">${icon('clipboard')}انسخ الكود</button>
       <a class="btn" target="_blank" rel="noopener" href="${waLink(c)}">${icon('message')}ابعته واتساب</a></div></div>`);
@@ -186,8 +208,8 @@ async function codes(page, p) {
     const rows = await get('/api/codes?' + new URLSearchParams({ q: $('#q').value, status }));
     put($('#list'), rows.length ? html`<div class="card pad-0"><div class="table-wrap"><table class="t"><thead><tr><th>العميل</th><th>البرنامج</th><th>النوع</th><th>الجهاز</th>
       <th>لحد</th><th>الحالة</th><th>اتعمل بواسطة</th></tr></thead><tbody>${rows.map((c) => html`<tr class="click" data-s="${c.serial}"><td class="name">${c.customer || '—'}<div class="xs faint mono">${c.serial}</div></td>
-      <td>${c.product}</td><td>${EDITION[c.edition]}</td><td class="mono">${c.device || '—'}</td><td class="mono">${fmt(c.last_day)}</td>
-      <td><span class="badge status-${c.status}">${STATUS[c.status]}${c.status === 'active' ? ' · ' + c.days_left + ' يوم' : ''}</span></td><td>${c.issued_by === 'agent' ? 'الإيجنت' : 'صاحب البرنامج'}</td></tr>`)}</tbody></table></div></div>`
+      <td>${c.product}</td><td>${EDITION[c.edition]}</td><td class="mono">${c.device || '—'}</td><td class="mono">${until(c)}</td>
+      <td><span class="badge status-${c.status}">${STATUS[c.status]}${c.status === 'active' && c.days_left !== null ? ' · ' + c.days_left + ' يوم' : ''}</span></td><td>${c.issued_by === 'agent' ? 'الإيجنت' : 'صاحب البرنامج'}</td></tr>`)}</tbody></table></div></div>`
       : html`<div class="card"><div class="empty">${icon('receipt')}<h3>مفيش أكواد</h3></div></div>`);
     $$('tr[data-s]').forEach((tr) => tr.addEventListener('click', () => codeFile(rows.find((r) => r.serial === tr.dataset.s))));
   };
@@ -201,7 +223,7 @@ function codeFile(c) {
   scrim.className = 'scrim side';
   put(scrim, html`<div class="panel"><div class="dialog-head"><h2>${c.customer || c.serial}</h2><button class="icon-btn" data-x>${icon('x')}</button></div>
     <div class="dialog-body"><div class="grid kpis"><div class="kpi"><span class="label">الحالة</span><span class="value">${STATUS[c.status]}</span></div>
-    <div class="kpi"><span class="label">لحد</span><span class="value mono">${fmt(c.last_day)}</span></div></div>
+    <div class="kpi"><span class="label">لحد</span><span class="value mono">${until(c)}</span></div></div>
     <div class="stat-line"><span>البرنامج</span><b>${c.product}</b></div><div class="stat-line"><span>النوع</span><b>${EDITION[c.edition]}</b></div>
     <div class="stat-line"><span>الجهاز</span><b class="mono">${c.device || '—'}</b></div><div class="stat-line"><span>الموبايل</span><b class="mono">${c.phone || '—'}</b></div>
     <div class="stat-line"><span>اتعمل</span><b class="mono">${c.issued_at}</b></div>${c.note ? html`<div class="stat-line"><span>ملاحظة</span><b>${c.note}</b></div>` : ''}
@@ -239,7 +261,7 @@ async function verify(page) {
   $('#go').addEventListener('click', async () => {
     const r = await post('/api/verify', { code: $('#vc').value, product: $('#vp').value, device: $('#vd').value || null });
     put($('#vr'), html`<div class="card ${r.valid && ['active', 'grace'].includes(r.state) ? 'volt-card' : ''}"><h2>${r.valid ? (STATUS[r.state] || r.state) : 'الكود مش سليم'}</h2>
-      <p>${REASONS[r.reason] || r.reason || 'الكود سليم.'}</p>${r.terms?.serial ? html`<div class="small">رقم الكود <span class="mono">${r.terms.serial}</span> · ${EDITION[r.terms.edition] || ''} · لحد <span class="mono">${fmt(r.terms.last_day)}</span>
+      <p>${REASONS[r.reason] || r.reason || 'الكود سليم.'}</p>${r.terms?.serial ? html`<div class="small">رقم الكود <span class="mono">${r.terms.serial}</span> · ${EDITION[r.terms.edition] || ''} · ${r.terms.edition === 'perpetual' ? 'دائم' : 'لحد'} <span class="mono">${fmt(r.terms.last_day)}</span>
       · ${r.terms.device_bound ? 'مربوط بجهاز' : 'مش مربوط بجهاز'}</div>` : ''}${r.issued_here ? html`<div class="small">اتعمل هنا للعميل: <b>${r.issued_here.customer}</b> (${r.issued_here.device || '—'})</div>` : ''}</div>`);
   });
 }

@@ -48,6 +48,53 @@ class CodeTests(unittest.TestCase):
         self.assertEqual(late.state, 'expired')
         self.assertFalse(late.full_access)
 
+    def test_monthly_subscription_has_its_days_then_grace_then_locks(self):
+        c = self.trial(edition='standard', days=30, grace_days=3)
+        self.assertEqual(c['last_day'], '2026-11-06')
+        self.assertEqual(self.read(c['code']).terms['days_left'], 30)
+        self.assertEqual(self.read(c['code'], date(2026, 11, 6)).state, 'active')
+        grace = self.read(c['code'], date(2026, 11, 9))
+        self.assertEqual((grace.state, grace.full_access), ('grace', True))
+        self.assertEqual(self.read(c['code'], date(2026, 11, 10)).state, 'expired')
+
+    def test_perpetual_code_never_expires_and_stays_on_its_device(self):
+        c = self.trial(edition='perpetual', days=9999, grace_days=99)  # days and grace are ignored
+        self.assertIsNone(c['last_day'])
+        for day in (TODAY, date(2040, 1, 1), date(2203, 6, 7), date(2299, 12, 31)):
+            r = self.read(c['code'], day)
+            self.assertEqual((r.state, r.full_access), ('active', True), day)
+            self.assertIsNone(r.terms['last_day'])
+            self.assertIsNone(r.terms['days_left'])
+        self.assertEqual(self.read(c['code'], device=codes.device_code('other-pc', 'x')).reason, 'other_device')
+        later = self.trial(edition='perpetual', first_day=date(2026, 12, 1))
+        self.assertEqual(self.read(later['code']).state, 'not_yet_valid')
+
+    def test_a_perpetual_code_is_never_unbound(self):
+        with self.assertRaises(ValueError) as e:
+            self.trial(edition='perpetual', device=None)
+        self.assertEqual(str(e.exception), 'device_required')
+        # a code signed by another tool without a device (the reader's second guard): forge the terms with the same key
+        import struct
+        from cryptography.hazmat.primitives import serialization
+        key = serialization.load_pem_private_key(self.pem, password=None)
+        raw = key.public_key().public_bytes(serialization.Encoding.Raw, serialization.PublicFormat.Raw)
+        payload = struct.pack(codes._LAYOUT, codes.VERSION, codes.product_tag('al-store'), 4, codes._num(TODAY), codes._num(TODAY),
+                              codes.FOREVER, 0, b'\0' * 6, os.urandom(4), 1, hashlib.sha256(raw).digest()[:2])
+        code = codes.group(codes._b32(payload + key.sign(codes.DOMAIN + payload)))
+        r = self.read(code)
+        self.assertEqual((r.reason, r.full_access), ('unbound_perpetual', False))
+
+    def test_an_older_reader_refuses_a_perpetual_code(self):
+        c = self.trial(edition='perpetual')
+        saved = dict(codes.EDITIONS)
+        try:
+            del codes.EDITIONS[4]
+            r = self.read(c['code'])
+            self.assertEqual((r.reason, r.full_access), ('unknown_edition', False))
+        finally:
+            codes.EDITIONS.clear()
+            codes.EDITIONS.update(saved)
+
     def test_code_shape_is_pasteable(self):
         code = self.trial()['code']
         self.assertEqual(len(codes.normalize(code)), 144)

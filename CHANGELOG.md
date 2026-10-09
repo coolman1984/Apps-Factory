@@ -2,6 +2,12 @@
 
 Factory versions (the `README.md` version line). The control catalogue has its own `catalog_version` in `factory/controls.json`.
 
+## 0.12.0 (2026-10-09)
+- **af-license 0.3.0:** new code edition `perpetual`, always device-bound: issuing one without a device fails (`device_required`), and a reader refuses an unbound one (`unbound_perpetual`). It never expires: its last day is stored as day 65535 and readers report no last day. Older readers refuse it (`unknown_edition`). Tests cover a monthly code (days → grace → expired), a perpetual code (2299, other device, not yet valid) and an older reader.
+- **Licence Studio:** quick buttons «تجربة 14 يوم», «اشتراك شهري» (standard 30 days + 3 grace) and «تفعيل دائم» (device-bound). The codes list, WhatsApp text and verify page show «دائم». The MCP `request_code` accepts `perpetual`. The full-chain test proves that each kind unlocks Al-Store.
+- `docs/knowledge/LESSONS.md`: release-proof lessons from Al-Store 1.5.0 (backup `.part`, one-file copies, empty-database review, extending a signed format, a real shop through an update).
+- `examples/al-store-product.json`: evidence from Store 1.5.0.
+
 ## 0.11.3 (2026-10-09)
 - Added owner-approved four-plan small-business offer independent of existing connectivity engine, with exact cloud-backup and mobile acceptance evidence required at release when `commercial_plan` is declared; legacy manifests unchanged.
 - Factory Windows contract CI on `windows-2025` for PR and main; guidance now requires each Windows product to build/install/test on PR and main and separately test clean-PC recovery. Store Windows workflow PR trigger proposed in companion PR.
