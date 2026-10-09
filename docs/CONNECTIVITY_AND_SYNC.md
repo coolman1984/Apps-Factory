@@ -2,6 +2,9 @@
 
 # Connectivity tiers and offline-first cloud sync
 
+> **New commercial packaging decision (2026-10-09):** [Four SMB sales plans](SMB_COMMERCIAL_TIERS.md) are distinct from the technical `connectivity.tier` types below. A tier-1 off-device cloud **backup** does not create live cloud sync; existing apps are not automatically upgraded. Legacy `office_mesh` works without a hub; the new `Connected` sales plan is cloud-sync based and must prove actual conflict recovery.
+
+
 Decision record: [ADR-0001](decisions/ADR-0001-architecture-and-connectivity-tiers.md). Controls: `ARCH-*`, `SYNC-*`, `MOB-*`, `SITE-*`, `OWN-*`, `BIZ-06`, `OPS-06` in `factory/controls.json`.
 **Status:** specification. No sync engine exists in this repository yet.
 

@@ -28,6 +28,7 @@ REQUIRED = ("schema_version", "id", "name", "deployment", "markets", "buyer",
 EVIDENCE = ("clean_device_restore", "core_user_acceptance")
 LEGACY_EVIDENCE = ("market_review", "privacy_review", "security_review")  # old manifests still carry them; ignored
 CONTROL_TIERS = {"core", "reference"}
+COMMERCIAL_PLANS = {"solo", "connected", "mobile_ops", "cloud_business"}
 
 def load(path):
     with Path(path).open(encoding="utf-8") as file:
@@ -154,10 +155,51 @@ def advisories(product):
         notes.append("cloud_sync has recurring hosting cost; a free model needs a recorded owner exception.")
     if link["tier"] == "cloud_sync" and product["data"].get("has_financial_ledger"):
         notes.append("Money must be append-only events with derived balances; cash close is hub-confirmed (SYNC-02).")
+    if product.get("commercial_plan"):
+        notes.append("Commercial plan is an offer, not proof of built cloud backup or mobile sync: verify plan evidence before sale.")
     if "mobile_pwa" in link["clients"]:
         notes.append("iOS PWA limits: push only after Add to Home Screen, no background sync, "
                      "no WebUSB printing (MOB-04).")
     return notes
+
+def commercial_plan_errors(product, release=False):
+    """An optional retail packaging contract; legacy connectivity rules remain untouched."""
+    plan = product.get("commercial_plan")
+    if plan is None:
+        return []
+    if plan not in COMMERCIAL_PLANS:
+        return ["Unknown commercial_plan (solo, connected, mobile_ops, cloud_business)"]
+    link = connectivity(product)
+    tier = link.get("tier")
+    clients = link.get("clients", [])
+    errors = []
+    if plan == "solo" and (tier not in {"standalone", "office_server"} or "windows_desktop" not in clients
+                           or link.get("sites") != "single"):
+        errors.append("Solo plan must have one locally authoritative Windows PC")
+    if plan in {"connected", "mobile_ops"} and (tier != "cloud_sync" or "mobile_pwa" not in clients
+                                                or "windows_desktop" not in clients):
+        errors.append("Connected and mobile_ops plans require cloud_sync, Windows and owner/mobile PWA")
+    if plan == "cloud_business" and (product["deployment"] != "saas" or tier != "cloud_only"
+                                     or "browser" not in clients or "mobile_pwa" not in clients):
+        errors.append("Cloud business plan requires hosted browser/mobile clients")
+    if release:
+        evidence = product.get("evidence", {})
+        mandatory = ["off_device_cloud_restore"]
+        if plan in {"connected", "mobile_ops", "cloud_business"}:
+            mandatory += ["multi_device_sync_acceptance"]
+        if plan in {"connected", "mobile_ops"}:
+            mandatory += ["owner_mobile_read_only_acceptance"]
+        if plan == "mobile_ops":
+            mandatory += ["mobile_write_acceptance"]
+        if plan == "cloud_business":
+            mandatory += ["hosted_business_acceptance"]
+        for field in mandatory:
+            value = evidence.get(field, "") if isinstance(evidence, dict) else ""
+            if not isinstance(value, str) or not value.strip() or value.strip().upper().startswith(
+                    ("PENDING", "TODO", "UNKNOWN")):
+                errors.append("Commercial plan missing verified evidence: " + field)
+    return errors
+
 
 def competitor_advice(product):
     """Fewer than 5 competitor/alternative rows is advice only; it never blocks a release."""
@@ -236,6 +278,7 @@ def valid_product(product, release=False):
     if not isinstance(product["evidence"], dict) or any(k not in product["evidence"] for k in EVIDENCE):  # legacy keys ignored
         errors.append("Missing evidence slots")
     errors.extend(connectivity_errors(product))
+    errors.extend(commercial_plan_errors(product, release=False))
     errors.extend(telemetry_errors(product))
     if errors:
         return errors, []
@@ -249,6 +292,7 @@ def valid_product(product, release=False):
         if not isinstance(v, dict) or v.get("status") not in {"planned", "implemented", "verified", "field_accepted"}:
             errors.append("Invalid control state: " + k)
     if release:
+        errors.extend(commercial_plan_errors(product, release=True))
         if product["stage"] not in {"field_accepted", "production"}:
             errors.append("Release requires independent field acceptance")
         if tier in CLOUD_TIERS and str(product["data"].get("residency", "")).upper().startswith(("TODO", "PENDING", "UNKNOWN")):

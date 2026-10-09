@@ -1,6 +1,6 @@
 # Apps Factory | مصنع التطبيقات 🏭
 
-**Version:** 0.12.0 — af-license 0.3.0 (permanent codes) and the Studio's three code kinds, Al-Store 1.5.0 evidence; 0.11.2 was af-guide 0.1.2 and Al-Store IAM-01; 0.11.1 recorded Al-Store evidence per core control; 0.11.0 was the docs diet: 5 living docs, archive; 0.10.1 was help docs fitted to the new catalogue; 0.10.0 was the rules cleanup (32 core controls are the only release gate, the rest is advice); 0.9.0 was telemetry hardening; see [CHANGELOG](CHANGELOG.md) • **Status:** standards, specs and tested shared pieces; first product built on them: [الستور](https://github.com/coolman1984/Store). Nothing here is field-verified yet.
+**Version:** 0.12.0 — af-license 0.3.0 (permanent codes) and the Studio's three code kinds, Al-Store 1.5.0 evidence; 0.11.3 — mandatory Windows CI contract + four lean business plans (roadmap, not sync implementation); 0.11.2 — af-guide 0.1.2 (no «null» on the guide button), Al-Store IAM-01 verified; 0.11.1 recorded Al-Store evidence per core control; 0.11.0 was the docs diet: 5 living docs, archive; 0.10.1 was help docs fitted to the new catalogue; 0.10.0 was the rules cleanup (32 core controls are the only release gate, the rest is advice); 0.9.0 was telemetry hardening; see [CHANGELOG](CHANGELOG.md) • **Status:** standards, specs and tested shared pieces; first product built on them: [الستور](https://github.com/coolman1984/Store). Nothing here is field-verified yet.
 
 مستودع القواعد الموحدة اللي كل تطبيق تجاري جديد عندك يبدأ منه: بحث السوق، تصميم ثابت، إدارة وصلاحيات، اشتراكات وتراخيص، خصوصية، أمان، بيانات، نسخ احتياطي، اختبار، تشغيل ودعم. **التخصص فقط بيتغير، القاعدة لا تُنسخ عشوائيًا.**
 
@@ -47,6 +47,11 @@ There is also a local page that builds a manifest: [CONTROL_CENTER.html](CONTROL
 | [apps/licence-studio](apps/licence-studio/README.md) | The owner's licence-code program | [PARTS.md](PARTS.md) |
 | [tools/ui-lab](tools/ui-lab/README.md) | Performance and accessibility gate | [PARTS.md](PARTS.md) |
 | [design-factory](design-factory/README.md) | المصنع البصري: tokens, labs, creative lab and visual QA | [design-factory/AGENTS.md](design-factory/AGENTS.md) |
+
+## Customer-facing plans (commercial, NOT proof of implementation)
+**Four business plans:** 1 Solo (one Windows PC + local and off-device encrypted cloud backup); 2 Connected (multi-PC sync + owner read-only installed mobile view); 3 Mobile Operations (phone sales/barcodes and staff permissions); 4 Cloud Business (hosted-first + Windows/mobile clients). See [four-plan commercial contract](docs/SMB_COMMERCIAL_TIERS.md). The plans are independent of the internal connectivity modes listed below; existing products do not become cloud-ready by adding a label.
+
+**Every Windows-targeted paid release must have a green PR + main Windows installer/check and independent clean-PC restore proof.** See [Windows gate](docs/SMB_COMMERCIAL_TIERS.md#1-mandatory-windows-shipping-gate-for-every-windows-targeted-paid-product) and [PLAYBOOK](PLAYBOOK.md).
 
 ## Operating tiers (`connectivity.tier`)
 | Tier | If the main PC is off |

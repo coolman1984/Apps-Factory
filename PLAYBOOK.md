@@ -29,6 +29,12 @@ python3 -m unittest discover -s design-factory/tests -v                         
 The browser tests (`packages/af-guide`: `python3 -m unittest tests.test_browser -v`) need Playwright and Chromium and run in the `guide-browser` job. The sample manifests `hessa-product`, `multi-branch-reference`, `vendor-control-center` and `al-store-product` must keep **failing** `check --release` (CI asserts it): that proves the gate still blocks.
 Report exactly what you ran, and what you skipped.
 
+### Windows commercial release rule
+- The factory `windows-contract` job checks factory manifest/standard tests on `windows-2025`. It does **not** build each customer product.
+- Every Windows product must configure a mandatory PR **and** main-push Windows job that builds the exact executable/installer, installs, launches, restarts, checks persistence and uninstall data retention, and links the green run + artifact hash in the release notes. A green Linux test is not enough.
+- Set the Windows job as a **required GitHub branch protection check** through a repository administrator; CI alone cannot enforce a required check. Never merge pending/failed builds. The separate clean-PC backup restore and customer trial are still required.
+- For new commercial plans use optional manifest `commercial_plan: solo | connected | mobile_ops | cloud_business`, see [commercial tiers](docs/SMB_COMMERCIAL_TIERS.md). On `--release` it requires extra backup/sync/mobile evidence.
+
 ## 2. Check that vendored copies have not drifted
 Products hold byte-identical copies of af-access, af-license codes, af-guide, af-consent and af-telemetry. The drift tests look for the product repositories next to this one and **skip** when they are absent, so a green local run proves nothing without them. CI runs them for real against the public product repos (`.github/workflows/vendored-drift.yml`, on every factory change and daily).
 To run locally, clone the products into one folder and set `AF_STORE_REPO`, `AF_TEACHERS_REPO`, `AF_YOUSEF_TRANSPORTATION_REPO`, `AF_MR_AYMAN_HR_REPO`, then:

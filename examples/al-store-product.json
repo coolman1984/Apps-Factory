@@ -6,10 +6,15 @@
   "connectivity": {
     "tier": "office_server",
     "sites": "single",
-    "clients": ["windows_desktop", "browser"],
+    "clients": [
+      "windows_desktop",
+      "browser"
+    ],
     "multi_owner": false
   },
-  "markets": ["EG"],
+  "markets": [
+    "EG"
+  ],
   "buyer": "Owner of one household-goods and electrical-appliances shop in Egypt (first pilot in Beni Suef), 2-6 staff, one counter PC",
   "problem": "Fast price rises, shop instalments, serial warranty, unrecorded discounts/returns and drawer differences are tracked on paper; money and stock leak without the owner seeing where.",
   "core_journey": "Open shift with a float, sell by barcode/keyboard (serial for appliances) for cash (the only way on in every shop; card/wallet/InstaPay/finance company/on account/shop instalments are built and tested but hidden until the owner turns them on), print the receipt, take a return linked to the sale line with a manager's approval, close the shift by counting; the owner sees every difference.",
@@ -32,28 +37,85 @@
   },
   "stage": "pilot_candidate",
   "competitors": [
-    {"name": "Daftra", "url": "https://www.daftra.com/plans", "checked_on": "2026-10-08", "region": "EG/MENA", "pricing_status": "verified", "price_notes": "USD plans; offline hardware POS only on the top plan", "differentiator": "Generic cloud ERP; needs internet"},
-    {"name": "Edara", "url": "https://getedara.com/", "checked_on": "2026-10-08", "region": "EG", "pricing_status": "unknown", "differentiator": "Generic accounting and stock"},
-    {"name": "Al-Ameen", "url": "https://alameensoft-eg.com/", "checked_on": "2026-10-08", "region": "EG", "pricing_status": "not_public", "differentiator": "Heavy desktop ERP"},
-    {"name": "Odoo", "url": "https://www.odoo.com/pricing", "checked_on": "2026-10-08", "region": "Global", "pricing_status": "verified", "price_notes": "about USD 31 per user per month (third-party listing)", "differentiator": "Needs an implementer"},
-    {"name": "Loyverse", "url": "https://loyverse.com", "checked_on": "2026-10-08", "region": "Global", "pricing_status": "unknown", "differentiator": "Simple POS; no shop instalments or serial warranty (UNVERIFIED)"}
+    {
+      "name": "Daftra",
+      "url": "https://www.daftra.com/plans",
+      "checked_on": "2026-10-08",
+      "region": "EG/MENA",
+      "pricing_status": "verified",
+      "price_notes": "USD plans; offline hardware POS only on the top plan",
+      "differentiator": "Generic cloud ERP; needs internet"
+    },
+    {
+      "name": "Edara",
+      "url": "https://getedara.com/",
+      "checked_on": "2026-10-08",
+      "region": "EG",
+      "pricing_status": "unknown",
+      "differentiator": "Generic accounting and stock"
+    },
+    {
+      "name": "Al-Ameen",
+      "url": "https://alameensoft-eg.com/",
+      "checked_on": "2026-10-08",
+      "region": "EG",
+      "pricing_status": "not_public",
+      "differentiator": "Heavy desktop ERP"
+    },
+    {
+      "name": "Odoo",
+      "url": "https://www.odoo.com/pricing",
+      "checked_on": "2026-10-08",
+      "region": "Global",
+      "pricing_status": "verified",
+      "price_notes": "about USD 31 per user per month (third-party listing)",
+      "differentiator": "Needs an implementer"
+    },
+    {
+      "name": "Loyverse",
+      "url": "https://loyverse.com",
+      "checked_on": "2026-10-08",
+      "region": "Global",
+      "pricing_status": "unknown",
+      "differentiator": "Simple POS; no shop instalments or serial warranty (UNVERIFIED)"
+    }
   ],
   "acceptance": [
     "A one-product cash sale with change takes under 10 seconds by keyboard and never records twice on retry.",
     "Discounts above the seller's limit, prices under minimum/cost and going over a credit limit need another person's password; wrong tries count toward lockout.",
     "Returns refund at most what was paid for that line and are shown in the owner's eye.",
     "Without a valid device-bound licence code the shop can read, export and back up but cannot sell or change data.",
-    "No page wider than the screen or text out of its card at 360/390/820/1366 px in Arabic and English; UI Lab budgets pass on a 4x slower CPU."
+    "No page wider than the screen or text out of its card at 360/390/820/1366 px in Arabic and English; UI Lab budgets pass on a 4x slower CPU.",
+    "Solo sale requires an encrypted versioned backup uploaded outside the Windows PC and verified restore with the real customer's chosen storage/key procedure; otherwise market the existing app as an on-site pilot only."
   ],
   "evidence": {
     "market_review": "Desk research 2026-10-08 (docs/01-research.md in coolman1984/Store); field interviews with 5 shops PENDING",
     "privacy_review": "PENDING Egypt PDPL review",
     "security_review": "Automated negative checks (CSP, Host/Origin, roles, approvals, append-only ledger) PASS; independent review PENDING",
     "clean_device_restore": "PENDING field drill",
-    "core_user_acceptance": "PENDING first pilot shop"
+    "core_user_acceptance": "PENDING first pilot shop",
+    "off_device_cloud_restore": "PENDING: safe encrypted versioned cloud backup, retention and off-device restore on a different clean Windows PC not yet implemented/accepted"
   },
-  "features": ["pos", "serials-warranty", "returns", "shop-instalments", "shifts-drawer-safe", "stock-places-shelves", "bulk-dated-prices", "owner-eye", "reports", "local-backup", "licence-codes"],
-  "exclusions": ["eta-e-receipt", "multi-branch-sync", "online-store", "supplier-returns", "label-printing"],
+  "features": [
+    "pos",
+    "serials-warranty",
+    "returns",
+    "shop-instalments",
+    "shifts-drawer-safe",
+    "stock-places-shelves",
+    "bulk-dated-prices",
+    "owner-eye",
+    "reports",
+    "local-backup",
+    "licence-codes"
+  ],
+  "exclusions": [
+    "eta-e-receipt",
+    "multi-branch-sync",
+    "online-store",
+    "supplier-returns",
+    "label-printing"
+  ],
   "control_evidence": {
     "IAM-01": {"status": "verified", "proof": "coolman1984/Store 1.4.0, tests green 2026-10-09 (171 passed, 0 skips, Chromium): SetupTests.test_first_run_creates_owner_once; owner recovery by a one-time paper code, hash only, throttled, no master password (test_api.RecoveryTests, browser OwnerRecovery)"},
     "IAM-02": {"status": "verified", "proof": "coolman1984/Store 1.3.0, tests green 2026-10-09 (164 passed, 0 skips, Chromium): ApiTests.test_wrong_password_is_vague_and_locks; approvals checked before the transaction"},
@@ -87,5 +149,6 @@
     "PRIV-03": {"status": "verified", "proof": "coolman1984/Store 1.3.0, tests green 2026-10-09 (164 passed, 0 skips, Chromium): test_privacy.test_nothing_is_queued_without_consent_and_forbidden_fields_are_refused with the vendored taxonomy"},
     "TEL-01": {"status": "verified", "proof": "coolman1984/Store 1.3.0, tests green 2026-10-09 (164 passed, 0 skips, Chromium): test_privacy.test_failed_send_keeps_batch_and_new_events_for_retry, test_no_remote_send_inside_a_shop_write"},
     "FB-01": {"status": "verified", "proof": "coolman1984/Store 1.3.0, tests green 2026-10-09 (164 passed, 0 skips, Chromium): browser GuideCoach.test_report_previews_redacted_words_and_queues_only_after_send, test_edit_during_report_preview_does_not_enable_stale_send"}
-  }
+  },
+  "commercial_plan": "solo"
 }

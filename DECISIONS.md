@@ -8,6 +8,12 @@ Dated owner decisions, newest first. Only decisions recorded in the repository a
 - The owner asked for three kinds of activation code: a **14-day trial**, a **monthly subscription** and a **permanent activation**. A permanent code is device-bound and never ends. The Studio defaults for a monthly code are 30 days + 3 grace days. The owner can change both in the Studio.
 - Prices are **not** decided here (still open below).
 
+### 2026-10-09 — Four lean commercial plans and Windows release evidence
+- Egypt-first individuals, shops and small/medium firms. Plans: Solo (one offline-capable Windows PC with independent encrypted/versioned cloud backup); Connected (multiple synchronized PCs plus **owner read-only** installed mobile app); Mobile Operations (role-limited mobile sales, barcode and updates); Cloud Business (hosted primary service plus mobile/Windows clients).
+- Sales packaging is **not** `connectivity.tier`. Existing one-PC releases do not magically gain remote backups, mobile apps or cloud sync. Cloud data handling, provider, region, recovery keys and cost ceiling are open customer/owner decisions before implementation.
+- Windows CI for every PR and main push is mandatory for Windows products; actual clean-PC and restore acceptance remain separate. Existing factory OPS-07 stays core and optional manifest commercial evidence blocks unsupported plans. Source: [commercial contract](docs/SMB_COMMERCIAL_TIERS.md).
+- Zero-data-loss guarantees are rejected: offer transparent backup frequency, copies outside the PC, integrity tests and verified restoration.
+
 ### 2026-10-09 — Al-Store owner recovery is a paper code
 - At setup the program shows a one-time recovery code to print; «نسيت كلمة السر؟» uses it to set a new password and then shows a new code. Only its hash is kept; there is no vendor master password. Store 1.4.0 (IAM-01 verified).
 
