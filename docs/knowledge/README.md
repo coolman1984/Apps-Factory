@@ -6,6 +6,7 @@ Start here before building anything new.
 |---|---|
 | [REPO_MAP.md](REPO_MAP.md) | What every repository of the owner is and what we can reuse from it |
 | [CAPABILITY_MAP.md](CAPABILITY_MAP.md) | What the factory can do **today**, its status and where it lives |
+| [CAPABILITY_MATRIX.md](CAPABILITY_MATRIX.md) | Which product has which capability, and what should move where |
 | [LESSONS.md](LESSONS.md) | Real mistakes, how they were fixed, and the rule we keep |
 | [GITHUB_RADAR.md](GITHUB_RADAR.md) | Well-known open-source projects we adopt, trial or learn from |
 

@@ -72,3 +72,11 @@ Each lesson comes from a real history file. A rule that caught a real bug outran
 | Fixed roles in code could not express a real shop's "senior cashier" | Editable profiles with one locked administrator profile (BAMS) | Ship profiles as data the owner can change, never as code |
 | Permission changes were audited as "role changed" without the ticks | `perm_diff` added/removed lists in the audit | Log what was granted and removed, by whom |
 | Trip Orders copied the BAMS engine before Hessa fixed "a new person saved under the wrong profile name" and never got the fix; its ready-made profiles had no Arabic names | One gate (`packages/af-access`) every product runs in its tests; the gate found both on its first run | Copy the rules as a test, not only as code |
+
+## Help that teaches (Hessa → factory, 2026-10-09)
+| What happened | Fix | Rule |
+|---|---|---|
+| Help had 31 good guides but a new person did not know which to read first, nor how far they had come | A learning path per role (المنهج): ordered lessons, setup first for the administrator, "you are here" from states the server computes from the real rows (`course`/`state` in `af-guide`) | Teach in order, per job, and let the program say where the person stands |
+| "Polished Egyptian" help drifted: some texts street-colloquial, some stiff; nobody could check 761 texts by eye | One register (simple formal Arabic) and a word-list lint (`af_guide.lint`, `style/ar-lexicon.json`) every product runs on its whole catalogue | A language rule holds only when a test reads every text |
+| A path whose lessons have no server state only shows "done" after the person finishes the guide, even if they did the job long ago | A guide's `done: {"state": …}` ties it to a state computed from the real rows | Measure progress from the work, not from clicks on the help |
+| Review of Hessa's paths: a teacher's path held a lesson about balances teachers cannot see; a new receptionist skipped "add a student" because somebody else had added students | `role-perm` (each guide's permission checked against its role in the `af-access` catalogue); states of daily lessons count the person's own rows | A lesson is for the person in front of the screen: their rights, their own work |

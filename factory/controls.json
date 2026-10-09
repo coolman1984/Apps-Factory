@@ -1,5 +1,5 @@
 {
-  "catalog_version": "1.10.0",
+  "catalog_version": "1.10.1",
   "updated": "2026-10-09",
   "policy": "Required-if-applicable, never auto-certifies an implementation. Tiers: `core` controls are the release gate (check --release fails when an applicable core control has no verified proof); `reference` controls are advice and never block a release. `merged_from` lists old ids folded into a control; `retired` lists dropped ids with the reason. Profiles: desktop, lan, saas, paid, ai, regulated, sync, mesh, mobile, multi_site, multi_owner, windows. Connectivity tier cloud_sync activates sync and saas.",
   "references": [
@@ -1015,7 +1015,7 @@
         "saas"
       ],
       "tier": "core",
-      "requirement": "Every role has an ordered course of short guides (its first-day path) that reaches every daily job and screen; each guide names the permission it needs; each person's progress is saved on the server (not only in the browser) and steps already done in the data count as done. The coach lights up the exact control, moves on by itself when the step is done (route, target, gone, filled, dialog or server-confirmed event), offers to resume an unfinished guide after reload or on another PC, and every guide of every role is walked end to end in a real browser before release",
+      "requirement": "Every role has an ordered course of short guides (its first-day path) that reaches every daily job and screen; the administrator's course starts with setting the program up (business details, lists, people) before daily work; the course marks the first lesson not done yet as «you are here» with one Start button, found from the real records (catalogue states), not from clicks; each guide names the permission it needs; each person's progress is saved on the server (not only in the browser) and steps already done in the data count as done. The coach lights up the exact control, moves on by itself when the step is done (route, target, gone, filled, dialog or server-confirmed event), offers to resume an unfinished guide after reload or on another PC, and every guide of every role is walked end to end in a real browser before release",
       "acceptance_evidence": "af_guide check passes in the product's tests (role-without-path, path-order, role-perm, unknown-perm, until, no-auto-advance); packages/af-guide/testing/walk_guides.py returns no failures; a browser test shows progress following the person to a second browser and Resume at the same step after reload",
       "required_if_applies": true,
       "implementation_status": "implemented",

@@ -2,6 +2,13 @@
 
 Factory versions (the `README.md` version line). The control catalogue has its own `catalog_version` in `factory/controls.json`.
 
+## 0.10.1 (2026-10-09)
+Help docs fitted to the 0.10.0 catalogue (controls catalogue 1.10.1). No code change; `packages/af-guide`, `scripts/vendor_guide.py` and the workflows are the 0.10.0 copies.
+- **Help standard:** `docs/HELP_AND_GUIDANCE_STANDARD.md` gets §2 the learning path per role (setup first for the administrator, "you are here" from catalogue states, `course()` / `state()`) and §3 «العربية الميسّرة» with the stiff-word rule and a three-column example table. Both point to HELP-07 and HELP-11.
+- **HELP-08 folded into HELP-07:** the proposed "learning path" control is not a new id. Its wording (administrator's course starts with setup; "you are here" with one Start button, found from real records) is now in HELP-07's requirement. `factory.py controls HELP-08` still says "merged into HELP-07".
+- **Capability matrix:** new `docs/knowledge/CAPABILITY_MATRIX.md` (which product has which capability, what moves where), listed in `docs/knowledge/README.md`; `CAPABILITY_MAP.md` help row names the learning path; `LESSONS.md` gets "Help that teaches".
+- **Not in the package (deferred, because it would change code the products vendor):** administrator-path-starts-with-setup check, a warning when most lessons have no state, and the stiff and street Egyptian word lists beyond `style/ar-lexicon.json`.
+
 ## 0.10.0 (2026-10-09)
 Rules cleanup (step 1 of the simplification). Controls catalogue 1.10.0: 138 controls became 107 (32 core, 75 reference), plus 24 merged ids and 7 retired ids.
 - **Core gate:** every control has `"tier": "core"` or `"reference"`. `check --release` fails only on applicable core controls without verified proof. Reference controls are printed as advice (count and ids) and never block. `doctor` prints the core, reference, merged and retired counts.
