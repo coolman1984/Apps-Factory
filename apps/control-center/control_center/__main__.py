@@ -2,7 +2,11 @@
   python -m control_center token --kind owner --name "Owner"     (prints the token once)
   python -m control_center token --kind agent --name "AI agent"
   python -m control_center revoke --name "AI agent"
-  python -m control_center serve --host 127.0.0.1 --port 8765
+  python -m control_center serve --host 127.0.0.1 --port 8765   (pulls the relay + runs time rules in the background
+                                                                when CC_RELAY_URL / CC_RELAY_TOKEN are set)
+  python -m control_center pull-relay      (once: needs CC_RELAY_URL and CC_RELAY_TOKEN)
+  python -m control_center alerts          (once: time-based alert rules)
+  python -m control_center retention       (once: delete data past its retention period)
 """
 from __future__ import annotations
 import argparse
@@ -11,6 +15,33 @@ import sys
 
 from . import db
 from .security import new_token, token_hash
+
+
+def background(conn, every_s: int | None = None, lock=None) -> None:
+    """Every CC_RELAY_EVERY seconds (default 300): pull the relay if configured, run the time-based alert rules;
+    once a day: retention. Errors are printed and the loop goes on."""
+    import threading
+    import time
+    from . import alerts, telemetry
+    every = every_s or int(os.environ.get("CC_RELAY_EVERY", "300"))
+    import contextlib
+    guard = lock or contextlib.nullcontext()
+
+    def loop():
+        last_retention = 0.0
+        while True:
+            try:
+                with guard:
+                    if os.environ.get("CC_RELAY_URL") and os.environ.get("CC_RELAY_TOKEN"):
+                        telemetry.pull_relay(conn, os.environ["CC_RELAY_URL"], os.environ["CC_RELAY_TOKEN"])
+                    alerts.periodic(conn)
+                    if time.time() - last_retention > 86400:
+                        telemetry.retention(conn)
+                        last_retention = time.time()
+            except Exception as error:  # noqa: BLE001 - keep the loop alive; the dashboard shows staleness
+                print("background:", type(error).__name__, error, file=sys.stderr)
+            time.sleep(every)
+    threading.Thread(target=loop, name="cc-background", daemon=True).start()
 
 
 def main(argv=None) -> int:
@@ -25,13 +56,32 @@ def main(argv=None) -> int:
     s = sub.add_parser("serve")
     s.add_argument("--host", default="127.0.0.1")
     s.add_argument("--port", type=int, default=8765)
+    sub.add_parser("pull-relay")
+    sub.add_parser("alerts")
+    sub.add_parser("retention")
     args = parser.parse_args(argv)
     if args.action == "serve":
         import uvicorn
         from .app import create_app
-        uvicorn.run(create_app(args.db), host=args.host, port=args.port)
+        app = create_app(args.db)
+        background(app.state.conn, lock=app.state.lock)
+        uvicorn.run(app, host=args.host, port=args.port)
         return 0
     conn = db.connect(args.db)
+    if args.action in ("pull-relay", "alerts", "retention"):
+        import json
+        from . import alerts, telemetry
+        if args.action == "pull-relay":
+            url, token = os.environ.get("CC_RELAY_URL", ""), os.environ.get("CC_RELAY_TOKEN", "")
+            if not url or not token:
+                print("set CC_RELAY_URL and CC_RELAY_TOKEN", file=sys.stderr)
+                return 2
+            print(json.dumps(telemetry.pull_relay(conn, url, token)))
+        elif args.action == "alerts":
+            print(json.dumps({"fired": len(alerts.periodic(conn))}))
+        else:
+            print(json.dumps(telemetry.retention(conn)))
+        return 0
     if args.action == "token":
         token = new_token("ven")
         conn.execute("INSERT INTO vendor_tokens (id, name, token_hash, kind, created_at) VALUES (?,?,?,?,?)",

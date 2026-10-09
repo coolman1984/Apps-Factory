@@ -31,7 +31,9 @@ For requests involving icons, motion graphics, layers, parallax, scroll transiti
 10. Return: what changed, exact commit/PR, tests actually run, checks skipped, field checks pending, and next commercial decision.
 
 ## Shared packages available now
-- `apps/control-center`: Vendor Control Center (registry, heartbeats, tickets, consented grants, allowlisted repairs, licence desk). AI agents use its `agent` token: read and request only.
+- `apps/control-center`: Vendor Control Center (registry, heartbeats, tickets, consented grants, allowlisted repairs, licence desk, telemetry ingest, incidents, per-person usage, alerts that fan out in parallel to every enabled channel). AI agents use its `agent` token: read and request only. Channel secrets come from environment variables only.
+- `templates/telemetry-relay`: Cloudflare Worker + D1 mailbox between products and the Control Center. It never opens batches; the Control Center verifies everything.
+- `docs/CUSTOMER_PATCH_PIPELINE.md`: design only. Customer-reported problems go through fix, optional Patch Reviewer (only when asked), owner approval, installer build and release, then free delivery. Never automate WhatsApp to customers (MSG-01).
 - `packages/af-license`: signed licences and update manifests (Ed25519 via `cryptography`). Use it instead of any copied signing file. Private keys never enter a repository, CI secret or build.
 - `packages/af-license/af_license/codes.py`: short device-bound licence codes (trials and paid) with a stdlib verifier; copy into a product with `python scripts/vendor_licence.py <product-dir>`.
 - `apps/licence-studio`: the owner's code program (loopback web UI + MCP). Agents read, verify and request; trial issuing only when the owner enables it; paid codes owner-only.

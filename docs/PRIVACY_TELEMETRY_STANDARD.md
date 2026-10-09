@@ -3,7 +3,8 @@
 - **Decision:** [ADR-0007](decisions/ADR-0007-consent-telemetry-feedback.md).
 - **Controls:** `PRIV-01`…`PRIV-06`, `TEL-01`…`TEL-03`, `FB-01`, `ROLL-01`, `SUP-04`.
 - **Packages:** [`packages/af-consent`](../packages/af-consent/README.md), [`packages/af-telemetry`](../packages/af-telemetry/README.md).
-- **Server side:** the Control Center ingest, alerts and dashboard (PR 3 of this series).
+- **Server side:** the Control Center ingest, alerts and dashboard ([apps/control-center](../apps/control-center/README.md)), and the Cloudflare relay ([templates/telemetry-relay](../templates/telemetry-relay/README.md)).
+- **Customer patches (design only):** [CUSTOMER_PATCH_PIPELINE.md](CUSTOMER_PATCH_PIPELINE.md).
 
 **Goal:** the vendor sees problems before the customer calls, and sees how each person uses the program and the guides. Nothing personal leaves the customer's PC.
 
@@ -80,5 +81,18 @@ The manifest records this:
 4. Wire af-guide's `track` and `onReport` options to `AFTelemetry`.
 5. Call `tel.capture(exc)` in the server's error handler, and send from a background thread every 5 minutes.
 6. Add the PRIV/TEL tests to the product suite, and set `telemetry.rollout` to `practice` in the manifest.
+
+## Server side (Control Center)
+- **Arrival checks:** every batch is checked again on arrival:
+  - signature, 5-minute window and single-use nonce;
+  - exact envelope;
+  - `p_` pseudonyms only;
+  - allowlisted fields;
+  - a second redaction of report text.
+
+  Rejected events are counted in the audit log and never stored.
+- **Alert fan-out:** alerts go to every enabled channel in parallel, and each channel's result is logged.
+  - Channel secrets live only in environment variables.
+  - Alert text carries rule names, counts and ids, never customer records.
 
 Open cost and verification points for the relay and the alert channels are listed in [OPEN_POINTS.md](OPEN_POINTS.md).

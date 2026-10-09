@@ -37,6 +37,28 @@ MIGRATIONS = [
     CREATE TABLE audit (id TEXT PRIMARY KEY, at TEXT NOT NULL, actor TEXT NOT NULL, action TEXT NOT NULL,
         object_id TEXT, detail TEXT NOT NULL);
     """,
+    # 2: consented telemetry (TEL-01..03), incidents, per-person usage, alerts with per-channel delivery log
+    """
+    CREATE TABLE events (id TEXT PRIMARY KEY, install_id TEXT NOT NULL REFERENCES installs(id), node TEXT,
+        product TEXT NOT NULL, version TEXT NOT NULL, env TEXT NOT NULL, ts TEXT NOT NULL, received_at TEXT NOT NULL,
+        type TEXT NOT NULL, sev TEXT NOT NULL, subject TEXT, role TEXT, page TEXT, data TEXT NOT NULL);
+    CREATE INDEX events_install ON events(install_id, ts);
+    CREATE INDEX events_type ON events(type, ts);
+    CREATE TABLE nonces (install_id TEXT NOT NULL, nonce TEXT NOT NULL, at TEXT NOT NULL, PRIMARY KEY (install_id, nonce));
+    CREATE TABLE incidents (id TEXT PRIMARY KEY, product TEXT NOT NULL, fingerprint TEXT NOT NULL, code TEXT NOT NULL,
+        where_at TEXT, first_seen TEXT NOT NULL, last_seen TEXT NOT NULL, count INTEGER NOT NULL,
+        installs TEXT NOT NULL, versions TEXT NOT NULL, status TEXT NOT NULL, UNIQUE (product, fingerprint));
+    CREATE TABLE usage_daily (day TEXT NOT NULL, install_id TEXT NOT NULL, subject TEXT NOT NULL, type TEXT NOT NULL,
+        item TEXT NOT NULL, count INTEGER NOT NULL, PRIMARY KEY (day, install_id, subject, type, item));
+    CREATE TABLE alerts (id TEXT PRIMARY KEY, rule TEXT NOT NULL, severity TEXT NOT NULL, install_id TEXT,
+        title TEXT NOT NULL, detail TEXT NOT NULL, dedupe_key TEXT NOT NULL, created_at TEXT NOT NULL,
+        acked_at TEXT, acked_by TEXT);
+    CREATE INDEX alerts_dedupe ON alerts(dedupe_key, created_at);
+    CREATE TABLE alert_deliveries (id TEXT PRIMARY KEY, alert_id TEXT NOT NULL REFERENCES alerts(id),
+        channel TEXT NOT NULL, status TEXT NOT NULL, detail TEXT NOT NULL, attempted_at TEXT NOT NULL, ms INTEGER NOT NULL);
+    CREATE INDEX alert_deliveries_alert ON alert_deliveries(alert_id);
+    CREATE TABLE settings (k TEXT PRIMARY KEY, v TEXT NOT NULL);
+    """,
 ]
 
 

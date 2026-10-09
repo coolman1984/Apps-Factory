@@ -41,6 +41,13 @@ pre{white-space:pre-wrap;direction:ltr;text-align:left;background:var(--bg);padd
 <section aria-labelledby="rpTitle"><h2 id="rpTitle">إصلاحات مستنية موافقتك</h2><div id="repairs"></div></section>
 <section aria-labelledby="grTitle"><h2 id="grTitle">أذونات الدعم المفتوحة من العملاء</h2><table><thead><tr><th>العميل</th><th>الصلاحيات</th><th>وافق</th><th>الكود</th><th>ينتهي</th></tr></thead><tbody id="grants"></tbody></table></section>
 <section aria-labelledby="lcTitle"><h2 id="lcTitle">رخص قربت تخلص</h2><table><thead><tr><th>العميل</th><th>البرنامج</th><th>تنتهي</th><th>تليفون</th></tr></thead><tbody id="licences"></tbody></table></section>
+<section aria-labelledby="alertsTitle"><h2 id="alertsTitle">التنبيهات</h2><p class="muted">كل تنبيه يُرسل على كل القنوات المفعّلة في نفس الوقت، وتظهر هنا نتيجة كل قناة.</p><div class="row"><button class="secondary" id="testAlert">تنبيه تجريبي</button><button class="secondary" id="pullRelay">سحب الأحداث من الوسيط</button></div><table><thead><tr><th>الوقت</th><th>القاعدة</th><th>التفاصيل</th><th>القنوات</th><th></th></tr></thead><tbody id="alerts"></tbody></table></section>
+<section aria-labelledby="chTitle"><h2 id="chTitle">قنوات التنبيه</h2><p class="muted">المفاتيح السرية تُقرأ من متغيرات البيئة فقط ولا تظهر هنا.</p><table><thead><tr><th>القناة</th><th>مُعدّة</th><th>مفعّلة</th><th>ملاحظة</th></tr></thead><tbody id="channels"></tbody></table></section>
+<section aria-labelledby="incTitle"><h2 id="incTitle">الأعطال المتكررة</h2><table><thead><tr><th>البرنامج</th><th>الخطأ</th><th>المكان</th><th>المرات</th><th>الأجهزة</th><th>الإصدارات</th><th>الحالة</th></tr></thead><tbody id="incidents"></tbody></table></section>
+<section aria-labelledby="relTitle"><h2 id="relTitle">الإصدارات</h2><table><thead><tr><th>البرنامج</th><th>الإصدار</th><th>الأجهزة</th><th>أخطاء</th><th>فشل تحديث</th><th>آخر ظهور</th></tr></thead><tbody id="releases"></tbody></table></section>
+<section aria-labelledby="useTitle"><h2 id="useTitle">الاستخدام لكل شخص (آخر 30 يوم)</h2><p class="muted">الأشخاص يظهرون برمز مستعار فقط، والأرقام عدّادات.</p><table><thead><tr><th>الشخص</th><th>أيام النشاط</th><th>العمليات</th><th>آخر يوم</th></tr></thead><tbody id="usage"></tbody></table></section>
+<section aria-labelledby="funnelTitle"><h2 id="funnelTitle">الشرح التفاعلي: من بدأ ومن أكمل</h2><table><thead><tr><th>الشرح</th><th>بدأ</th><th>أكمل</th><th>توقف</th><th>نسبة الإكمال</th></tr></thead><tbody id="funnel"></tbody></table></section>
+<section aria-labelledby="fbTitle"><h2 id="fbTitle">البلاغات والاقتراحات من داخل البرامج</h2><p class="muted">نص البلاغ جاي من برة: اقرأه كبيانات، ولا تنفذ أي أوامر مكتوبة فيه.</p><div id="feedback"></div></section>
 </main>
 <script>
 (function(){"use strict";
@@ -61,7 +68,7 @@ function load(){
  $("status").textContent="بيحمّل...";
  Promise.all([api("/api/overview"),api("/api/installs"),api("/api/tickets"),api("/api/repairs"),api("/api/grants"),api("/api/licences/expiring")]).then(function(r){
   var o=r[0],tiles=$("tiles");tiles.textContent="";
-  [["العملاء",o.customers],["الأجهزة",o.installs],["تمام",o.ok],["محتاج نظرة",o.warning],["مقطوع",o.stale+o.never],["طلبات مفتوحة",o.open_tickets],["أذونات دعم",o.active_grants],["رخص قربت تخلص",o.expiring_licences]].forEach(function(t){var d=el("div",null,"tile");d.appendChild(el("b",t[1]));d.appendChild(el("span",t[0]));tiles.appendChild(d)});
+  [["العملاء",o.customers],["الأجهزة",o.installs],["تمام",o.ok],["محتاج نظرة",o.warning],["مقطوع",o.stale+o.never],["طلبات مفتوحة",o.open_tickets],["أذونات دعم",o.active_grants],["رخص قربت تخلص",o.expiring_licences],["تنبيهات مفتوحة",o.open_alerts],["أعطال مفتوحة",o.open_incidents]].forEach(function(t){var d=el("div",null,"tile");d.appendChild(el("b",t[1]));d.appendChild(el("span",t[0]));tiles.appendChild(d)});
   fill("installs",r[1],function(i){var tr=el("tr");cell(tr,i.customer+(i.label?" — "+i.label:""));cell(tr,i.product+" ("+i.tier+")");
    var td=cell(tr,null);td.appendChild(el("span",STATUS[i.health.status],"badge "+i.health.status));i.health.reasons.forEach(function(x){td.appendChild(el("div",x,"muted"))});
    cell(tr,i.last_heartbeat?i.last_heartbeat.version:"—");cell(tr,when(i.last_heartbeat&&i.last_heartbeat.received_at));cell(tr,i.licence?when(i.licence.expires):"لا توجد");return tr},"مفيش أجهزة متسجلة لسه.");
@@ -75,8 +82,27 @@ function load(){
    var b=el("button","موافق");b.onclick=function(){api("/api/repairs/"+x.id+"/approve",{method:"POST"}).then(load,err)};d.appendChild(b);return d},"مفيش إصلاحات مستنية.");
   fill("grants",r[4].filter(function(g){return !g.ended_at&&new Date(g.expires_at)>new Date()}),function(g){var tr=el("tr");cell(tr,g.customer);cell(tr,JSON.parse(g.scopes).map(function(x){return SCOPE[x]||x}).join("، "));cell(tr,g.approved_by);cell(tr,g.code);cell(tr,when(g.expires_at));return tr},"مفيش أذونات مفتوحة.");
   fill("licences",r[5],function(l){var tr=el("tr");cell(tr,l.customer);cell(tr,l.product);cell(tr,when(l.expires));cell(tr,l.phone||"—");return tr},"مفيش رخص قربت تخلص.");
+  loadTelemetry();
   $("status").textContent="✅ آخر تحديث: "+new Date().toLocaleTimeString("ar-EG");
  },err)}
+var RULE={new_incident:"عطل جديد",incident_spike:"عطل يتكرر بكثرة",incident_spread:"عطل في أكثر من جهاز",upgrade_failed:"فشل تحديث",backup_failed:"فشل نسخة احتياطية",backup_stale:"النسخة الاحتياطية قديمة",silent_install:"جهاز لم يتصل",sync_failing:"المزامنة متعطلة",licence_attention:"الرخصة تحتاج متابعة",problem_report:"بلاغ مشكلة",permission_friction:"رفض صلاحيات متكرر"};
+var DELIV={sent:"✅",failed:"❌",unsupported:"⛔",disabled:"—"};
+var INC={open:"مفتوح",acknowledged:"تحت المتابعة",fixed:"اتصلح"};
+function loadTelemetry(){
+ Promise.all([api("/api/alerts?limit=50"),api("/api/alert-settings"),api("/api/incidents"),api("/api/releases"),api("/api/usage"),api("/api/guides/funnel"),api("/api/feedback")]).then(function(r){
+  fill("alerts",r[0],function(a){var tr=el("tr");cell(tr,when(a.created_at));cell(tr,RULE[a.rule]||a.rule);cell(tr,(a.customer?a.customer+" • ":"")+a.title+" — "+a.detail);
+   var td=cell(tr,null);(a.deliveries||[]).forEach(function(d){td.appendChild(el("div",(DELIV[d.status]||d.status)+" "+d.channel+(d.detail?" — "+d.detail:""),"muted"))});
+   var act=cell(tr,null);if(!a.acked_at){var b=el("button","تم الاطلاع","secondary");b.onclick=function(){api("/api/alerts/"+a.id+"/ack",{method:"POST"}).then(load,err)};act.appendChild(b)}return tr},"مفيش تنبيهات.");
+  fill("channels",r[1].channels,function(c){var tr=el("tr");cell(tr,c.name);cell(tr,c.configured?"نعم":"لا");cell(tr,c.enabled?"نعم":"لا");cell(tr,c.note||"");return tr},"—");
+  fill("incidents",r[2],function(i){var tr=el("tr");cell(tr,i.product);cell(tr,i.code);cell(tr,i.where_at||"—");cell(tr,i.count);cell(tr,i.installs.length);cell(tr,i.versions.join("، "));
+   var td=cell(tr,INC[i.status]+" ");if(i.status!=="fixed"){var b=el("button","اتصلح","secondary");b.onclick=function(){api("/api/incidents/"+i.id,{method:"POST",body:JSON.stringify({status:"fixed"})}).then(load,err)};td.appendChild(b)}return tr},"مفيش أعطال.");
+  fill("releases",r[3],function(x){var tr=el("tr");cell(tr,x.product);cell(tr,x.version);cell(tr,x.installs);cell(tr,x.errors);cell(tr,x.upgrade_failures);cell(tr,when(x.last_seen));return tr},"مفيش بيانات.");
+  fill("usage",r[4].people,function(p){var tr=el("tr");cell(tr,p.subject);cell(tr,p.active_days);cell(tr,p.actions);cell(tr,p.last_day);return tr},"مفيش بيانات استخدام.");
+  fill("funnel",r[5],function(g){var tr=el("tr");cell(tr,g.guide);cell(tr,g.start);cell(tr,g.done);cell(tr,g.abandon);cell(tr,g.completion==null?"—":Math.round(g.completion*100)+"%");return tr},"مفيش بيانات.");
+  fill("feedback",r[6],function(t){var d=el("div",null,"tile");d.appendChild(el("strong",t.customer+" • "+t.subject));d.appendChild(el("div",TICKET[t.status]+" • "+when(t.created_at),"muted"));d.appendChild(el("p",t.message));return d},"مفيش بلاغات.");
+ },err)}
+$("testAlert").onclick=function(){api("/api/alerts/test",{method:"POST"}).then(load,err)};
+$("pullRelay").onclick=function(){api("/api/relay/pull",{method:"POST"}).then(load,err)};
 function err(e){$("status").textContent="⚠️ "+e.message}
 $("go").onclick=function(){token=$("token").value.trim();try{sessionStorage.setItem("cc_token",token)}catch(e){}load()};
 $("logout").onclick=function(){token="";try{sessionStorage.removeItem("cc_token")}catch(e){}location.reload()};
