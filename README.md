@@ -1,6 +1,6 @@
 # Apps Factory | مصنع التطبيقات 🏭
 
-**Version:** 0.11.0 — docs diet: 5 living docs, archive; 0.10.1 was help docs fitted to the new catalogue; 0.10.0 was the rules cleanup (32 core controls are the only release gate, the rest is advice); 0.9.0 was telemetry hardening; see [CHANGELOG](CHANGELOG.md) • **Status:** standards, specs and tested shared pieces; first product built on them: [الستور](https://github.com/coolman1984/Store). Nothing here is field-verified yet.
+**Version:** 0.11.1 — Al-Store evidence recorded per core control; 0.11.0 was the docs diet: 5 living docs, archive; 0.10.1 was help docs fitted to the new catalogue; 0.10.0 was the rules cleanup (32 core controls are the only release gate, the rest is advice); 0.9.0 was telemetry hardening; see [CHANGELOG](CHANGELOG.md) • **Status:** standards, specs and tested shared pieces; first product built on them: [الستور](https://github.com/coolman1984/Store). Nothing here is field-verified yet.
 
 مستودع القواعد الموحدة اللي كل تطبيق تجاري جديد عندك يبدأ منه: بحث السوق، تصميم ثابت، إدارة وصلاحيات، اشتراكات وتراخيص، خصوصية، أمان، بيانات، نسخ احتياطي، اختبار، تشغيل ودعم. **التخصص فقط بيتغير، القاعدة لا تُنسخ عشوائيًا.**
 

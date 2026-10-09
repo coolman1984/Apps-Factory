@@ -4,6 +4,10 @@ Dated owner decisions, newest first. Only decisions recorded in the repository a
 
 ## Decided
 
+### 2026-10-09 — Al-Store sells with cash only at first
+- Every Al-Store shop, new or updated, takes **cash only**. Card, mobile wallet, InstaPay, finance companies, on account and shop instalments stay built and tested, hidden and refused by the server until the shop owner ticks them in Settings. They are shown only when a customer asks for them. Store 1.3.0.
+- The road to the first paying shop is `docs/03-ready-to-sell.md` in coolman1984/Store; the per-control status is `control_evidence` in `examples/al-store-product.json`.
+
 ### 2026-10-09 (factory 0.11.0)
 - **Docs diet.** Five living docs: `README.md`, `RULES.md`, `PARTS.md`, `PLAYBOOK.md`, `DECISIONS.md`. Agents read three: README → RULES → PARTS. Research and old plans moved to `docs/archive/`. Detailed specs that code, tests or products link to stay in `docs/` as reference specs. (Review item A12.)
 
@@ -65,6 +69,9 @@ Nothing below is decided, bought or signed up for. Anything that depends on an o
 | LinkedIn (alerts) | Official DMs are partner-only and automated sends are prohibited; the adapter stays disabled while the owner researches. |
 | Cloudflare Workers + D1 (telemetry relay) | The free plan limits requests, storage and rows; fleet traffic may exceed them. |
 | Windows code-signing certificate | Paid, needs organisation validation; trigger is in ADR-0004. |
+| Optional commercial features start turned off (factory-wide rule?) | Proposed after the Al-Store cash-only decision: every product would ship its optional ways (payments, credit, instalments) off and let the shop owner turn them on. Needs owner approval before it becomes a control. |
+| Owner password recovery as an explicit IAM-01 acceptance item | Al-Store has no safe recovery yet; the first support call is likely «نسيت كلمة السر». |
+| How customers pay for their licence | Manual transfer (InstaPay / wallet) plus a code by hand until about 10 customers; automated payment stays with the Paymob / Fawry item below. |
 | Paymob / Fawry / InstaPay | Merchant onboarding needs company documents; transactions carry fees. |
 | Cloud provider, hosting region, monthly ceiling per customer | ADR-0001 open decision 1. |
 | Price of each tier | ADR-0001 open decision 2. |
