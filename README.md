@@ -1,6 +1,6 @@
 # Apps Factory | مصنع التطبيقات 🏭
 
-**Version:** 0.5.0 — adds licence codes + Licence Studio (MCP), the Showroom design system (`af-ui`), the UI Lab (performance + accessibility) and the factory knowledge base • **Status:** standards, specs and tested shared pieces; first product built on them: [الستور](https://github.com/coolman1984/Store). Nothing here is field-verified yet.
+**Version:** 0.10.1 — help docs: learning path per role and simple formal Arabic in the help standard, capability matrix, HELP-08 folded into HELP-07; 0.10.0 was the rules cleanup: 32 core controls are the only release gate, the rest is advice; release evidence is two items (clean-device restore, first-customer acceptance); 0.9.0 was telemetry hardening (token transport, nothing lost mid-batch, new PCs wait for approval, alerts sent outside the lock); Telegram is a core owner-alert channel; adds telemetry ingest, incidents, per-person usage and parallel multi-channel alerts to the Control Center, plus a Cloudflare relay template, on top of consent/telemetry (0.7.0) and the guide engine (0.6.0); see [CHANGELOG](CHANGELOG.md) • **Status:** standards, specs and tested shared pieces; first product built on them: [الستور](https://github.com/coolman1984/Store). Nothing here is field-verified yet.
 
 مستودع القواعد الموحدة اللي كل تطبيق تجاري جديد عندك يبدأ منه: بحث السوق، تصميم ثابت، إدارة وصلاحيات، اشتراكات وتراخيص، خصوصية، أمان، بيانات، نسخ احتياطي، اختبار، تشغيل ودعم. **التخصص فقط بيتغير، القاعدة لا تُنسخ عشوائيًا.**
 
@@ -24,9 +24,24 @@
 - إنشاء وصف: `python scripts/factory.py new --id test-app --name "نظام تجريبي" --mode lan --market EG --output test-app.json`
 - إنشاء وصف بالباقة الأعلى (مزامنة سحابية + موبايل + فروع + ملاك متعددين): أضف `--tier cloud_sync --sites multi --clients windows_desktop,browser,mobile_pwa --multi-owner`
 - فحص مسودة: `python scripts/factory.py check test-app.json`
-- اختبار جاهزية بيع **يُفشل المسودات عمدًا**: `python scripts/factory.py check test-app.json --release`
+- اختبار جاهزية بيع **يُفشل المسودات عمدًا**: `python scripts/factory.py check test-app.json --release` — البوابة هي بنود الـ **core** المنطبقة (٣٢ بندًا) وإثباتان: استرجاع على جهاز نظيف وقبول أول عميل؛ بنود الـ reference نصائح ولا توقف الإصدار. للبحث عن رقم بند قديم: `python scripts/factory.py controls HELP-03`
 - اختبارات أداة المصنع: `python -m unittest discover -s tests -v`
 - اختبارات قطعة الرخص: `cd packages/af-license && pip install -r requirements.txt && python -m unittest discover -s tests -v`
+
+## الجديد في 0.7 ✨
+- 🤝 **الموافقة** [packages/af-consent](packages/af-consent/README.md): «أوافق حتى يستطيع [اسم البائع] مساعدتي عن بُعد». الموافقة على مستويين: المنشأة، ثم كل شخص. تستطيع سحب الموافقة في أي وقت.
+- 📡 **القياس وبلاغات المشكلات** [packages/af-telemetry](packages/af-telemetry/README.md) • [المعيار](docs/PRIVACY_TELEMETRY_STANDARD.md):
+  - يُرسَل فقط أرقام تعريف وعدّادات، ولا تُرسَل أبدًا كلمات السر أو ما يُكتب أو صور الشاشة أو بيانات العملاء أو المبالغ. القيود مطبّقة في الكود والاختبارات.
+  - زر «أبلغ عن مشكلة» يعمل بدون موافقة، مع معاينة كاملة لما سيُرسَل.
+- 🧪 **القاعدة ROLL-01:** التجربة على بيانات التدريب أولًا، ثم على أجهزة العملاء.
+
+## الجديد في 0.6 ✨
+- 🧭 **الدليل التفاعلي** [packages/af-guide](packages/af-guide/README.md) • [المعيار](docs/GUIDED_ONBOARDING_STANDARD.md):
+  - طريق لكل دور، ويُحفظ تقدّم كل شخص على الخادم.
+  - مرشد ينتقل وحده إلى الخطوة التالية.
+  - زر «؟» في كل صفحة، وكل رسالة خطأ تربط بشرح المشكلة.
+  - تبديل لغة الدليل، وفحص الأسلوب «العربية الميسّرة».
+- فحص الدليل: `python scripts/factory.py guide <product>/guide --release`
 
 ## الجديد في 0.5 ✨
 - 🔑 **برنامج الأكواد** [apps/licence-studio](apps/licence-studio/README.md): يطلع كود تجربة ١٤ يوم مربوط بجهاز واحد، بشاشة واضحة، والوكيل يتصل بيه بـ MCP.

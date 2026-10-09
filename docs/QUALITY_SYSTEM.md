@@ -18,7 +18,7 @@ Rule zero: a check counts only when it ran on the exact commit and its output is
 | Q10 | Receipt printer (80 mm / 58 mm, Arabic shaping on the real driver) | field | PENDING until done |
 | Q11 | First paying user completes the journey alone | field | PENDING until done |
 
-A candidate with any Q1–Q8 red is NO-GO. Q9–Q11 pending means "pilot only", never "ready to sell" (DELIVERY_GATES).
+A candidate with any Q1–Q8 red is NO-GO. In `factory.py check --release` only the `core` controls and the two evidence items (`clean_device_restore`, `core_user_acceptance`) can block; Q9 and Q11 are those two items. Q9–Q11 pending means "pilot only", never "ready to sell" (DELIVERY_GATES).
 
 ## The design review rubric ("Showroom bar")
 Answered by a person looking at the UI Lab screenshots, light and dark, Arabic and English:

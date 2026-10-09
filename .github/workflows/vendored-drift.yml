@@ -1,0 +1,64 @@
+# Vendored-copy drift: products copy factory packages (af-license, af-access, af-guide, af-consent, af-telemetry) with a
+# two-line header, and the Control Center / Licence Studio have contract tests against Al-Store. Those tests look for the
+# product repositories next to this one and silently skip when they are absent, which is always the case in the `validate`
+# job. This workflow checks the four product repositories out and runs exactly those tests, so a stale copy fails here.
+# Runs on every factory change and once a day (products can change without a factory push). Not a required check: a product
+# repo going stale must not block unrelated factory merges; a red run here is a release blocker for that product.
+name: Vendored copies match the factory
+on:
+  push:
+    branches: [main, "feat/**"]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: '17 4 * * *'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+env:
+  AF_STORE_REPO: ${{ github.workspace }}/products/Store
+  AF_TEACHERS_REPO: ${{ github.workspace }}/products/Teachers
+  AF_YOUSEF_TRANSPORTATION_REPO: ${{ github.workspace }}/products/Yousef-Transportation
+  AF_MR_AYMAN_HR_REPO: ${{ github.workspace }}/products/Mr.Ayman-HR
+jobs:
+  vendored-drift:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - name: Product repositories (public, main branch, read-only)
+        run: |
+          for repo in Store Teachers Yousef-Transportation Mr.Ayman-HR; do
+            git clone --depth 1 --branch main "https://github.com/${GITHUB_REPOSITORY_OWNER}/${repo}.git" "products/${repo}"
+          done
+      - name: The product checkouts are where the tests look (fail instead of skipping)
+        run: |
+          test -f "$AF_STORE_REPO/server/support.py"
+          test -f "$AF_STORE_REPO/server/licence.py"
+          test -d "$AF_TEACHERS_REPO/server"
+          test -d "$AF_YOUSEF_TRANSPORTATION_REPO/server"
+          test -d "$AF_MR_AYMAN_HR_REPO/server"
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - name: Test-only dependencies
+        run: |
+          python -m pip install -r packages/af-license/requirements.txt
+          python -m pip install -r apps/control-center/requirements.txt
+          python -m pip install -r apps/licence-studio/requirements.txt
+      - name: Vendored copies are byte-identical to the factory packages
+        run: |
+          python -m unittest discover -s packages/af-license/tests -k test_vendored_copy_in_known_products_matches -v
+          for pkg in af-access af-guide af-consent af-telemetry; do
+            python -m unittest discover -s "packages/$pkg/tests" -k VendoredCopies -v
+          done
+      - name: Al-Store contracts (heartbeat fields, licence code from the studio) must run, not skip
+        run: |
+          set -o pipefail
+          (cd apps/control-center && PYTHONPATH=../../packages/af-license python -m unittest tests.test_product_heartbeat -v) 2>&1 | tee hb.log
+          (cd apps/licence-studio && PYTHONPATH=../../packages/af-license python -m unittest discover -s tests -k WebAndMcpTests -v) 2>&1 | tee st.log
+          if grep -q "skipped" hb.log st.log; then echo "a contract test skipped: the Al-Store checkout was not found" >&2; exit 1; fi
+          grep -q "^Ran [1-9]" hb.log && grep -q "test_2_code_from_the_studio_unlocks_al_store" st.log

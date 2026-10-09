@@ -4,16 +4,25 @@ on:
     branches: [main, "feat/**"]
   pull_request:
     branches: [main]
+  workflow_dispatch:
 permissions:
   contents: read
+concurrency:
+  # a newer push to the same PR cancels the older run; pushes to main and tags always finish
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 jobs:
   validate:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '^22.13.0'  # node:sqlite for the telemetry relay's D1 shim needs 22.13+
       - name: Compile factory CLI
         run: python -m py_compile scripts/factory.py
       - name: Check catalog and schema
@@ -42,9 +51,23 @@ jobs:
       - name: Access gate tests (af-access)
         working-directory: packages/af-access
         run: python -m unittest discover -s tests -v
-      - name: Help gate tests (af-guide)
+      - name: Guide engine tests (af-guide; browser tests run in the guide-browser job)
         working-directory: packages/af-guide
-        run: python -m unittest discover -s tests -v
+        run: |
+          python -m unittest discover -s tests -v
+          node --check af-guide.js
+          node --check demo/demo.js
+          node --test tests/core.test.mjs
+          python af_guide.py check examples/shop --ui examples/shop/ui-ar.json --ui examples/shop/ui-en.json --access examples/shop/access.json --errors examples/shop/errors.json --release
+      - name: Consent and telemetry tests (af-consent, af-telemetry)
+        run: |
+          python -m unittest discover -s packages/af-consent/tests -v
+          python -m unittest discover -s packages/af-telemetry/tests -v
+          node --check packages/af-consent/af-consent.js
+          node --check packages/af-telemetry/af-telemetry.js
+          node --test packages/af-telemetry/tests/core.test.mjs
+      - name: Telemetry relay tests (Cloudflare Worker + D1 shim)
+        run: node --experimental-sqlite --test templates/telemetry-relay/test/relay.test.mjs
       - name: Licence Studio tests
         working-directory: apps/licence-studio
         env:
@@ -62,3 +85,19 @@ jobs:
               exit 1
             fi
           done
+
+  guide-browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - name: Install Playwright for QA only
+        run: |
+          python -m pip install playwright==1.55.0
+          python -m playwright install --with-deps chromium
+      - name: af-guide in a real browser (walk every course, resume, language switch, CSP)
+        working-directory: packages/af-guide
+        run: python -m unittest tests.test_browser -v

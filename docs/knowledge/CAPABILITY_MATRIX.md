@@ -13,9 +13,9 @@ Survey of 2026-10-09, based on code, tests and workflows (not on docs alone).
 | 2 | Recycle bin / restore deleted | ✓ | ✓ | ✓ | — (ledger rows are reversed, never deleted) | — |
 | 3 | Undo an edit from history | — | ✓ | — | ◐ (reversals) | — |
 | 4 | Own app window | ✓ | ✓ | — | — | — |
-| 5 | Step-by-step guides + "Guide me" coach | — | ✓ | ✓ (2026-10-09) | ✓ (2026-10-09) | ✓ `HELP_AND_GUIDANCE_STANDARD` |
-| 6 | "Solve a problem" with a guide per problem | — | ✓ | ✓ (2026-10-09) | ✓ (2026-10-09) | ✓ |
-| 7 | Learning path per role with "you are here" | — | ✓ (2026-10-09) | ✓ (2026-10-09) | ✓ (2026-10-09) | ✓ `packages/af-guide` |
+| 5 | Step-by-step guides + "Guide me" coach | ◐ (af-guide copied) | ✓ | ✓ (2026-10-09) | ✓ (2026-10-09) | ✓ `HELP_AND_GUIDANCE_STANDARD`, `packages/af-guide` (HELP-07) |
+| 6 | "Solve a problem" with a guide per problem | ◐ (af-guide copied) | ✓ | ✓ (2026-10-09) | ✓ (2026-10-09) | ✓ `packages/af-guide` (HELP-09) |
+| 7 | Learning path per role with "you are here" | ◐ (af-guide copied) | ✓ (2026-10-09) | ✓ (2026-10-09) | ✓ (2026-10-09) | ✓ `packages/af-guide` (HELP-07: `course`, `state`) |
 | 8 | "Check my data" button | ✓ | ✓ | ◐ | ◐ | — |
 | 9 | Automatic backups + second folder/USB | ✓ | ✓ | ✓ | ✓ | — |
 | 10 | Owner's watch (anti-theft alerts) | — | ✓ | — | ✓ | — |
@@ -49,8 +49,9 @@ Survey of 2026-10-09, based on code, tests and workflows (not on docs alone).
 | Undo an edit from change history | `Teachers/js/views/audit.js` | Trip Orders, BAMS |
 
 ## Order of work (value first, smallest change first)
-1. **Done 2026-10-09:** guides, "Solve a problem", learning paths and simple formal Arabic in all three products, checked by
-   `af-guide`. People and permissions in all three, checked by `af-access`.
+1. **Done 2026-10-09:** guides, "Solve a problem", learning paths and simple formal Arabic in Hessa, Trip Orders and Al-Store,
+   checked by `af-guide`; the same `af-guide` copy is also in BAMS (its own guides are still to be checked). People and
+   permissions in the three products, checked by `af-access`.
 2. **Next:**
    - wide-font layout test in Store and Trip Orders;
    - fuzz tests in Hessa and Trip Orders;

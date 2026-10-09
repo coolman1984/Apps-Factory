@@ -1,42 +1,13 @@
 {
-  "catalog_version": "1.7.0",
+  "catalog_version": "1.10.1",
   "updated": "2026-10-09",
-  "policy": "Required-if-applicable, never auto-certifies an implementation. Profiles: desktop, lan, saas, paid, ai, regulated, sync, mesh, mobile, multi_site, multi_owner, windows. Connectivity tier cloud_sync activates sync and saas.",
+  "policy": "Required-if-applicable, never auto-certifies an implementation. Tiers: `core` controls are the release gate (check --release fails when an applicable core control has no verified proof); `reference` controls are advice and never block a release. `merged_from` lists old ids folded into a control; `retired` lists dropped ids with the reason. Profiles: desktop, lan, saas, paid, ai, regulated, sync, mesh, mobile, multi_site, multi_owner, windows. Connectivity tier cloud_sync activates sync and saas.",
   "references": [
     "https://owasp.org/projects/asvs",
     "https://csrc.nist.gov/pubs/sp/800/218/final",
-    "https://www.w3.org/TR/WCAG22/",
-    "https://www.pdpc.gov.eg/"
+    "https://www.w3.org/TR/WCAG22/"
   ],
   "controls": [
-    {
-      "id": "PRO-01",
-      "slug": "buyer-persona",
-      "category": "market",
-      "profiles": [
-        "desktop",
-        "lan",
-        "saas"
-      ],
-      "requirement": "Describe the real economic buyer and five user jobs",
-      "acceptance_evidence": "G0 competitor/source and customer evidence",
-      "required_if_applies": true,
-      "implementation_status": "planned"
-    },
-    {
-      "id": "PRO-02",
-      "slug": "single-paid-journey",
-      "category": "market",
-      "profiles": [
-        "desktop",
-        "lan",
-        "saas"
-      ],
-      "requirement": "One paid vertical slice, observable success/failure and exclusions",
-      "acceptance_evidence": "G1 written acceptance test",
-      "required_if_applies": true,
-      "implementation_status": "planned"
-    },
     {
       "id": "PRO-03",
       "slug": "competitor-research",
@@ -46,6 +17,7 @@
         "lan",
         "saas"
       ],
+      "tier": "reference",
       "requirement": "Compare available regional/world competitors with dates and price/feature links",
       "acceptance_evidence": "G0 dated research; UNKNOWN where inaccessible",
       "required_if_applies": true,
@@ -60,22 +32,9 @@
         "lan",
         "saas"
       ],
+      "tier": "reference",
       "requirement": "Scope, pricing model, trial, support limit, cancellation and customer handoff",
       "acceptance_evidence": "G7 signed quote/terms",
-      "required_if_applies": true,
-      "implementation_status": "planned"
-    },
-    {
-      "id": "UX-01",
-      "slug": "design-system",
-      "category": "experience",
-      "profiles": [
-        "desktop",
-        "lan",
-        "saas"
-      ],
-      "requirement": "Shared tokens/navigation/table/form/error-state specifications",
-      "acceptance_evidence": "G2 design tokens and responsive screenshots",
       "required_if_applies": true,
       "implementation_status": "planned"
     },
@@ -88,22 +47,9 @@
         "lan",
         "saas"
       ],
+      "tier": "reference",
       "requirement": "Market-appropriate Arabic/English/RTL/LTR and locale/currency/time formats",
       "acceptance_evidence": "G4 browser both directions",
-      "required_if_applies": true,
-      "implementation_status": "planned"
-    },
-    {
-      "id": "UX-03",
-      "slug": "accessible-interaction",
-      "category": "experience",
-      "profiles": [
-        "desktop",
-        "lan",
-        "saas"
-      ],
-      "requirement": "Keyboard, focus order, labels, errors, contrast, WCAG 2.2 AA target for web UI",
-      "acceptance_evidence": "G4 a11y audits and manual keyboard journey",
       "required_if_applies": true,
       "implementation_status": "planned"
     },
@@ -116,6 +62,7 @@
         "lan",
         "saas"
       ],
+      "tier": "reference",
       "requirement": "Loading/empty/saving/saved/error/denied/offline/retry states",
       "acceptance_evidence": "G4 actual browser journey and failure injection",
       "required_if_applies": true,
@@ -130,10 +77,14 @@
         "lan",
         "saas"
       ],
-      "requirement": "First-run guided sample and direct user help",
-      "acceptance_evidence": "G6 user succeeds with no developer",
+      "tier": "reference",
+      "requirement": "First-run guided sample and direct user help; no slideshow on first sign-in, one line pointing to Help, a tour only as opt-in",
+      "acceptance_evidence": "G6 user succeeds with no developer; browser test of first sign-in",
       "required_if_applies": true,
-      "implementation_status": "planned"
+      "implementation_status": "planned",
+      "merged_from": [
+        "HELP-05"
+      ]
     },
     {
       "id": "IAM-01",
@@ -144,6 +95,7 @@
         "lan",
         "saas"
       ],
+      "tier": "core",
       "requirement": "Create unique admin at first run, secure recovery",
       "acceptance_evidence": "G4 first-run and replay tests",
       "required_if_applies": true,
@@ -158,6 +110,7 @@
         "lan",
         "saas"
       ],
+      "tier": "core",
       "requirement": "Adaptive salted storage, login throttling and session revocation",
       "acceptance_evidence": "G4 auth negative tests",
       "required_if_applies": true,
@@ -172,36 +125,9 @@
         "lan",
         "saas"
       ],
+      "tier": "core",
       "requirement": "Deny-by-default on endpoints, object, field and export",
       "acceptance_evidence": "G4 forced wrong-role API tests",
-      "required_if_applies": true,
-      "implementation_status": "planned"
-    },
-    {
-      "id": "IAM-04",
-      "slug": "admin-console",
-      "category": "identity",
-      "profiles": [
-        "desktop",
-        "lan",
-        "saas"
-      ],
-      "requirement": "Customer users/roles and company profile with server checks",
-      "acceptance_evidence": "G6 owner admin walkthrough",
-      "required_if_applies": true,
-      "implementation_status": "planned"
-    },
-    {
-      "id": "IAM-05",
-      "slug": "vendor-support",
-      "category": "identity",
-      "profiles": [
-        "desktop",
-        "lan",
-        "saas"
-      ],
-      "requirement": "Customer-approved temporary vendor session scoped/revocable/logged",
-      "acceptance_evidence": "G4 approval/revocation negative tests",
       "required_if_applies": true,
       "implementation_status": "planned"
     },
@@ -214,6 +140,7 @@
         "lan",
         "saas"
       ],
+      "tier": "core",
       "requirement": "Production rejects static demo credentials or shortcuts",
       "acceptance_evidence": "G4 production-mode negative test",
       "required_if_applies": true,
@@ -228,6 +155,7 @@
         "lan",
         "saas"
       ],
+      "tier": "reference",
       "requirement": "Classify private/finance/health/children data, ownership and retention",
       "acceptance_evidence": "G1 data map and sign-off",
       "required_if_applies": true,
@@ -242,6 +170,7 @@
         "lan",
         "saas"
       ],
+      "tier": "core",
       "requirement": "Record writer, time and correction; never silent hard-delete of financial history",
       "acceptance_evidence": "G4 audit and reverse operation checks",
       "required_if_applies": true,
@@ -256,6 +185,7 @@
         "lan",
         "saas"
       ],
+      "tier": "core",
       "requirement": "Idempotency on create/payment/import/retry and concurrent edits",
       "acceptance_evidence": "G4 duplicate/race scenario",
       "required_if_applies": true,
@@ -270,6 +200,7 @@
         "lan",
         "saas"
       ],
+      "tier": "reference",
       "requirement": "UI/exports totals agree with source; locale-safe dates/currency",
       "acceptance_evidence": "G4 reconciled golden fixtures",
       "required_if_applies": true,
@@ -284,6 +215,7 @@
         "lan",
         "saas"
       ],
+      "tier": "core",
       "requirement": "Verified backup and independent clean-machine restore",
       "acceptance_evidence": "G6 backup + different PC restore proof",
       "required_if_applies": true,
@@ -298,6 +230,7 @@
         "lan",
         "saas"
       ],
+      "tier": "core",
       "requirement": "Schema/version change rehearsed, no silent data loss",
       "acceptance_evidence": "G5 downgrade and rollback test",
       "required_if_applies": true,
@@ -312,6 +245,7 @@
         "lan",
         "saas"
       ],
+      "tier": "reference",
       "requirement": "Threat model for entrypoints, dependencies and trust boundaries",
       "acceptance_evidence": "G2 reviewer accepted threat scenarios",
       "required_if_applies": true,
@@ -326,6 +260,7 @@
         "lan",
         "saas"
       ],
+      "tier": "core",
       "requirement": "No secrets in repository/browser/logs and safe rotation",
       "acceptance_evidence": "G4 scan + secret-handling tests",
       "required_if_applies": true,
@@ -340,6 +275,7 @@
         "lan",
         "saas"
       ],
+      "tier": "core",
       "requirement": "Validate input, output escape, prepared queries, file path control, CSRF where relevant",
       "acceptance_evidence": "G4 targeted negative tests",
       "required_if_applies": true,
@@ -354,10 +290,14 @@
         "lan",
         "saas"
       ],
-      "requirement": "Appropriate TLS/loopback/LAN trust, secure cookies or tokens, timeout",
+      "tier": "core",
+      "requirement": "Appropriate TLS/loopback/LAN trust (only the allowed LAN interfaces and private networks listen), secure cookies or tokens, session timeout",
       "acceptance_evidence": "G4 deployment-mode attack checks",
       "required_if_applies": true,
-      "implementation_status": "planned"
+      "implementation_status": "planned",
+      "merged_from": [
+        "LAN-01"
+      ]
     },
     {
       "id": "SEC-05",
@@ -368,6 +308,7 @@
         "lan",
         "saas"
       ],
+      "tier": "reference",
       "requirement": "Lock deps, license inventory, SCA, release build provenance",
       "acceptance_evidence": "G5 CI evidence/SBOM where applicable",
       "required_if_applies": true,
@@ -382,6 +323,7 @@
         "lan",
         "saas"
       ],
+      "tier": "reference",
       "requirement": "Vulnerability contact, patch policy, redacted logs, response owner",
       "acceptance_evidence": "G7 operational docs",
       "required_if_applies": true,
@@ -394,10 +336,14 @@
       "profiles": [
         "paid"
       ],
-      "requirement": "Features/seat/device limits authorized on trusted backend or verified local licence",
-      "acceptance_evidence": "G4 tampered-client/expiry test",
+      "tier": "reference",
+      "requirement": "Features/seat/device limits authorized on trusted backend or verified local licence; the licensed customer name is visible in the app and documents; a second device beyond the seat limit is refused; updates, support and cloud features only for valid licences",
+      "acceptance_evidence": "G4 tampered-client/expiry test; screenshot plus second-device activation refusal",
       "required_if_applies": true,
-      "implementation_status": "planned"
+      "implementation_status": "planned",
+      "merged_from": [
+        "PROT-03"
+      ]
     },
     {
       "id": "BIZ-02",
@@ -406,6 +352,7 @@
       "profiles": [
         "paid"
       ],
+      "tier": "reference",
       "requirement": "Visible trial/active/grace/expired/renew/cancel states",
       "acceptance_evidence": "G4 state transition tests",
       "required_if_applies": true,
@@ -418,22 +365,14 @@
       "profiles": [
         "paid"
       ],
-      "requirement": "No destructive lock; retain export/backup under expired plan",
-      "acceptance_evidence": "G4 expired account export and backup test",
+      "tier": "core",
+      "requirement": "No destructive lock: licence failure or expiry never deletes, hides or encrypts customer data; no hidden remote kill switch; expired = read/export/backup",
+      "acceptance_evidence": "Expired and invalid licence drills showing export and backup still work",
       "required_if_applies": true,
-      "implementation_status": "planned"
-    },
-    {
-      "id": "BIZ-04",
-      "slug": "license-signature",
-      "category": "licensing",
-      "profiles": [
-        "paid"
-      ],
-      "requirement": "Signed local licences; public verification key; private key off device",
-      "acceptance_evidence": "G4 tamper and offline grace test",
-      "required_if_applies": true,
-      "implementation_status": "planned"
+      "implementation_status": "planned",
+      "merged_from": [
+        "PROT-04"
+      ]
     },
     {
       "id": "BIZ-05",
@@ -442,6 +381,7 @@
       "profiles": [
         "paid"
       ],
+      "tier": "reference",
       "requirement": "Verified provider webhook and idempotent reconciliation",
       "acceptance_evidence": "G4 duplicate, replay, bad-signature test",
       "required_if_applies": true,
@@ -456,6 +396,7 @@
         "lan",
         "saas"
       ],
+      "tier": "core",
       "requirement": "Exact source->artifact SHA, changelog and rollback",
       "acceptance_evidence": "G5 release proof",
       "required_if_applies": true,
@@ -470,50 +411,9 @@
         "lan",
         "saas"
       ],
+      "tier": "reference",
       "requirement": "Installer or hosted deployment proven on clean target environment",
       "acceptance_evidence": "G5/G6 field log",
-      "required_if_applies": true,
-      "implementation_status": "planned"
-    },
-    {
-      "id": "OPS-03",
-      "slug": "incident-recovery",
-      "category": "delivery",
-      "profiles": [
-        "desktop",
-        "lan",
-        "saas"
-      ],
-      "requirement": "Recovery plan, support ownership, rollback and retention",
-      "acceptance_evidence": "G7 tested drill",
-      "required_if_applies": true,
-      "implementation_status": "planned"
-    },
-    {
-      "id": "OPS-04",
-      "slug": "test-matrix",
-      "category": "delivery",
-      "profiles": [
-        "desktop",
-        "lan",
-        "saas"
-      ],
-      "requirement": "Unit/integration/browser/security, negative/permission/migration/recovery",
-      "acceptance_evidence": "G4 linked passing evidence",
-      "required_if_applies": true,
-      "implementation_status": "planned"
-    },
-    {
-      "id": "OPS-05",
-      "slug": "safe-agent-changes",
-      "category": "delivery",
-      "profiles": [
-        "desktop",
-        "lan",
-        "saas"
-      ],
-      "requirement": "Expected repo/branch before write; PR+review; no force-push",
-      "acceptance_evidence": "G4 PR source and changes review",
       "required_if_applies": true,
       "implementation_status": "planned"
     },
@@ -524,6 +424,7 @@
       "profiles": [
         "saas"
       ],
+      "tier": "reference",
       "requirement": "Queries, files, caches, jobs, exports, AI retrieval scoped to verified tenant",
       "acceptance_evidence": "G4 cross-tenant adversarial tests",
       "required_if_applies": true,
@@ -536,20 +437,9 @@
       "profiles": [
         "saas"
       ],
+      "tier": "reference",
       "requirement": "Hosted backups, monitoring, health checks, quotas, secret isolation",
       "acceptance_evidence": "G5 hosted staging evidence",
-      "required_if_applies": true,
-      "implementation_status": "planned"
-    },
-    {
-      "id": "LAN-01",
-      "slug": "network-boundary",
-      "category": "local-network",
-      "profiles": [
-        "lan"
-      ],
-      "requirement": "Allowed LAN interfaces, session and private network controls",
-      "acceptance_evidence": "G4 remote/wrong-origin checks",
       "required_if_applies": true,
       "implementation_status": "planned"
     },
@@ -560,6 +450,7 @@
       "profiles": [
         "lan"
       ],
+      "tier": "reference",
       "requirement": "Interrupted peer/network and safe conflict/replay handling",
       "acceptance_evidence": "G4 network cut + rejoin test",
       "required_if_applies": true,
@@ -572,6 +463,7 @@
       "profiles": [
         "ai"
       ],
+      "tier": "reference",
       "requirement": "Agent tool access limited and auditable to current actor/org",
       "acceptance_evidence": "G4 untrusted prompt attempts to escalate",
       "required_if_applies": true,
@@ -584,6 +476,7 @@
       "profiles": [
         "ai"
       ],
+      "tier": "reference",
       "requirement": "Explicit approval for irreversible money/customer/destructive actions",
       "acceptance_evidence": "G4 negative tool action under injection",
       "required_if_applies": true,
@@ -596,32 +489,9 @@
       "profiles": [
         "ai"
       ],
+      "tier": "reference",
       "requirement": "Source traceability, no fabricated success/evidence",
       "acceptance_evidence": "G4 verified citations/data replay",
-      "required_if_applies": true,
-      "implementation_status": "planned"
-    },
-    {
-      "id": "REG-01",
-      "slug": "regional-review",
-      "category": "compliance",
-      "profiles": [
-        "regulated"
-      ],
-      "requirement": "Legal applicability, jurisdiction, data transfer, qualified reviewer",
-      "acceptance_evidence": "G7 human legal review",
-      "required_if_applies": true,
-      "implementation_status": "planned"
-    },
-    {
-      "id": "REG-02",
-      "slug": "sensitive-data-extra",
-      "category": "compliance",
-      "profiles": [
-        "regulated"
-      ],
-      "requirement": "Explicit retention/access/rights/encryption, audit and independent security review",
-      "acceptance_evidence": "G7 signed risk acceptance",
       "required_if_applies": true,
       "implementation_status": "planned"
     },
@@ -634,6 +504,7 @@
         "lan",
         "saas"
       ],
+      "tier": "reference",
       "requirement": "Each module exposes a versioned typed contract with documented failure codes and its own tests; no module reads another module's tables",
       "acceptance_evidence": "Contract file, version policy and module test run without booting the whole app",
       "required_if_applies": true,
@@ -648,6 +519,7 @@
         "lan",
         "saas"
       ],
+      "tier": "reference",
       "requirement": "Every record carries org (and branch where relevant) scope from the first schema, including single-PC editions",
       "acceptance_evidence": "Schema review and upgrade test standalone->cloud_sync without data rewrite",
       "required_if_applies": true,
@@ -662,6 +534,7 @@
         "lan",
         "saas"
       ],
+      "tier": "reference",
       "requirement": "Globally unique client-generated IDs (UUIDv7/ULID) and device-safe human document numbers; no reliance on autoincrement for identity",
       "acceptance_evidence": "Two devices create records offline without ID or number collision",
       "required_if_applies": true,
@@ -676,6 +549,7 @@
         "lan",
         "saas"
       ],
+      "tier": "core",
       "requirement": "Abrupt power loss or process kill during write, sync, backup or upgrade leaves data consistent",
       "acceptance_evidence": "Kill-process and power-cut drill log on target device",
       "required_if_applies": true,
@@ -688,6 +562,7 @@
       "profiles": [
         "sync"
       ],
+      "tier": "reference",
       "requirement": "Cloud hub is the single record authority; devices hold scoped replicas plus transactional outbox; no peer-to-peer writes in v1",
       "acceptance_evidence": "Topology diagram and failure-mode table reviewed",
       "required_if_applies": true,
@@ -701,6 +576,7 @@
         "sync",
         "mesh"
       ],
+      "tier": "reference",
       "requirement": "Every synced entity classified A append-only / B field-merge / C hub-confirmed / D derived, with tested merge rule; money balances derived only",
       "acceptance_evidence": "Entity class table and merge tests per class",
       "required_if_applies": true,
@@ -714,6 +590,7 @@
         "sync",
         "mesh"
       ],
+      "tier": "reference",
       "requirement": "At-least-once delivery, idempotent apply by change_id, resumable batches, safe crash mid-batch",
       "acceptance_evidence": "Duplicate/reorder/kill-mid-batch simulation results",
       "required_if_applies": true,
@@ -727,6 +604,7 @@
         "sync",
         "mesh"
       ],
+      "tier": "reference",
       "requirement": "Ordering by hybrid logical clock or hub sequence, never device wall clock alone; author time bounded and flagged",
       "acceptance_evidence": "Clock-skew simulation",
       "required_if_applies": true,
@@ -739,6 +617,7 @@
       "profiles": [
         "sync"
       ],
+      "tier": "reference",
       "requirement": "Signed permission/entitlement snapshot per device with offline grace limit; hub re-authorizes at author time; rejected changes quarantined and visible",
       "acceptance_evidence": "Revoked-while-offline and grace-expiry tests",
       "required_if_applies": true,
@@ -752,6 +631,7 @@
         "sync",
         "mesh"
       ],
+      "tier": "reference",
       "requirement": "Admin-approved device enrollment, per-device key, revocation, lost-device runbook, local encryption where feasible",
       "acceptance_evidence": "Enroll/revoke/lost-device drill",
       "required_if_applies": true,
@@ -765,6 +645,7 @@
         "sync",
         "mesh"
       ],
+      "tier": "reference",
       "requirement": "Devices receive only their org/branch/role scope; restricted fields never replicated; role change re-scopes and purges",
       "acceptance_evidence": "Device data inspection after role change",
       "required_if_applies": true,
@@ -778,6 +659,7 @@
         "sync",
         "mesh"
       ],
+      "tier": "reference",
       "requirement": "Protocol and payload versions; hub supports N and N-1; older clients read-only with update prompt; upcasters tested",
       "acceptance_evidence": "Mixed-version fleet test",
       "required_if_applies": true,
@@ -791,6 +673,7 @@
         "sync",
         "mesh"
       ],
+      "tier": "reference",
       "requirement": "Per-device pending count, last successful sync, conflicts and stale-device alerts visible to user and owner",
       "acceptance_evidence": "UI screenshots plus stale-device alert test",
       "required_if_applies": true,
@@ -804,7 +687,8 @@
         "sync",
         "mesh"
       ],
-      "requirement": "Tombstones and legal erasure propagate to every replica including offline ones on reconnect; outstanding replicas tracked",
+      "tier": "reference",
+      "requirement": "Tombstones and erasure requests propagate to every replica including offline ones on reconnect; outstanding replicas tracked",
       "acceptance_evidence": "Erasure-while-offline test",
       "required_if_applies": true,
       "implementation_status": "planned"
@@ -817,6 +701,7 @@
         "sync",
         "mesh"
       ],
+      "tier": "reference",
       "requirement": "Point-in-time hub backup, scheduled export and local main-PC backup; hub restore bumps epoch so restored-away data is not resurrected",
       "acceptance_evidence": "Hub restore drill with stale devices",
       "required_if_applies": true,
@@ -830,6 +715,7 @@
         "sync",
         "mesh"
       ],
+      "tier": "reference",
       "requirement": "Deterministic simulation of partition, duplicate, reorder, clock skew, concurrent offline edits, kill mid-sync and version skew runs in CI",
       "acceptance_evidence": "CI artifact of the 12-case suite in docs/CONNECTIVITY_AND_SYNC.md",
       "required_if_applies": true,
@@ -842,8 +728,9 @@
       "profiles": [
         "sync"
       ],
-      "requirement": "Declared hosting region, cross-border/processor legal review, encryption in transit and at rest before customer data leaves premises",
-      "acceptance_evidence": "Privacy review record naming region and reviewer",
+      "tier": "reference",
+      "requirement": "Hosting region decided and told to the customer, encryption in transit and at rest, before customer data leaves premises",
+      "acceptance_evidence": "Record naming the hosting region and who approved it",
       "required_if_applies": true,
       "implementation_status": "planned"
     },
@@ -854,6 +741,7 @@
       "profiles": [
         "sync"
       ],
+      "tier": "reference",
       "requirement": "Per-tenant storage/bandwidth/attachment quotas and measured hosting cost per customer before pricing the tier",
       "acceptance_evidence": "Cost measurement for pilot tenant",
       "required_if_applies": true,
@@ -866,6 +754,7 @@
       "profiles": [
         "sync"
       ],
+      "tier": "reference",
       "requirement": "Devices cache a signed cloud entitlement with bounded offline grace; expiry keeps read/export/backup",
       "acceptance_evidence": "Entitlement expiry while offline test",
       "required_if_applies": true,
@@ -878,6 +767,7 @@
       "profiles": [
         "mobile"
       ],
+      "tier": "reference",
       "requirement": "PWA served from trusted HTTPS origin with manifest, service worker and Android/iOS install guide",
       "acceptance_evidence": "Install test on one Android and one iPhone",
       "required_if_applies": true,
@@ -890,6 +780,7 @@
       "profiles": [
         "mobile"
       ],
+      "tier": "reference",
       "requirement": "Declared list of offline mobile actions (capture-only by default); everything else online; hub re-validates",
       "acceptance_evidence": "Manifest mobile_offline_actions and denial test for undeclared action",
       "required_if_applies": true,
@@ -902,6 +793,7 @@
       "profiles": [
         "mobile"
       ],
+      "tier": "reference",
       "requirement": "Persistent storage requested, unsynced count visible, warning before logout/clear; Safari eviction and no background sync handled",
       "acceptance_evidence": "iOS and Android unsynced-data drills",
       "required_if_applies": true,
@@ -914,6 +806,7 @@
       "profiles": [
         "mobile"
       ],
+      "tier": "reference",
       "requirement": "Camera/scan/print/push verified per platform with fallbacks (iOS push needs home-screen install, no WebUSB printing on Safari)",
       "acceptance_evidence": "Capability matrix per target phone",
       "required_if_applies": true,
@@ -926,6 +819,7 @@
       "profiles": [
         "mobile"
       ],
+      "tier": "reference",
       "requirement": "Touch targets, narrow RTL screens, slow mobile data, compact sync and Wi-Fi-only attachments",
       "acceptance_evidence": "Throttled-network Playwright run and phone screenshots",
       "required_if_applies": true,
@@ -938,6 +832,7 @@
       "profiles": [
         "multi_site"
       ],
+      "tier": "reference",
       "requirement": "Branch dimension on records, per-branch roles and exports; cross-branch views only for permitted roles",
       "acceptance_evidence": "Cross-branch denial tests",
       "required_if_applies": true,
@@ -950,6 +845,7 @@
       "profiles": [
         "multi_site"
       ],
+      "tier": "reference",
       "requirement": "Owner dashboards aggregate branches and show per-branch data freshness (last sync)",
       "acceptance_evidence": "Dashboard test with one stale branch",
       "required_if_applies": true,
@@ -962,6 +858,7 @@
       "profiles": [
         "multi_owner"
       ],
+      "tier": "reference",
       "requirement": "Adding/removing/demoting owners, billing transfer, org deletion and region change need owner quorum or documented vendor dispute process",
       "acceptance_evidence": "Single-owner lockout attempt denied",
       "required_if_applies": true,
@@ -974,6 +871,7 @@
       "profiles": [
         "multi_owner"
       ],
+      "tier": "reference",
       "requirement": "All owners see audit of permission, money and admin changes; full export by any owner allowed and notified to others",
       "acceptance_evidence": "Audit visibility and export notification test",
       "required_if_applies": true,
@@ -986,44 +884,9 @@
       "profiles": [
         "windows"
       ],
+      "tier": "reference",
       "requirement": "Commercial Windows builds are compiled (e.g. Nuitka core) without shipped Python sources/bytecode, debug off, and no secrets or private keys inside the binary",
       "acceptance_evidence": "Build log plus secret scan of the packaged artifact",
-      "required_if_applies": true,
-      "implementation_status": "planned"
-    },
-    {
-      "id": "PROT-02",
-      "slug": "tamper-evidence",
-      "category": "protection",
-      "profiles": [
-        "paid"
-      ],
-      "requirement": "Signed licence verified with fixed algorithm and purpose-separated keys; own-file hash check at start; clock-rollback guard",
-      "acceptance_evidence": "af-license tests plus tampered-file and clock-rollback drills on the shipped build",
-      "required_if_applies": true,
-      "implementation_status": "planned"
-    },
-    {
-      "id": "PROT-03",
-      "slug": "traceable-licence",
-      "category": "protection",
-      "profiles": [
-        "paid"
-      ],
-      "requirement": "Licensed customer name visible in the app and documents; activation/seat limit; updates, support and cloud features only for valid licences",
-      "acceptance_evidence": "Screenshot plus second-device activation refusal",
-      "required_if_applies": true,
-      "implementation_status": "planned"
-    },
-    {
-      "id": "PROT-04",
-      "slug": "fail-safe-enforcement",
-      "category": "protection",
-      "profiles": [
-        "paid"
-      ],
-      "requirement": "Licence failure or expiry never deletes, hides or encrypts customer data; no hidden remote kill switch; expired = read/export/backup",
-      "acceptance_evidence": "Expired and invalid licence drills showing export and backup still work",
       "required_if_applies": true,
       "implementation_status": "planned"
     },
@@ -1034,6 +897,7 @@
       "profiles": [
         "windows"
       ],
+      "tier": "reference",
       "requirement": "Trust stage recorded (ADR-0004): stage A ships unsigned only when installed by the vendor or via the verified updater, with Ed25519-signed installer/updates and published SHA-256; stage C requires Authenticode signing with timestamp under one publisher identity. Version info set; no UPX packing",
       "acceptance_evidence": "Release record naming the stage; signature or SHA-256 check on the delivered artifact",
       "required_if_applies": true,
@@ -1046,6 +910,7 @@
       "profiles": [
         "windows"
       ],
+      "tier": "reference",
       "requirement": "Update manifest signed with a separate update key and file hash verified by the app before installing; the delivery link itself is untrusted",
       "acceptance_evidence": "Forged-manifest and swapped-file tests refused",
       "required_if_applies": true,
@@ -1058,6 +923,7 @@
       "profiles": [
         "windows"
       ],
+      "tier": "core",
       "requirement": "Data and settings live outside the program folder; installer never overwrites/deletes them; verified backup before migration; automatic rollback on failure",
       "acceptance_evidence": "Upgrade N-1 to N on a real-shaped synthetic DB, failed-migration rollback, uninstall keeps data by default",
       "required_if_applies": true,
@@ -1072,22 +938,9 @@
         "lan",
         "saas"
       ],
+      "tier": "reference",
       "requirement": "Canary customer first, pause and rollback switch, security fixes delivered even to expired licences",
       "acceptance_evidence": "Release record with canary result",
-      "required_if_applies": true,
-      "implementation_status": "planned"
-    },
-    {
-      "id": "SUP-01",
-      "slug": "in-app-help-request",
-      "category": "support",
-      "profiles": [
-        "desktop",
-        "lan",
-        "saas"
-      ],
-      "requirement": "Help button creates a ticket with a redacted diagnostic bundle the customer previews before sending; status visible in the app",
-      "acceptance_evidence": "Ticket round-trip test and bundle redaction test",
       "required_if_applies": true,
       "implementation_status": "planned"
     },
@@ -1100,6 +953,7 @@
         "lan",
         "saas"
       ],
+      "tier": "reference",
       "requirement": "Self-check page: DB integrity, disk space, backup age, licence, sync, printer, version; every error has a code, Arabic message, next step and technical detail",
       "acceptance_evidence": "Fault-injection run showing correct codes",
       "required_if_applies": true,
@@ -1114,24 +968,14 @@
         "lan",
         "saas"
       ],
-      "requirement": "Remote help only customer-initiated, time-boxed, visible, revocable and audited; no permanent unattended credentials by default; self-hosted relay where used",
+      "tier": "reference",
+      "requirement": "Remote help only customer-initiated and customer-approved, scoped, time-boxed, visible, revocable and audited; no permanent unattended credentials by default; self-hosted relay where used",
       "acceptance_evidence": "Session without grant refused; customer ends session; audit entry",
       "required_if_applies": true,
-      "implementation_status": "planned"
-    },
-    {
-      "id": "SUP-04",
-      "slug": "minimal-telemetry",
-      "category": "support",
-      "profiles": [
-        "desktop",
-        "lan",
-        "saas"
-      ],
-      "requirement": "Heartbeat/error fields listed in the contract, no personal data, switchable except what a cloud tier needs to run",
-      "acceptance_evidence": "Captured heartbeat payload review",
-      "required_if_applies": true,
-      "implementation_status": "planned"
+      "implementation_status": "planned",
+      "merged_from": [
+        "IAM-05"
+      ]
     },
     {
       "id": "AI-04",
@@ -1142,6 +986,7 @@
         "lan",
         "saas"
       ],
+      "tier": "reference",
       "requirement": "AI agents reach customer data only through the vendor control center: read by default, repo changes via PR and human merge, customer-side repair only from a tested allowlist under live grant, vendor approval and audit; tickets/logs treated as untrusted input",
       "acceptance_evidence": "Prompt-injection ticket test and denied out-of-grant repair action",
       "required_if_applies": true,
@@ -1154,94 +999,200 @@
       "profiles": [
         "windows"
       ],
+      "tier": "reference",
       "requirement": "Installation never asks the customer to disable antivirus, add broad exclusions or trust a vendor root certificate; false positives are submitted to Microsoft; Smart App Control handled with the customer owner's consent",
       "acceptance_evidence": "Install checklist signed off on a clean Windows 11 PC",
       "required_if_applies": true,
       "implementation_status": "planned"
     },
     {
-      "id": "HELP-01",
-      "slug": "guides-per-job",
+      "id": "HELP-07",
+      "slug": "role-courses-server-progress",
       "category": "help",
       "profiles": [
         "desktop",
         "lan",
         "saas"
       ],
-      "requirement": "Step-by-step guides for every daily job and role; every screen reachable from a guide",
-      "acceptance_evidence": "Guide list mapped to screens",
+      "tier": "core",
+      "requirement": "Every role has an ordered course of short guides (its first-day path) that reaches every daily job and screen; the administrator's course starts with setting the program up (business details, lists, people) before daily work; the course marks the first lesson not done yet as «you are here» with one Start button, found from the real records (catalogue states), not from clicks; each guide names the permission it needs; each person's progress is saved on the server (not only in the browser) and steps already done in the data count as done. The coach lights up the exact control, moves on by itself when the step is done (route, target, gone, filled, dialog or server-confirmed event), offers to resume an unfinished guide after reload or on another PC, and every guide of every role is walked end to end in a real browser before release",
+      "acceptance_evidence": "af_guide check passes in the product's tests (role-without-path, path-order, role-perm, unknown-perm, until, no-auto-advance); packages/af-guide/testing/walk_guides.py returns no failures; a browser test shows progress following the person to a second browser and Resume at the same step after reload",
       "required_if_applies": true,
-      "implementation_status": "planned"
+      "implementation_status": "implemented",
+      "merged_from": [
+        "HELP-01",
+        "HELP-02",
+        "HELP-08",
+        "HELP-12"
+      ]
     },
     {
-      "id": "HELP-02",
-      "slug": "guide-me-coach",
+      "id": "HELP-09",
+      "slug": "errors-link-to-problems",
       "category": "help",
       "profiles": [
         "desktop",
         "lan",
         "saas"
       ],
-      "requirement": "A 'Guide me' coach opens the page and outlines each named button; every step finds its button",
-      "acceptance_evidence": "Browser test walking every guide",
+      "tier": "core",
+      "requirement": "Every error code the server can return links to a problem entry (what you see, why, what to do, if it still fails) with a Take me there link or a guide; the 'Solve a problem' section covers every user-facing error and the coverage checklist",
+      "acceptance_evidence": "af_guide check --errors <all server error codes> has no error-unexplained finding; coverage checklist and error-key test",
       "required_if_applies": true,
-      "implementation_status": "planned"
+      "implementation_status": "implemented",
+      "merged_from": [
+        "HELP-03"
+      ]
     },
     {
-      "id": "HELP-03",
-      "slug": "solve-a-problem",
+      "id": "HELP-11",
+      "slug": "help-style-lint",
       "category": "help",
       "profiles": [
         "desktop",
         "lan",
         "saas"
       ],
-      "requirement": "'Solve a problem' section: every user-facing error and the coverage checklist, each with what/why/steps, a link to the page and a Guide me button",
-      "acceptance_evidence": "Coverage checklist and error-key test",
+      "tier": "core",
+      "requirement": "Help is written in «العربية الميسّرة»: simple, correct Arabic between Modern Standard and polite Egyptian (MSA order without case endings, everyday words, one action per step, 0-9 digits, no technical words); a 12-year-old understands it. Guides exist in every guide language of the product with a per-person language switch that does not change the app's UI language; button names stay as the screen shows them. The Arabic and English text passes the factory style lint (sentence length, banned colloquial and technical words, 0-9 digits, no quotes around [[ui]] labels, one action per step); lint warnings block a release; a non-developer does a reading pass each release",
+      "acceptance_evidence": "af_guide check --release is clean (packages/af-guide/style/ar-lexicon.json, no text-missing finding), a browser test switches the guide language and the coach direction follows it, and the release evidence names the reader",
       "required_if_applies": true,
-      "implementation_status": "planned"
+      "implementation_status": "implemented",
+      "merged_from": [
+        "HELP-04",
+        "HELP-10"
+      ]
     },
     {
-      "id": "HELP-04",
-      "slug": "plain-egyptian-help",
-      "category": "help",
+      "id": "PRIV-01",
+      "slug": "consent-two-levels",
+      "category": "privacy",
       "profiles": [
         "desktop",
         "lan",
         "saas"
       ],
-      "requirement": "Help written in simple formal Arabic (العربية المبسطة: between office Arabic and street Egyptian) a 12-year-old understands; reading pass by a non-developer each release",
-      "acceptance_evidence": "af-guide register() finds no street or stiff word in the Arabic help; reading pass recorded",
+      "tier": "core",
+      "requirement": "Remote-help tracking needs two recorded agreements: the installation (owner, once) and each person (asked once at first sign-in with «أوافق حتى يستطيع [vendor] مساعدتي عن بُعد» and two equal buttons); the vendor name is one setting (vendor_display_name, default the product's DEVELOPER, fallback coolman1984). Every decision is kept append-only with time, exact text id, language and who recorded it; a person can withdraw at any time in Settings «الخصوصية والمساعدة», which deletes their pending events; a decline means zero events for that person and is never asked again",
+      "acceptance_evidence": "packages/af-consent records in the product DB, history shown in Settings; browser test of the first sign-in card; unit tests that tracking is off until both agreed and that withdrawing purges the person's outbox rows",
       "required_if_applies": true,
-      "implementation_status": "planned"
+      "implementation_status": "implemented",
+      "merged_from": [
+        "PRIV-02"
+      ]
     },
     {
-      "id": "HELP-05",
-      "slug": "no-welcome-slideshow",
-      "category": "help",
+      "id": "PRIV-03",
+      "slug": "ids-and-counts-only",
+      "category": "privacy",
       "profiles": [
         "desktop",
         "lan",
         "saas"
       ],
-      "requirement": "No slideshow on first sign-in; one line pointing to Help; tour only as opt-in",
-      "acceptance_evidence": "Browser test of first sign-in",
+      "tier": "core",
+      "requirement": "Events carry only allowlisted fields from the one factory taxonomy (events.json; the product's vendored copy is byte-identical): short machine ids, counts, durations and booleans. Never passwords, keystrokes, screenshots, names, phones, national ids, e-mails, addresses, amounts or customer/student/money records; enforced in code (PrivacyError) not by convention. The never-collect list and value guards are part of the product's test suite, so a taxonomy change that adds a never-list field or free text outside feedback fails the build. Heartbeat and error fields are listed in the contract and carry no personal data",
+      "acceptance_evidence": "packages/af-telemetry FirmLimits tests pass in the product with its vendored taxonomy; af_telemetry.check_taxonomy() == []; vendored aftelemetry_events.json is byte-identical to the factory copy; the product's own emit() calls are covered by tests",
       "required_if_applies": true,
-      "implementation_status": "planned"
+      "implementation_status": "implemented",
+      "merged_from": [
+        "PRIV-06",
+        "TEL-03",
+        "SUP-04"
+      ]
     },
     {
-      "id": "HELP-06",
-      "slug": "ticket-to-help-loop",
-      "category": "help",
+      "id": "PRIV-04",
+      "slug": "pseudonymous-person",
+      "category": "privacy",
       "profiles": [
         "desktop",
         "lan",
         "saas"
       ],
-      "requirement": "Every 'how do I' ticket adds or improves a guide or problem entry in the next release",
-      "acceptance_evidence": "Ticket log linked to help changes",
+      "tier": "reference",
+      "requirement": "A person appears only as a pseudonym (HMAC of the person id with the installation's secret); usage is visible per pseudonym; the mapping to a name exists only inside the customer's program",
+      "acceptance_evidence": "Captured event review shows p_<hex> subjects only",
       "required_if_applies": true,
-      "implementation_status": "planned"
+      "implementation_status": "implemented"
+    },
+    {
+      "id": "PRIV-05",
+      "slug": "what-was-sent-viewer",
+      "category": "privacy",
+      "profiles": [
+        "desktop",
+        "lan",
+        "saas"
+      ],
+      "tier": "reference",
+      "requirement": "Optional: Settings shows «ماذا أُرسل؟» - the pending and last sent events exactly as sent",
+      "acceptance_evidence": "Screenshot of the viewer (optional control)",
+      "required_if_applies": false,
+      "implementation_status": "implemented"
+    },
+    {
+      "id": "TEL-01",
+      "slug": "bounded-offline-outbox",
+      "category": "support",
+      "profiles": [
+        "desktop",
+        "lan",
+        "saas"
+      ],
+      "tier": "core",
+      "requirement": "Events wait in a separate telemetry.db outbox bounded by count (5,000), size (5 MB) and age (30 days), dropping the least important first; usage and repeated errors merge per hour; the program never slows or fails because of telemetry",
+      "acceptance_evidence": "af_telemetry Outbox tests; the program works with the network unplugged",
+      "required_if_applies": true,
+      "implementation_status": "implemented"
+    },
+    {
+      "id": "TEL-02",
+      "slug": "signed-batched-transport",
+      "category": "support",
+      "profiles": [
+        "desktop",
+        "lan",
+        "saas"
+      ],
+      "tier": "reference",
+      "requirement": "Batches of at most 256 KB are gzip-compressed and sent over HTTPS with the per-installation token (Authorization: Bearer); replays are harmless because every event id is stored once; the receiver answers with its own clock and the sender corrects its time stamps; failures back off from 1 minute to 6 hours, and batches the receiver refuses as bad (or that keep being refused) go to a bounded dead-letter table instead of being retried forever",
+      "acceptance_evidence": "af_telemetry Sending tests (token header, clock correction, dead-letter); Control Center refuses a wrong token and a deactivated install, counts a replay as duplicates, parks unknown installs as pending; relay tests (per-install caps, D1 limits)",
+      "required_if_applies": true,
+      "implementation_status": "implemented"
+    },
+    {
+      "id": "FB-01",
+      "slug": "in-app-problem-report",
+      "category": "support",
+      "profiles": [
+        "desktop",
+        "lan",
+        "saas"
+      ],
+      "tier": "core",
+      "requirement": "Every page offers «أبلغ عن مشكلة» (problem, idea, question) with a full preview of exactly what will be sent, automatic removal of phones, e-mails and ID numbers, optional allowlisted device info and an optional redacted diagnostic bundle the customer previews first; its status is visible in the app where a ticket system exists; it works without tracking consent and attaches no person reference when the person did not agree",
+      "acceptance_evidence": "Browser test of preview then send; unit test that a changed text after preview is refused; ticket round-trip and bundle redaction tests",
+      "required_if_applies": true,
+      "implementation_status": "implemented",
+      "merged_from": [
+        "SUP-01"
+      ]
+    },
+    {
+      "id": "ROLL-01",
+      "slug": "practice-data-first",
+      "category": "release",
+      "profiles": [
+        "desktop",
+        "lan",
+        "saas"
+      ],
+      "tier": "reference",
+      "requirement": "Telemetry and alerts are switched on first for demo/practice data (env=practice) and checked end to end; only then for real installations. The manifest records telemetry.rollout and the practice evidence",
+      "acceptance_evidence": "factory.py check fails when telemetry.rollout is installations without practice_evidence",
+      "required_if_applies": true,
+      "implementation_status": "implemented"
     },
     {
       "id": "DIAG-01",
@@ -1252,6 +1203,7 @@
         "lan",
         "saas"
       ],
+      "tier": "reference",
       "requirement": "Isolated diagnostics module not shown in customer menus, started only by the vendor under an open grant with repair scope",
       "acceptance_evidence": "Refused without grant; report with grant",
       "required_if_applies": true,
@@ -1266,6 +1218,7 @@
         "lan",
         "saas"
       ],
+      "tier": "reference",
       "requirement": "Probes for data, backups (test restore in a temp folder), network, sync, licence and program version/errors",
       "acceptance_evidence": "Fault-injection run per probe",
       "required_if_applies": true,
@@ -1280,6 +1233,7 @@
         "lan",
         "saas"
       ],
+      "tier": "reference",
       "requirement": "Read-only, temp files only, no personal data or money in reports, every run logged on both sides",
       "acceptance_evidence": "Report review and log entries",
       "required_if_applies": true,
@@ -1292,6 +1246,7 @@
       "profiles": [
         "mesh"
       ],
+      "tier": "reference",
       "requirement": "Office mesh: each joined PC keeps a full signed append-only history and works alone; one administrator PC is the authority for accounts and devices; PCs join only through a short admin-opened window; operations two PCs can do at once use deterministic IDs; conflicts wait for an administrator's decision",
       "acceptance_evidence": "Partition test with two PCs editing offline, reconnect, identical fingerprint, conflict decided by admin",
       "required_if_applies": true,
@@ -1306,6 +1261,7 @@
         "lan",
         "saas"
       ],
+      "tier": "reference",
       "requirement": "Owner watch rules over the product's own signed records (reversals, drawer differences, unpaid attendance, discounts, price changes, deletions, after-hours, denied attempts), each reviewed by an administrator with a note",
       "acceptance_evidence": "Rule tests per pattern and a reviewed alert",
       "required_if_applies": true,
@@ -1320,6 +1276,7 @@
         "lan",
         "saas"
       ],
+      "tier": "reference",
       "requirement": "Administrator-only log of pages, clicks and saves, never typed values",
       "acceptance_evidence": "Log sample without typed values",
       "required_if_applies": true,
@@ -1334,6 +1291,7 @@
         "lan",
         "saas"
       ],
+      "tier": "reference",
       "requirement": "Price changes start on a chosen day and never reprice earlier periods; only the server writes price history",
       "acceptance_evidence": "Old month unchanged after a raise",
       "required_if_applies": true,
@@ -1348,6 +1306,7 @@
         "lan",
         "saas"
       ],
+      "tier": "reference",
       "requirement": "The front desk records first and flags later; a rule never stops the queue unless data would be lost or money duplicated",
       "acceptance_evidence": "Browser test of a flagged-not-blocked case",
       "required_if_applies": true,
@@ -1362,6 +1321,7 @@
         "lan",
         "saas"
       ],
+      "tier": "core",
       "requirement": "Strict CSP, Origin and Host checks, proxy headers never treated as this PC, spreadsheet formula neutralisation",
       "acceptance_evidence": "Negative tests per item",
       "required_if_applies": true,
@@ -1376,6 +1336,7 @@
         "lan",
         "saas"
       ],
+      "tier": "reference",
       "requirement": "Personal sign-in links for phone helpers (never admin); administrator recovery only with a vendor-signed one-time code",
       "acceptance_evidence": "Link cannot get admin; recovery code single-use",
       "required_if_applies": true,
@@ -1390,6 +1351,7 @@
         "lan",
         "saas"
       ],
+      "tier": "reference",
       "requirement": "Messages to customers' clients one by one through the user's own app, never bulk automation; official API only with consent and a daily cap",
       "acceptance_evidence": "Cap and consent tests",
       "required_if_applies": true,
@@ -1404,6 +1366,7 @@
         "lan",
         "saas"
       ],
+      "tier": "reference",
       "requirement": "Dashboard shows ranked do-this-now items and a quick-actions panel to every daily form, each one click away",
       "acceptance_evidence": "Browser test opening every quick action",
       "required_if_applies": true,
@@ -1418,6 +1381,7 @@
         "lan",
         "saas"
       ],
+      "tier": "reference",
       "requirement": "First-version menu shows only the sold core; extra pages switched on in settings",
       "acceptance_evidence": "Menu test with extras off and on",
       "required_if_applies": true,
@@ -1432,6 +1396,7 @@
         "lan",
         "saas"
       ],
+      "tier": "core",
       "requirement": "An automated browser sweep opens every page with realistic large data at phone, small-laptop and desktop widths in every language and fails when any text stands outside its card, button or badge; 'opens without errors' is not 'looks right'",
       "acceptance_evidence": "Sweep run on the release commit, and proof it fails on a known overflow",
       "required_if_applies": true,
@@ -1446,10 +1411,14 @@
         "lan",
         "saas"
       ],
-      "requirement": "Pages use the factory design system (packages/af-ui): tokens only (no colours or sizes in views), layered surfaces, Readex Pro/Alexandria or a documented brand pair, motion from the motion kit with reduced-motion honoured, logical CSS for RTL",
+      "tier": "reference",
+      "requirement": "Pages use the factory design system (packages/af-ui): tokens only (no colours or sizes in views), layered surfaces, Readex Pro/Alexandria or a documented brand pair, motion from the motion kit with reduced-motion honoured, logical CSS for RTL; shared navigation, table, form and error-state patterns come from the same system",
       "acceptance_evidence": "Static page checks (no inline styles, no left/right CSS, no hex colours in views) + screenshot set in light/dark/RTL/LTR",
       "required_if_applies": true,
-      "implementation_status": "implemented"
+      "implementation_status": "implemented",
+      "merged_from": [
+        "UX-01"
+      ]
     },
     {
       "id": "PERF-01",
@@ -1460,24 +1429,14 @@
         "lan",
         "saas"
       ],
-      "requirement": "Every main page is measured by tools/ui-lab on a cold load with the CPU throttled x4 at phone and PC widths and stays within factory/ui-budgets.json (FCP, LCP, CLS, TBT, INP, frame p95, dropped frames, DOM, heap, JS size)",
+      "tier": "core",
+      "requirement": "Every main page is measured by tools/ui-lab on a cold load with the CPU throttled x4 at phone and PC widths and stays within factory/ui-budgets.json (FCP, LCP, CLS, TBT, INP, frame p95, dropped frames, DOM, heap, JS size); decorative effects (backdrop blur, large shadows, fixed gradients, 3D tilt) are measured and an effect that pushes p95 frame time over budget is removed or made static",
       "acceptance_evidence": "ui-lab REPORT.md on the release commit with 'All pages within budget'",
       "required_if_applies": true,
-      "implementation_status": "implemented"
-    },
-    {
-      "id": "PERF-02",
-      "slug": "old-pc-smoothness",
-      "category": "experience",
-      "profiles": [
-        "desktop",
-        "lan",
-        "saas"
-      ],
-      "requirement": "No decorative effect may cost a frame on an old PC: backdrop blur, large shadows, fixed gradients and 3D tilt are measured; an effect that pushes p95 frame time over budget is removed or made static",
-      "acceptance_evidence": "UI Lab before/after numbers recorded in the product history",
-      "required_if_applies": true,
-      "implementation_status": "planned"
+      "implementation_status": "implemented",
+      "merged_from": [
+        "PERF-02"
+      ]
     },
     {
       "id": "A11Y-01",
@@ -1488,10 +1447,14 @@
         "lan",
         "saas"
       ],
-      "requirement": "axe-core reports zero serious or critical findings on every main page in both languages; text contrast at least 4.5:1, every control named, scrollable regions reachable by keyboard",
-      "acceptance_evidence": "ui-lab accessibility column = 0 on the release commit",
+      "tier": "core",
+      "requirement": "axe-core reports zero serious or critical findings on every main page in both languages; text contrast at least 4.5:1, every control named, scrollable regions reachable by keyboard; keyboard focus order, labels and errors work (WCAG 2.2 AA target)",
+      "acceptance_evidence": "ui-lab accessibility column = 0 on the release commit, plus a manual keyboard journey",
       "required_if_applies": true,
-      "implementation_status": "implemented"
+      "implementation_status": "implemented",
+      "merged_from": [
+        "UX-03"
+      ]
     },
     {
       "id": "QA-01",
@@ -1502,24 +1465,31 @@
         "lan",
         "saas"
       ],
-      "requirement": "A release candidate carries one quality report: unit, API/role-denial, static page checks, browser journeys, layout sweep, UI Lab, licence gate, and the field checks still pending, each with the exact command and result",
+      "tier": "reference",
+      "requirement": "A release candidate carries one quality report: unit, API/role-denial, static page checks, browser journeys, layout sweep, UI Lab, licence gate, and the field checks still pending, each with the exact command and result; the report covers unit, integration, browser, security, negative/permission, migration and recovery tests",
       "acceptance_evidence": "docs/QUALITY_SYSTEM.md checklist filled for the candidate commit",
       "required_if_applies": true,
-      "implementation_status": "implemented"
+      "implementation_status": "implemented",
+      "merged_from": [
+        "OPS-04"
+      ]
     },
     {
       "id": "LIC-01",
       "slug": "device-bound-trial-codes",
       "category": "licensing",
       "profiles": [
-        "desktop",
-        "lan",
-        "saas"
+        "paid"
       ],
-      "requirement": "Trial and paid entitlements are Ed25519 licence codes from apps/licence-studio (af-license codes v1): tied to the customer's device code, dated, verified offline with public keys only; expiry switches to read/export/backup, never deletes or hides data; clock rollback is detected",
+      "tier": "core",
+      "requirement": "Trial and paid entitlements are Ed25519 licence codes from apps/licence-studio (af-license codes v1): tied to the customer's device code, dated, verified offline with public keys only (the private key is never on the device); keys are purpose-separated (licence vs update); the program checks its own files at start; expiry switches to read/export/backup, never deletes or hides data; clock rollback is detected",
       "acceptance_evidence": "Product test: code for another PC refused, expired code refused, clock-back locks writes, reads/export/backup still work",
       "required_if_applies": true,
-      "implementation_status": "implemented"
+      "implementation_status": "implemented",
+      "merged_from": [
+        "BIZ-04",
+        "PROT-02"
+      ]
     },
     {
       "id": "QA-02",
@@ -1530,6 +1500,7 @@
         "lan",
         "saas"
       ],
+      "tier": "core",
       "requirement": "Every write route is tested with junk (wrong types, huge numbers, lists where ids belong, bad dates, long text) at top level and one field at a time inside a valid payload: the answer is always a calm 4xx, never a crash; a wrong value in a setting or licence box can never damage working data",
       "acceptance_evidence": "A junk-input suite (Al-Store tests/test_fuzz.py) green on the release commit; every crash it finds becomes a named regression test",
       "required_if_applies": true,
@@ -1543,6 +1514,7 @@
         "desktop",
         "lan"
       ],
+      "tier": "core",
       "requirement": "The Windows installer is built by a workflow on a real Windows runner, the built program folder and the silently installed copy are started and checked to serve their pages, and uninstall keeps the customer data (templates/windows-installer)",
       "acceptance_evidence": "A green workflow run id recorded in the product release notes; the clean-PC install by a person remains a separate gate (OPS-02)",
       "required_if_applies": true,
@@ -1557,10 +1529,14 @@
         "lan",
         "saas"
       ],
-      "requirement": "Grouped permission catalogue: one permission per page, per data-changing action and per sensitive field, plain-words labels in every product language, one administrator group shown apart",
+      "tier": "core",
+      "requirement": "Grouped permission catalogue: one permission per page, per data-changing action and per sensitive field, plain-words labels in every product language, one administrator group shown apart; customer users, roles and the company profile are checked on the server",
       "acceptance_evidence": "packages/af-access check passes in the product's unit tests (catalogue exported from the server's own permission list)",
       "required_if_applies": true,
-      "implementation_status": "implemented"
+      "implementation_status": "implemented",
+      "merged_from": [
+        "IAM-04"
+      ]
     },
     {
       "id": "IAM-09",
@@ -1571,6 +1547,7 @@
         "lan",
         "saas"
       ],
+      "tier": "reference",
       "requirement": "Ready-made profiles for the real jobs; the administrator can rename, change (optionally for everybody who has it), delete (people keep their ticks, shown as Custom) and create profiles; one locked administrator profile holds every permission",
       "acceptance_evidence": "API tests for save/apply/delete profile and refusal to change the locked one; browser walkthrough",
       "required_if_applies": true,
@@ -1585,6 +1562,7 @@
         "lan",
         "saas"
       ],
+      "tier": "core",
       "requirement": "The server refuses any change to people or profiles that leaves no active person able to manage people, removes the actor's own right, or gives an administrator right to a personal-link account",
       "acceptance_evidence": "af_access.admin_safety cases mirrored as API negative tests",
       "required_if_applies": true,
@@ -1599,6 +1577,7 @@
         "lan",
         "saas"
       ],
+      "tier": "core",
       "requirement": "Menu, palette, dock and direct URL follow the page permissions; the server returns no data of a page the person cannot open; sensitive fields are removed by the server",
       "acceptance_evidence": "Role-denial tests per page and per sensitive field",
       "required_if_applies": true,
@@ -1613,24 +1592,41 @@
         "lan",
         "saas"
       ],
+      "tier": "reference",
       "requirement": "Every change to a person, profile, tick, scope or limit is logged with who, when, added and removed; concurrent edits by two administrators are refused, not overwritten",
       "acceptance_evidence": "Audit row sample with added/removed lists; stale-version save refused",
       "required_if_applies": true,
       "implementation_status": "implemented"
+    }
+  ],
+  "retired": [
+    {
+      "id": "OPS-03",
+      "reason": "paperwork: the checkable parts are DATA-05 (restore on a clean PC) and OPS-01 (rollback)"
     },
     {
-      "id": "HELP-08",
-      "slug": "learning-path",
-      "category": "experience",
-      "profiles": [
-        "desktop",
-        "lan",
-        "saas"
-      ],
-      "requirement": "A learning path (المنهج) for every role: ordered lessons from setup to daily work, each a guide; the program shows where the person stands from real records (facts) and starts Guide me for the next lesson; a card on the first page until the path is complete",
-      "acceptance_evidence": "af-guide check passes (a path per role, admin path starts with setup, facts known); browser test: a fresh install shows lesson 1, doing the work moves 'you are here'",
-      "required_if_applies": true,
-      "implementation_status": "implemented"
+      "id": "OPS-05",
+      "reason": "process rule now enforced by GitHub branch protection (PR required, no force-push)"
+    },
+    {
+      "id": "HELP-06",
+      "reason": "habit with no checkable outcome; HELP-07 and HELP-09 already fail when a guide or problem entry is missing"
+    },
+    {
+      "id": "REG-01",
+      "reason": "the gate has no outside-review step; consent (PRIV-01) and the never-collect limits (PRIV-03) are what the factory enforces"
+    },
+    {
+      "id": "REG-02",
+      "reason": "no separate regulated tier; retention, audit and encryption are covered by DATA-02, SEC-02, SEC-04 and the privacy limits PRIV-03"
+    },
+    {
+      "id": "PRO-01",
+      "reason": "paperwork: `check` already requires buyer, problem and core_journey in the manifest"
+    },
+    {
+      "id": "PRO-02",
+      "reason": "paperwork: `check` already requires core_journey and an acceptance scenario in the manifest"
     }
   ]
 }

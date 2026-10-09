@@ -1,7 +1,7 @@
 # Mandatory instructions for every AI coding agent
 
 ## Read order
-1. README.md → FACTORY_CONSTITUTION.md → docs/decisions/ (ADRs) → docs/PLATFORM_ARCHITECTURE.md → docs/CONNECTIVITY_AND_SYNC.md → docs/PROTECTION_UPDATES_AND_SUPPORT.md → docs/HELP_AND_GUIDANCE_STANDARD.md → docs/DIAGNOSTICS_AND_REMOTE_FIX.md → docs/HESSA_FACTORY_ALIGNMENT.md (proven patterns from the first product) → docs/ACCESS_AND_ADMINISTRATION_STANDARD.md (people, profiles, pages, permissions: learned from BAMS)
+1. README.md → FACTORY_CONSTITUTION.md → docs/decisions/ (ADRs) → docs/PLATFORM_ARCHITECTURE.md → docs/CONNECTIVITY_AND_SYNC.md → docs/PROTECTION_UPDATES_AND_SUPPORT.md → docs/HELP_AND_GUIDANCE_STANDARD.md → docs/DIAGNOSTICS_AND_REMOTE_FIX.md → docs/HESSA_FACTORY_ALIGNMENT.md (proven patterns from the first product) → docs/ACCESS_AND_ADMINISTRATION_STANDARD.md (people, profiles, pages, permissions: learned from BAMS) → docs/GUIDED_ONBOARDING_STANDARD.md (af-guide)
 1b. docs/knowledge/README.md (repo map, capability map, lessons, GitHub radar) → docs/DESIGN_SYSTEM.md → docs/PERFORMANCE_STANDARD.md → docs/QUALITY_SYSTEM.md
 2. docs/MARKET_AND_STANDARDS.md → docs/REPOSITORY_AUDIT.md
 3. factory/controls.json → factory/product.schema.json → templates/*
@@ -26,17 +26,23 @@ For requests involving icons, motion graphics, layers, parallax, scroll transiti
 5. Reuse a versioned shared capability; feature-specific code stays in product-owned folders.
 6. Deliver one thin customer workflow **end-to-end**: correct permissions, save/retry, errors, audit, report and recovery.
 7. Tests: unit, integration, role-denial, tenant/scope, rollback, backups/restoration, browser UI including AR/EN/RTL, accessible keyboard use; target OS installer where relevant.
-8. Record evidence at every release gate; unresolved security/financial/data-integrity issues are NO-GO.
+8. Record evidence at every release gate; unresolved security/financial/data-integrity issues are NO-GO. `check --release` gates only on the applicable `core` controls (32 in the catalogue) plus two evidence items (`clean_device_restore`, `core_user_acceptance`); `reference` controls are advice and never block a release. Old ids still resolve: `python scripts/factory.py controls <ID>` says "merged into …" or "retired: …".
 9. Use a PR, review, CI and small safe merge; do not force-push or mass-merge unrelated divergent branches.
 10. Return: what changed, exact commit/PR, tests actually run, checks skipped, field checks pending, and next commercial decision.
 
 ## Shared packages available now
-- `apps/control-center`: Vendor Control Center (registry, heartbeats, tickets, consented grants, allowlisted repairs, licence desk). AI agents use its `agent` token: read and request only.
+- `apps/control-center`: Vendor Control Center (registry, heartbeats, tickets, consented grants, allowlisted repairs, licence desk, telemetry ingest, incidents, per-person usage, alerts that fan out in parallel to every enabled channel). AI agents use its `agent` token: read and request only. Channel secrets come from environment variables only.
+- `templates/telemetry-relay`: Cloudflare Worker + D1 mailbox between products and the Control Center. It never opens batches; the Control Center verifies everything.
+- `docs/CUSTOMER_PATCH_PIPELINE.md`: design only. Customer-reported problems go through fix, optional Patch Reviewer (only when asked), owner approval, installer build and release, then free delivery. Never automate WhatsApp to customers (MSG-01).
 - `packages/af-license`: signed licences and update manifests (Ed25519 via `cryptography`). Use it instead of any copied signing file. Private keys never enter a repository, CI secret or build.
 - `packages/af-license/af_license/codes.py`: short device-bound licence codes (trials and paid) with a stdlib verifier; copy into a product with `python scripts/vendor_licence.py <product-dir>`.
 - `apps/licence-studio`: the owner's code program (loopback web UI + MCP). Agents read, verify and request; trial issuing only when the owner enables it; paid codes owner-only.
 - `packages/af-access`: access-and-administration gate (permission catalogue rules, lock-out guards, who-can-do-what matrix); copy into a product with `python scripts/vendor_access.py <product-dir>` and run `afaccess.errors(auth.catalogue())` in its tests (IAM-08…IAM-12).
-- `packages/af-guide`: help gate (guides complete in every language, a learning path per role with facts for "you are here", every page reached, every problem with a guide, simple formal Arabic lint); copy with `python scripts/vendor_guide.py <product-dir>` and assert `afguide.errors(catalogue) == []` in the product's tests (HELP-01…HELP-08).
+- `packages/af-guide`: guided onboarding (role courses with per-person server progress, auto-advancing coach, per-page "?", error→problem links, per-guide language switch, «العربية الميسّرة» style lint, browser walker); copy with `python scripts/vendor_guide.py <product-dir>`, check with `python scripts/factory.py guide <product>/guide …` (HELP-04, HELP-07…HELP-12; [standard](docs/GUIDED_ONBOARDING_STANDARD.md)).
+- `packages/af-consent` and `packages/af-telemetry`: two-level consent and ids-and-counts telemetry.
+  - Includes the offline outbox, token-authenticated batches over HTTPS (protocol 2, 0.9.0) and problem reports that work without consent.
+  - Copy them with `python scripts/vendor_consent.py` and `python scripts/vendor_telemetry.py`.
+  - Never add a never-list field or free text outside `fb.*` (PRIV/TEL/FB/ROLL controls; [standard](docs/PRIVACY_TELEMETRY_STANDARD.md)).
 - `packages/af-ui`: the Showroom design system (tokens, components, fonts, icons, motion). Re-brand tokens only (UX-09).
 - `tools/ui-lab`: performance + accessibility gate against `factory/ui-budgets.json` (PERF-01, PERF-02, A11Y-01); every UI release candidate commits its report.
 - `.claude/skills/`: new-product, ui-quality-pass, licence-codes, factory-knowledge.

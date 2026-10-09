@@ -1,0 +1,15 @@
+{
+  "nav.shift": "الخزنة والوردية",
+  "nav.sell": "البيع",
+  "nav.stock": "المخزن",
+  "nav.people": "الأشخاص",
+  "shift.open": "افتح الوردية",
+  "shift.save": "حفظ",
+  "shift.close": "اقفل الوردية",
+  "sell.pay": "الدفع",
+  "sell.done": "تم البيع",
+  "stock.new": "صنف جديد",
+  "stock.save": "حفظ الصنف",
+  "people.new": "شخص جديد",
+  "people.save": "حفظ"
+}

@@ -38,7 +38,7 @@ class ControlCenterTests(unittest.TestCase):
         self.install_id, self.I = r["id"], {"X-Install-Token": r["install_token"]}
 
     def tearDown(self):
-        self.app.state.conn.close()
+        self.app.state.close()
         self.tmp.cleanup()
 
     def beat(self, **extra):

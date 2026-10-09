@@ -9,15 +9,18 @@ from __future__ import annotations
 import json
 import os
 import sys
+import threading
+import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Literal, Optional
 
-from fastapi import Depends, FastAPI, Header, HTTPException
-from fastapi.responses import FileResponse
-from pydantic import BaseModel, ConfigDict, Field
+from fastapi import Depends, FastAPI, Header, HTTPException, Request
+from fastapi.concurrency import run_in_threadpool
+from fastapi.responses import FileResponse, JSONResponse
+from pydantic import BaseModel, ConfigDict, Field, StrictBool
 
-from . import db
+from . import alerts, db, telemetry
 from .redact import redact
 from .security import grant_code, new_token, token_hash
 
@@ -40,6 +43,7 @@ HEARTBEAT_STALE_HOURS = 26
 BACKUP_STALE_HOURS = 48
 MAX_GRANT_MINUTES = 120
 STATIC = Path(__file__).parent / "static"
+VERSION = "0.3.0"
 
 
 class Strict(BaseModel):
@@ -99,6 +103,24 @@ class RepairIn(Strict):
     action: str
 
 
+class AlertSettingsIn(Strict):
+    channels: Optional[dict[str, bool]] = None
+    rules: Optional[dict[str, dict]] = None
+    dedupe_hours: Optional[int] = None
+    saturday_off: Optional[StrictBool] = None
+
+
+class PendingApproveIn(Strict):
+    customer_id: str
+    tier: str
+    label: Optional[str] = Field(default=None, max_length=80)
+    product: Optional[str] = Field(default=None, pattern=r"^[a-z][a-z0-9-]{2,48}$")
+
+
+class IncidentUpdate(Strict):
+    status: Literal["open", "acknowledged", "fixed"]
+
+
 class RepairResult(Strict):
     status: Literal["done", "failed"]
     result: str = Field(max_length=4000)
@@ -148,8 +170,25 @@ def trusted_licence_keys() -> dict[str, str]:
 
 def create_app(db_path: Optional[str] = None) -> FastAPI:
     conn = db.connect(db_path or os.environ.get("CC_DB", "data/control-center.db"))
-    app = FastAPI(title="Vendor Control Center", version="0.1.0", docs_url=None, redoc_url=None)
+    lock = threading.Lock()
+
+    def one_at_a_time():
+        """One shared sqlite connection: requests (run on several threads) and the background loop take turns.
+        Without this, parallel dashboard requests can read each other's cursors."""
+        with lock:
+            yield
+
+    app = FastAPI(title="Vendor Control Center", version=VERSION, docs_url=None, redoc_url=None,
+                  dependencies=[Depends(one_at_a_time)])
     app.state.conn = conn
+    app.state.lock = lock
+    app.state.deliverer = alerts.Deliverer(conn, lock)   # sends queued alerts outside the lock (started on first use)
+
+    def close():
+        app.state.deliverer.stop()
+        with lock:
+            conn.close()
+    app.state.close = close
 
     def one(sql: str, *args):
         row = conn.execute(sql, args).fetchone()
@@ -196,7 +235,7 @@ def create_app(db_path: Optional[str] = None) -> FastAPI:
 
     @app.get("/api/health")
     def service_health():
-        return {"ok": True, "version": "0.1.0"}
+        return {"ok": True, "version": VERSION}
 
     # ---------- vendor: registry ----------
     @app.post("/api/customers", status_code=201)
@@ -234,7 +273,8 @@ def create_app(db_path: Optional[str] = None) -> FastAPI:
     def list_installs(caller: dict = Depends(vendor)):
         now = datetime.now(timezone.utc)
         out = []
-        for item in rows("SELECT i.id, i.product, i.tier, i.label, i.active, i.created_at, c.name AS customer "
+        for item in rows("SELECT i.id, i.product, i.tier, i.label, i.active, i.created_at, i.clock_skew_s, i.last_contact, "
+                         "c.name AS customer "
                          "FROM installs i JOIN customers c ON c.id = i.customer_id ORDER BY c.name"):
             beat = latest_beat(item["id"])
             lic = one("SELECT licence_id, expires FROM licences WHERE install_id = ? AND revoked = 0 "
@@ -243,6 +283,31 @@ def create_app(db_path: Optional[str] = None) -> FastAPI:
                         "open_tickets": one("SELECT COUNT(*) AS n FROM tickets WHERE install_id = ? AND status != 'resolved'",
                                             item["id"])["n"]})
         return out
+
+    @app.get("/api/installs/pending")
+    def pending_installs(caller: dict = Depends(vendor)):
+        """PCs that sent telemetry before being registered. Nothing from them is used until the owner approves."""
+        return telemetry.list_pending(conn)
+
+    @app.post("/api/installs/pending/{pending_id}/approve", status_code=201)
+    def approve_pending(pending_id: str, body: PendingApproveIn, caller: dict = Depends(owner)):
+        if body.tier not in TIERS:
+            raise HTTPException(422, "unknown tier")
+        if not one("SELECT id FROM customers WHERE id = ?", body.customer_id):
+            raise HTTPException(404, "customer not found")
+        try:
+            out = telemetry.approve_pending(conn, pending_id, body.customer_id, body.tier, body.label, caller["name"],
+                                            product=body.product)
+        except telemetry.Rejected as error:
+            raise HTTPException(error.status, error.reason) from error
+        app.state.deliverer.wake()
+        return out
+
+    @app.post("/api/installs/pending/{pending_id}/discard")
+    def discard_pending(pending_id: str, caller: dict = Depends(owner)):
+        if not telemetry.discard_pending(conn, pending_id, caller["name"]):
+            raise HTTPException(404, "no pending install with this id")
+        return {"ok": True}
 
     @app.get("/api/installs/{install_id}/licence-claims")
     def licence_claims(install_id: str, days: int = 30, caller: dict = Depends(owner)):
@@ -299,7 +364,11 @@ def create_app(db_path: Optional[str] = None) -> FastAPI:
                 "ok": count("ok"), "warning": count("warning"), "stale": count("stale"), "never": count("never"),
                 "open_tickets": one("SELECT COUNT(*) AS n FROM tickets WHERE status != 'resolved'")["n"],
                 "active_grants": len(rows("SELECT id FROM grants WHERE ended_at IS NULL AND expires_at > ?", db.now_iso())),
-                "expiring_licences": len(expiring(14, caller))}
+                "expiring_licences": len(expiring(14, caller)),
+                "open_alerts": one("SELECT COUNT(*) AS n FROM alerts WHERE acked_at IS NULL")["n"],
+                "open_incidents": one("SELECT COUNT(*) AS n FROM incidents WHERE status != 'fixed'")["n"],
+                "pending_installs": one("SELECT COUNT(*) AS n FROM pending_installs")["n"],
+                "quarantined_batches": one("SELECT COUNT(*) AS n FROM rejected_batches")["n"]}
 
     @app.get("/api/tickets")
     def list_tickets(status: Optional[str] = None, caller: dict = Depends(vendor)):
@@ -369,7 +438,137 @@ def create_app(db_path: Optional[str] = None) -> FastAPI:
     def read_audit(limit: int = 200, caller: dict = Depends(vendor)):
         return rows("SELECT * FROM audit ORDER BY at DESC, id DESC LIMIT ?", max(1, min(limit, 1000)))
 
+    # ---------- vendor: telemetry dashboard ----------
+    @app.get("/api/alerts")
+    def list_alerts(open_only: bool = False, limit: int = 100, caller: dict = Depends(vendor)):
+        found = rows("SELECT a.*, c.name AS customer, i.product FROM alerts a LEFT JOIN installs i ON i.id = a.install_id "
+                     "LEFT JOIN customers c ON c.id = i.customer_id" + (" WHERE a.acked_at IS NULL" if open_only else "") +
+                     " ORDER BY a.created_at DESC LIMIT ?", max(1, min(limit, 500)))
+        for a in found:
+            a["deliveries"] = rows("SELECT channel, status, detail, attempted_at, ms FROM alert_deliveries WHERE alert_id = ? "
+                                   "ORDER BY channel", a["id"])
+        return found
+
+    @app.post("/api/alerts/{alert_id}/ack")
+    def ack_alert(alert_id: str, caller: dict = Depends(vendor)):
+        if not conn.execute("UPDATE alerts SET acked_at = ?, acked_by = ? WHERE id = ? AND acked_at IS NULL",
+                            (db.now_iso(), caller["name"], alert_id)).rowcount:
+            raise HTTPException(404, "no open alert")
+        db.audit(conn, caller["name"], "alert.ack", alert_id)
+        return {"ok": True}
+
+    @app.get("/api/alert-settings")
+    def read_alert_settings(caller: dict = Depends(vendor)):
+        s = alerts.get_settings(conn)
+        return {"channels": alerts.channel_status(conn), "rules": s["rules"], "dedupe_hours": s["dedupe_hours"],
+                "saturday_off": s["saturday_off"], "weekend": ["fri", "sat"] if s["saturday_off"] else ["fri"],
+                "note": "Secrets are read from environment variables only and are never shown or stored here."}
+
+    @app.put("/api/alert-settings")
+    def write_alert_settings(body: AlertSettingsIn, caller: dict = Depends(owner)):
+        try:
+            alerts.save_settings(conn, body.channels, body.rules, body.dedupe_hours, body.saturday_off)
+        except ValueError as error:
+            raise HTTPException(422, str(error)) from error
+        db.audit(conn, caller["name"], "alerts.settings", None, channels=body.channels, rules=body.rules,
+                 dedupe_hours=body.dedupe_hours, saturday_off=body.saturday_off)
+        return read_alert_settings(caller)
+
+    @app.post("/api/alerts/test")
+    def test_alert(caller: dict = Depends(owner)):
+        """Queues one test alert for every enabled channel; it is sent in the background (outside the database lock)
+        and each channel's result appears under /api/alerts a few seconds later."""
+        a = alerts.raise_alert(conn, "problem_report", None, f"تنبيه تجريبي من {caller['name']}", db.uuid7(), deliver=False)
+        db.audit(conn, caller["name"], "alerts.test", a["id"] if a else None)
+        app.state.deliverer.wake()
+        return a
+
+    @app.get("/api/incidents")
+    def list_incidents(status: Optional[str] = None, caller: dict = Depends(vendor)):
+        found = rows("SELECT * FROM incidents" + (" WHERE status = ?" if status else "") + " ORDER BY last_seen DESC LIMIT 300",
+                     *([status] if status else []))
+        for i in found:
+            i["installs"], i["versions"] = json.loads(i["installs"]), json.loads(i["versions"])
+        return found
+
+    @app.post("/api/incidents/{incident_id}")
+    def update_incident(incident_id: str, body: IncidentUpdate, caller: dict = Depends(vendor)):
+        if not conn.execute("UPDATE incidents SET status = ? WHERE id = ?", (body.status, incident_id)).rowcount:
+            raise HTTPException(404, "incident not found")
+        db.audit(conn, caller["name"], "incident.update", incident_id, status=body.status)
+        return {"ok": True}
+
+    @app.get("/api/usage")
+    def usage(install_id: Optional[str] = None, days: int = 30, caller: dict = Depends(vendor)):
+        """Per person (pseudonym) and per item, for one installation or all. Only ids and counts exist here."""
+        since = _iso(datetime.now(timezone.utc) - timedelta(days=max(1, min(days, 730))))[:10]
+        where, args = "WHERE day >= ?", [since]
+        if install_id:
+            where, args = where + " AND install_id = ?", args + [install_id]
+        people = rows("SELECT install_id, subject, COUNT(DISTINCT day) AS active_days, SUM(count) AS actions, MAX(day) AS last_day "
+                      f"FROM usage_daily {where} AND type IN ('use.page','use.action','use.shortcut') "
+                      "GROUP BY install_id, subject ORDER BY actions DESC LIMIT 500", *args)
+        items = rows(f"SELECT type, item, SUM(count) AS count, COUNT(DISTINCT subject) AS people FROM usage_daily {where} "
+                     "GROUP BY type, item ORDER BY count DESC LIMIT 300", *args)
+        return {"since": since, "people": people, "items": items}
+
+    @app.get("/api/guides/funnel")
+    def guide_funnel(days: int = 90, caller: dict = Depends(vendor)):
+        since = _iso(datetime.now(timezone.utc) - timedelta(days=max(1, min(days, 730))))[:10]
+        out = {}
+        for r in rows("SELECT item, type, SUM(count) AS n, COUNT(DISTINCT subject) AS people FROM usage_daily "
+                      "WHERE day >= ? AND type IN ('guide.start','guide.done','guide.abandon') GROUP BY item, type", since):
+            g = out.setdefault(r["item"], {"guide": r["item"], "start": 0, "done": 0, "abandon": 0, "people": 0})
+            g[r["type"].split(".")[1]] = r["n"]
+            g["people"] = max(g["people"], r["people"])
+        for g in out.values():
+            g["completion"] = round(g["done"] / g["start"], 2) if g["start"] else None
+        return sorted(out.values(), key=lambda g: (g["completion"] is None, g["completion"] or 0))
+
+    @app.get("/api/releases")
+    def releases(caller: dict = Depends(vendor)):
+        return rows("SELECT product, version, COUNT(DISTINCT install_id) AS installs, "
+                    "SUM(CASE WHEN type IN ('err.server','err.client') THEN 1 ELSE 0 END) AS errors, "
+                    "SUM(CASE WHEN type = 'upgrade.fail' THEN 1 ELSE 0 END) AS upgrade_failures, MAX(ts) AS last_seen, "
+                    "SUM(CASE WHEN env = 'practice' THEN 1 ELSE 0 END) AS practice_events "
+                    "FROM events GROUP BY product, version ORDER BY product, last_seen DESC")
+
+    @app.get("/api/feedback")
+    def feedback_inbox(caller: dict = Depends(vendor)):
+        return [t for t in list_tickets(None, caller) if str(t["bundle"].get("kind", "")).startswith("fb.")]
+
+    @app.post("/api/relay/pull")
+    def relay_pull(caller: dict = Depends(owner)):
+        url, token = os.environ.get("CC_RELAY_URL", ""), os.environ.get("CC_RELAY_TOKEN", "")
+        if not url or not token:
+            raise HTTPException(409, "CC_RELAY_URL and CC_RELAY_TOKEN are not set")
+        out = telemetry.pull_relay(conn, url, token)   # this request already holds the lock
+        app.state.deliverer.wake()
+        return out
+
+    @app.post("/api/alerts/periodic")
+    def run_periodic(caller: dict = Depends(owner)):
+        fired = alerts.periodic(conn, deliver=False)
+        app.state.deliverer.wake()
+        return {"fired": len(fired)}
+
     # ---------- install (customer product) ----------
+    @app.post("/api/agent/events", status_code=202)
+    async def receive_events(request: Request):
+        """gzip batch straight from a product (when this server is reachable), with its install token; the relay path
+        uses the same checks. Storing runs on a worker thread and alerts are only queued, so neither the event loop nor
+        the dashboard ever waits for an e-mail or Telegram send. Every answer carries server_time for clock correction."""
+        body = await request.body()
+        if len(body) > telemetry.MAX_GZIP:
+            return JSONResponse({"detail": "batch too large", "server_time": int(time.time())}, status_code=413)
+        try:
+            out = await run_in_threadpool(telemetry.receive, conn, dict(request.headers), body)
+        except telemetry.Rejected as error:
+            return JSONResponse({"detail": error.reason, "server_time": int(time.time())},
+                                status_code=error.status if error.permanent else 503)
+        app.state.deliverer.wake()
+        return JSONResponse(out, status_code=202)
+
     @app.post("/api/agent/heartbeat")
     def heartbeat(body: Heartbeat, me: dict = Depends(install)):
         conn.execute("INSERT INTO heartbeats (id, install_id, received_at, version, licence_state, last_backup_at, "

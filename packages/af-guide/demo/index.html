@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>af-guide demo shop</title>
+<link rel="stylesheet" href="/af-guide.css">
+<script src="/af-guide.js" defer></script>
+<script src="/demo.js" defer></script>
+</head>
+<body>
+<header class="demo-top"><nav id="nav"></nav><span id="help-slot"></span></header>
+<main>
+  <section data-page="home"><h1>الرئيسية</h1><button type="button" id="sell-without-shift">بيع تجريبي</button><p id="error" role="alert"></p></section>
+  <section data-page="shift" hidden>
+    <h1 data-ui="nav.shift"></h1><p data-guide="shift.status" id="shift-status">مغلقة</p>
+    <button type="button" data-guide="shift.open" data-ui="shift.open"></button>
+    <button type="button" data-guide="shift.close" data-ui="shift.close"></button>
+    <div id="shift-form" hidden><input data-guide="shift.cash" aria-label="cash" inputmode="decimal"><input data-guide="shift.counted" aria-label="counted" hidden inputmode="decimal">
+      <button type="button" data-guide="shift.save" data-ui="shift.save"></button></div>
+  </section>
+  <section data-page="sell" hidden>
+    <h1 data-ui="nav.sell"></h1><input data-guide="sell.search" aria-label="search">
+    <button type="button" data-guide="sell.pay" data-ui="sell.pay"></button>
+    <button type="button" data-guide="sell.done" data-ui="sell.done" hidden></button>
+  </section>
+  <section data-page="stock" hidden>
+    <h1 data-ui="nav.stock"></h1><button type="button" data-guide="stock.new" data-ui="stock.new"></button>
+    <div id="stock-form" hidden><input data-guide="stock.name" aria-label="name"><button type="button" data-guide="stock.save" data-ui="stock.save"></button></div>
+  </section>
+  <section data-page="people" hidden>
+    <h1 data-ui="nav.people"></h1><button type="button" data-guide="people.new" data-ui="people.new"></button>
+    <div id="people-form" hidden><select data-guide="people.profile" aria-label="profile"><option value=""></option><option value="cashier">كاشير</option></select>
+      <button type="button" data-guide="people.save" data-ui="people.save"></button></div>
+  </section>
+  <section data-page="help" hidden><h1>المساعدة</h1></section>
+</main>
+</body>
+</html>

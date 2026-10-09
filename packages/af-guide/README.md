@@ -1,48 +1,93 @@
-# af-guide v0.1.2 • guides, learning paths, problems and simple Arabic gate
+# af-guide v0.1.0: role courses, coach, per-page help and the Arabic style lint
 
-**Status:** `implemented` (unit-tested here; Hessa's full help passes). Standard:
-[docs/HELP_AND_GUIDANCE_STANDARD.md](../../docs/HELP_AND_GUIDANCE_STANDARD.md). Controls `HELP-01`…`HELP-08`.
+**Status:** `implemented`. Unit-tested and browser-tested here against the demo shop; no product uses it yet.
 
-One file, standard library only, copied into each product (`python scripts/vendor_guide.py <product repo>` → `server/afguide.py`).
+- **Standard:** [docs/GUIDED_ONBOARDING_STANDARD.md](../../docs/GUIDED_ONBOARDING_STANDARD.md).
+- **Controls:** `HELP-04`, `HELP-07` … `HELP-12`.
+- **Copy into a product:** `python scripts/vendor_guide.py <product repo>`. This writes `server/afguide.py`, `<js>/vendor/af-guide.js` and `<css>/af-guide.css`.
+
+| File | What |
+|---|---|
+| `af_guide.py` | Checker, style lint, per-person progress (`apply`, `course`, `state`, `SQL`, `load`, `save`), outline, CLI. Standard library only. |
+| `af-guide.js` / `af-guide.css` | Browser runtime: «الدليل» button and panel, coach, per-page "?", problem entries, language switch. No dependencies, `textContent` only, strict-CSP safe. |
+| `style/ar-lexicon.json` | The «العربية الميسّرة» rules: sentence length, plus banned colloquial and technical words with replacements. |
+| `testing/walk_guides.py` | Walks every guide in a real browser (Playwright) and reports steps that never advance (HELP-12). |
+| `demo/` | Reference integration: a tiny shop page and the two server routes (`python demo/server.py`). |
+| `examples/shop/` | A complete bilingual catalogue that passes `check --release`. |
 
 ```bash
-python af_guide.py check catalogue.json     # exit 1 on any error
-python -m unittest discover -s tests
+python af_guide.py check examples/shop --ui examples/shop/ui-ar.json --ui examples/shop/ui-en.json \
+       --access examples/shop/access.json --errors examples/shop/errors.json --release
+python af_guide.py outline examples/shop ar        # the courses as Markdown, for the reading pass
+python -m unittest discover -s tests -v            # browser tests need: pip install playwright && playwright install chromium
+node --test tests/core.test.mjs
 ```
 
-## Catalogue format
-A product builds it from its real guide list and both dictionaries (Hessa: `tests/guide_catalogue.js`), adds the facts its
-server reports and its menu pages, then asserts `afguide.errors(cat) == []` in a unit test (Hessa: `tests/test_guide_gate.py`).
+## Catalogue (`guide/catalogue.json`)
 ```json
 {
-  "product": "al-store", "languages": ["ar", "en"],
-  "facts": ["shopNamed", "shiftOpened", "saleMade"],
-  "pages": ["settings", "cash", "pos"],
-  "roles": ["owner", "cashier"],
-  "setup_guides": ["setup"],
-  "guides": [{"id": "openShift", "steps": 3, "pages": ["cash"],
-              "texts": {"ar": ["title", "what you get", "step 1", "step 2", "step 3", "how you know it worked"], "en": ["..."]}}],
-  "paths": [{"id": "owner", "admin": true, "roles": ["owner"], "texts": {"ar": ["name", "who it is for"], "en": ["..."]},
-             "lessons": [{"guide": "setup", "fact": "shopNamed"}, {"guide": "openShift", "fact": "shiftOpened"}, {"guide": "sell"}]}],
-  "situations": [{"id": "drawerShort", "guide": "openShift", "texts": {"ar": ["question", "answer"], "en": ["..."]}}],
-  "other_ar": {"help.intro": "every other Arabic help text, only for the register check"}
+  "product": "al-store", "format": 1,
+  "languages": ["ar", "en"], "defaultLang": "ar", "uiLanguages": ["ar", "en"],
+  "pages": ["home", "sell", "shift"], "unguided": ["help"],
+  "states": ["shift.open", "sale.first"],
+  "checklist": ["open-shift"],
+  "targets": {"shift.open": {"page": "shift", "sel": "[data-guide=\"shift.open\"]"}},
+  "guides": [{"id": "open-shift", "cat": "shift", "perm": "shift.open", "minutes": 2, "requires": [],
+              "done": {"state": "shift.open"},
+              "steps": [{"k": "go", "page": "shift"},
+                        {"k": "click", "target": "shift.open", "until": {"target": "shift.cash"}},
+                        {"k": "type", "target": "shift.cash", "until": {"filled": "shift.cash"}},
+                        {"k": "done"}]}],
+  "roles": [{"id": "cashier", "profiles": ["cashier"], "path": ["open-shift"]}],
+  "problems": [{"id": "no-shift", "cat": "sell", "page": "shift", "guide": "open-shift",
+                "errors": ["sale.no_shift"], "roles": ["cashier"]}]
 }
 ```
-* `facts`: what the server can say about the person asking, computed from the real rows (never a stored tick), e.g.
-  `myShiftOpened`, `saleMade`. A lesson with a fact is done when the fact is true; a lesson without one is done when the person
-  finished its guide.
-* `roles`: the ready-made profiles (`af-access`); each must be on a path.
-* `setup_guides`: the guides the administrator's path may start with.
-* optional `role_perms` (`{role: [perm…] | "*"}`) and a guide's `perm` (one id or a list, any one is enough): every lesson must be
-  one its role can do (Hessa review: a teacher's path held a lesson about balances teachers cannot see).
 
-## Rules (`check`)
-Errors: `words-missing`, `register`, `guide-id`, `guide-duplicate`, `guide-short`, `page-without-guide`, `no-paths`, `no-admin-path`,
-`path-duplicate`, `path-short`, `lesson-unknown-guide`, `lesson-unknown-fact`, `admin-path-order`, `role-without-path`,
-`no-setup-guides`, `no-problems`, `problem-without-guide`, `problem-unknown-guide`, `no-guides`, `lesson-not-allowed` (when `role_perms` and guide `perm` are given: a lesson its role has no right for).
-Warning: `path-unchecked` (fewer than half the lessons have a fact).
+Field rules:
+- **Step kinds (`k`):** `go`, `click`, `type`, `choose`, `check`, `tip`, `warn`, `done`.
+  - Action kinds need a `target`.
+  - `go` needs a `page`.
+  - The last step is `done`.
+- **`until`:** exactly one of `route`, `target`, `gone`, `filled`, `dialog`, `event`. A `go` step defaults to `route`.
+- **`perm`:** an af-access permission id, or `"*"`.
 
-## Helpers
-* `register(text)` → the words that break *simple formal Arabic* (العربية المبسطة): street Egyptian (`ده`, `مش`, `عشان`,
-  `إزاي`, `زرار`, `اللي`…) or stiff office Arabic (`يُرجى`, `نظرًا`, `بموجب`, `حيث إن`…).
-* `progress(lessons, facts, done_guides)` → `(index of "you are here", [done flags])`, the same rule the screen uses.
+## Texts (`guide/<lang>.json`, flat keys)
+- **Required:**
+  - `role.<id>.title`, `role.<id>.intro`;
+  - `guide.<id>.title`, `.why`, `.ok`, plus `.1` … `.n` (one per step);
+  - `problem.<id>.see`, `.why`, `.do.1` ….
+- **Optional:** `guide.<id>.mistake` and `problem.<id>.still`.
+
+`[[ui.key]]` is replaced by the product's own UI label, in the UI language, inside «».
+
+## Server routes (the demo shows them; about 15 lines in a product)
+```python
+def guide_state(me):                                   # GET /api/guide/state
+    return afguide.state(CAT, me.role, afguide.load(db, me.id), live_states(), can=me.can)
+
+def guide_progress(me, body):                          # POST /api/guide/progress {"update": {...}}
+    try:
+        rec = afguide.apply(afguide.load(db, me.id), body.get('update'), CAT)
+    except ValueError as e:
+        return 400, {'error': str(e)}
+    afguide.save(db, me.id, rec)
+    return afguide.state(CAT, me.role, rec, live_states(), can=me.can)
+```
+
+## Browser API
+`AFGuide.init(opts)` returns a controller.
+
+**Controller methods:**
+- `open(page?)`, `close()`, `start(id, step?)`, `stop()`
+- `signal(event)`
+- `explain(code)`, `errorButton(code)`, `helpButton(page?)`
+- `setStates(list)`, `setLang(lang)`, `routeChanged()`
+- `course()`, `progress()`, and `ready` (a promise)
+
+**Options:**
+- Required: `catalogue`, `texts`, `role`.
+- Optional:
+  - `person`, `ui(key, lang)`, `uiLang`, `route()`, `go(page)`, `can(perm)`
+  - `track(type, data)`: emits `guide.start/step/done/abandon/lang` and `problem.open` for af-telemetry
+  - `onReport(ctx)`, `request(method, url, body)`, `api`, `mount`, `interval`

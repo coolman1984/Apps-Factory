@@ -1,0 +1,22 @@
+# Copy, then replace the placeholders. Secrets are NEVER written here:
+#   wrangler secret put RELAY_PULL_TOKEN      (required; the Control Center's CC_RELAY_TOKEN)
+name = "af-telemetry-relay"
+main = "src/worker.js"
+compatibility_date = "2026-10-01"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "af-telemetry-relay"
+database_id = "REPLACE_WITH_YOUR_D1_DATABASE_ID"
+
+[triggers]
+crons = ["17 3 * * *"]   # daily clean-up of anything older than KEEP_DAYS
+
+[vars]
+RATE_PER_HOUR = "120"               # batches per install per hour
+MAX_ROWS_PER_INSTALL = "2000"       # waiting batches per install (then 503: the product keeps them and retries)
+MAX_BYTES_PER_INSTALL = "20971520"  # 20 MB waiting per install
+PENDING_MAX_ROWS = "200"            # shared area for PCs nobody registered yet ("0" turns it off)
+PENDING_PER_INSTALL = "5"
+PENDING_PER_SOURCE = "10"           # per network address per day (stored only as a salted hash)
+KEEP_DAYS = "14"
