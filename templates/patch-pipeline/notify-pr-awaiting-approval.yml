@@ -1,0 +1,64 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Telegram notice: "a customer patch PR is waiting for your approval"
+# TEMPLATE, NOT ACTIVE — lives in templates/, so GitHub never runs it here.
+#
+# Covers fixes the OWNER (or anyone but the patch agent) opens for a customer
+# report. PRs from the agent's own branches (patch/issue-N) are skipped,
+# because claude-patch-agent.yml already sends that notice.
+#
+# Activate per product repo: copy to .github/workflows/, add the secrets
+# TELEGRAM_BOT_TOKEN and TELEGRAM_OWNER_CHAT_ID, and set the repo variable
+# PATCH_NOTIFY_ENABLED=true. Off again with PATCH_NOTIFY_ENABLED=false.
+# It only reads and sends one Telegram message; it never changes the repo.
+# ─────────────────────────────────────────────────────────────────────────────
+name: Patch PR awaiting approval (Telegram)
+
+on:
+  pull_request:
+    types: [opened, ready_for_review]
+    branches: [main]
+
+permissions: {}
+
+jobs:
+  notify:
+    if: >-
+      vars.PATCH_NOTIFY_ENABLED == 'true' &&
+      !github.event.pull_request.draft &&
+      !startsWith(github.event.pull_request.head.ref, 'patch/issue-')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      issues: read           # read the linked issue's labels and title
+      pull-requests: read
+    steps:
+      - name: Notify owner if the PR fixes a customer-report issue
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_OWNER_CHAT_ID: ${{ secrets.TELEGRAM_OWNER_CHAT_ID }}
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: |
+          if [ -z "$TELEGRAM_BOT_TOKEN" ] || [ -z "$TELEGRAM_OWNER_CHAT_ID" ]; then
+            echo "Telegram secrets not set; skipping notice."; exit 0
+          fi
+          # Issues this PR closes: "Fixes #N", "Closes #N", "Resolves #N" (any case).
+          NUMS=$(printf '%s' "$PR_BODY" | grep -oiE '(fix(es|ed)?|close[sd]?|resolve[sd]?) +#[0-9]+' | grep -oE '[0-9]+' | sort -u || true)
+          sent=0
+          for N in $NUMS; do
+            if gh issue view "$N" -R "$REPO" --json labels -q '.labels[].name' 2>/dev/null | grep -qx 'customer-report'; then
+              TITLE=$(gh issue view "$N" -R "$REPO" --json title -q .title)
+              TEXT=$(printf '🔧 باتش مستني موافقتك\n%s — بلاغ #%s: %s\n%s\nمفيش دمج ولا EXE من غير موافقتك.' \
+                "$REPO" "$N" "$TITLE" "$PR_URL")
+              curl -sS --fail-with-body --max-time 15 -o /dev/null \
+                "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+                --data-urlencode "chat_id=${TELEGRAM_OWNER_CHAT_ID}" \
+                --data-urlencode "text=${TEXT}" \
+                --data-urlencode "disable_web_page_preview=true" \
+                || echo "::warning::Telegram notice failed for issue #$N"
+              sent=1
+            fi
+          done
+          [ "$sent" = 1 ] || echo "PR is not linked to a customer-report issue; no notice."
