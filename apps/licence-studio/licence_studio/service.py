@@ -227,13 +227,17 @@ class Studio:
             raise StudioError('days', 'Days must be 1 to 3660.')
         return device
 
+    @staticmethod
+    def _need_device(edition, device):
+        if edition in ('trial', 'perpetual') and not device:
+            raise StudioError('device.required', 'A trial or perpetual code must be tied to the customer\'s device code (so it cannot be passed on).')
+
     def issue(self, product, edition, device, customer='', phone='', days=None, first_day=None, grace_days=0, seats=1, note='',
               actor='owner', request_id=None):
         prod = self.one('SELECT * FROM products WHERE id = ?', product)
         days = int(days or (prod['trial_days'] if prod and edition == 'trial' else 365))
         device = self._check_terms(product, edition, device, days)
-        if edition in ('trial', 'perpetual') and not device:
-            raise StudioError('device.required', 'A trial or perpetual code must be tied to the customer\'s device code (so it cannot be passed on).')
+        self._need_device(edition, device)
         if edition == 'perpetual':
             grace_days = 0
         first = date.fromisoformat(first_day) if first_day else date.today()
@@ -303,6 +307,7 @@ class Studio:
         prod = self.one('SELECT * FROM products WHERE id = ?', product)
         days = int(days or (prod['trial_days'] if prod and edition == 'trial' else 365))
         device = self._check_terms(product, edition, device, days)
+        self._need_device(edition, device)  # refused now: a request without its device could never be approved
         if not (customer or '').strip():
             raise StudioError('customer', 'Write the customer or shop name.')
         rid = str(uuid.uuid4())

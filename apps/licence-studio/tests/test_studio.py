@@ -80,6 +80,12 @@ class ServiceTests(unittest.TestCase):
         v = self.s.verify(forever['code'], 'al-store', DEVICE)
         self.assertEqual((v['state'], v['terms']['edition'], v['terms']['last_day']), ('active', 'perpetual', None))
         self.assertEqual(len(self.s.list_codes()), 3)
+        for edition in ('perpetual', 'trial'):  # a request that could never be approved is refused when it is made
+            with self.assertRaises(StudioError) as e:
+                self.s.request('al-store', edition, None, 'Shop')
+            self.assertEqual(e.exception.key, 'device.required')
+        self.assertEqual(self.s.requests(), [])
+        self.assertTrue(self.s.request('al-store', 'perpetual', DEVICE, 'Shop'))
 
     def test_wrong_passphrases_are_throttled(self):
         self.s.create_key(PASS)
