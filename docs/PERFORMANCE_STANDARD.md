@@ -1,3 +1,5 @@
+> Reference spec. Living rules: [RULES.md](../RULES.md); parts: [PARTS.md](../PARTS.md).
+
 # Performance department — UI Lab ⚡
 
 **Status:** `implemented` (`tools/ui-lab`), first run on Al-Store 1.0.1: all pages within budget. Controls `PERF-01`, `PERF-02`, `A11Y-01`.

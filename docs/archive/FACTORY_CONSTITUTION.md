@@ -21,15 +21,15 @@
 16. **No ungrounded certification:** do not imply tax, medical, payments, ISO or legal compliance without independent scope-specific checks and approval.
 17. **Test, not theatrical reports:** passing tests must be executed on exact source/artifact; skipped tests stay skipped; verify release and customer acceptance separately.
 18. **Reusable versioned core:** product customization via manifest/plugins and product-specific modules; no duplicating security/licensing/admin engines across apps; breaking core changes require compatibility test matrix.
-19. **Modular monolith, tier-ready data:** one deployable app per product built from modules with versioned contracts ([ADR-0001](docs/decisions/ADR-0001-architecture-and-connectivity-tiers.md)). Every record has org (and branch) scope and a globally unique client-generated ID from the first schema, so moving a customer to a higher connectivity tier never rewrites data.
-20. **Honest connectivity:** the contract states what happens when the main PC, the internet or the cloud is down. Offline work is bounded (grace days), every offline change is re-authorized by the hub, rejected changes are visible, and replicas are never counted as backups ([sync spec](docs/CONNECTIVITY_AND_SYNC.md)).
+19. **Modular monolith, tier-ready data:** one deployable app per product built from modules with versioned contracts ([ADR-0001](../decisions/ADR-0001-architecture-and-connectivity-tiers.md)). Every record has org (and branch) scope and a globally unique client-generated ID from the first schema, so moving a customer to a higher connectivity tier never rewrites data.
+20. **Honest connectivity:** the contract states what happens when the main PC, the internet or the cloud is down. Offline work is bounded (grace days), every offline change is re-authorized by the hub, rejected changes are visible, and replicas are never counted as backups ([sync spec](../CONNECTIVITY_AND_SYNC.md)).
 
 21. **Free and simple first:** pick proven free/open-source tools; pay only where no free path exists (code signing, one small server, a domain). Record the reason for every paid tool. Revisit when revenue allows.
-22. **Protection without hostage-taking:** copy protection is layered and honest ([ADR-0002](docs/decisions/ADR-0002-protection-updates-vendor-control.md)): signed licences with vetted crypto, compiled signed builds, traceable licences. It never deletes, hides or encrypts customer data and never hides a remote kill switch.
+22. **Protection without hostage-taking:** copy protection is layered and honest ([ADR-0002](../decisions/ADR-0002-protection-updates-vendor-control.md)): signed licences with vetted crypto, compiled signed builds, traceable licences. It never deletes, hides or encrypts customer data and never hides a remote kill switch.
 23. **Updates never touch customer data:** signed update manifests, data/settings outside the program folder, verified backup before migration, automatic rollback, canary first.
 24. **Support through one door:** every product has a help button, self-diagnosis and customer-consented remote sessions reporting to the Vendor Control Center. AI agents work through that center with read-by-default tools, PRs for code, and allowlisted, approved, audited repairs only.
 
-25. **Help is part of the product:** guides, "Guide me", "Solve a problem" and questions in polished Egyptian Arabic that a 12-year-old understands; no welcome slideshow ([ADR-0005](docs/decisions/ADR-0005-help-diagnostics-remote.md)).
+25. **Help is part of the product:** guides, "Guide me", "Solve a problem" and questions in polished Egyptian Arabic that a 12-year-old understands; no welcome slideshow ([ADR-0005](../decisions/ADR-0005-help-diagnostics-remote.md)).
 26. **Hidden diagnostics:** every product carries a vendor-only diagnostics probe, run only under an open customer support window.
 
 ## Profiles

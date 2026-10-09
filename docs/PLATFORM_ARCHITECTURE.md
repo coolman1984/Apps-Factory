@@ -1,3 +1,5 @@
+> Reference spec. Living rules: [RULES.md](../RULES.md); parts: [PARTS.md](../PARTS.md).
+
 # Platform architecture and capability contracts
 
 Decision record: [ADR-0001](decisions/ADR-0001-architecture-and-connectivity-tiers.md) — modular monolith, default stack, connectivity tiers.
@@ -42,7 +44,7 @@ Apps Factory (governance/manifest/gates/standards)
 - Billing provider is source of invoice/payment truth, app stores reconciled entitlement snapshot.
 - Verify webhook signature and event ID; handle duplicate/out-of-order events by checking authoritative subscription state.
 - Show expiry, renewal, invoice history, grace and limitations in Arabic/English.
-- Read/export/backup and legal data access remain available after restriction. No destructive disabling.
+- Read/export/backup remain available after restriction. No destructive disabling.
 - No software-based license is unbreakable; measure abuse pragmatically rather than punish customers.
 
 ## Implementation boundaries

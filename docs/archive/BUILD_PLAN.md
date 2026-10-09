@@ -1,6 +1,6 @@
 # خطة بناء المصنع 🏭 • ٢٠٢٦-١٠-٠٨
 
-القرارات المعتمدة: [ADR-0001](decisions/ADR-0001-architecture-and-connectivity-tiers.md) • [ADR-0002](decisions/ADR-0002-protection-updates-vendor-control.md) • تفاصيل المزامنة: [CONNECTIVITY_AND_SYNC.md](CONNECTIVITY_AND_SYNC.md) • الحماية والتحديث والدعم: [PROTECTION_UPDATES_AND_SUPPORT.md](PROTECTION_UPDATES_AND_SUPPORT.md)
+القرارات المعتمدة: [ADR-0001](../decisions/ADR-0001-architecture-and-connectivity-tiers.md) • [ADR-0002](../decisions/ADR-0002-protection-updates-vendor-control.md) • تفاصيل المزامنة: [CONNECTIVITY_AND_SYNC.md](../CONNECTIVITY_AND_SYNC.md) • الحماية والتحديث والدعم: [PROTECTION_UPDATES_AND_SUPPORT.md](../PROTECTION_UPDATES_AND_SUPPORT.md)
 **الحالة:** قواعد ومواصفات. مفيش محرك مزامنة أو تطبيق أساسي مبني لسه.
 
 ## ١. الباقات الأربعة اللي هنبيعها 📦
@@ -43,7 +43,7 @@
 | 📲 تفعيل بالجهاز | البرنامج يطلع كود للجهاز، وأنت ترد بالرخصة على واتساب أو إيميل | مجاني |
 | 🧱 نسخة مترجمة | البرنامج يتحول لكود مترجم بدل ملفات بايثون اللي تتفتح بسهولة | مجاني |
 | 🕵️ كشف التلاعب | البرنامج يكشف لو ملفاته اتعدلت أو لو ساعة الجهاز اترجعت لورا | مجاني |
-| ✍️ توقيع | **دلوقتي:** توقيعنا إحنا على البرنامج والتحديثات، وبنركّب بنفسنا. **بعدين:** شهادة ويندوز لما الفلوس تيجي ([القرار](decisions/ADR-0004-windows-trust-without-certificate.md)) | مجاني دلوقتي |
+| ✍️ توقيع | **دلوقتي:** توقيعنا إحنا على البرنامج والتحديثات، وبنركّب بنفسنا. **بعدين:** شهادة ويندوز لما الفلوس تيجي ([القرار](../decisions/ADR-0004-windows-trust-without-certificate.md)) | مجاني دلوقتي |
 | 🏷️ اسم العميل ظاهر | اسمه على الشاشة والإيصالات، والتحديثات والدعم للرخص السليمة بس | مجاني |
 
 🚫 **ممنوع:** نمسح أو نخفي بيانات العميل لما الرخصة تخلص، أو نحط زرار قفل خفي. الرخصة لو خلصت، البرنامج يفضل يعرض البيانات ويصدّرها وياخد نسخة احتياطية.
@@ -79,5 +79,5 @@
 - برنامج جديد بالباقة الأعلى:
   `python scripts/factory.py new --id my-app --name "اسم البرنامج" --mode lan --tier cloud_sync --sites multi --clients windows_desktop,browser,mobile_pwa --multi-owner --market EG --output my-app.json`
 - فحص الملف: `python scripts/factory.py check my-app.json` (بيطلعلك الباقة والمعايير المطلوبة والتحذيرات).
-- مثال جاهز للباقة الأعلى: [examples/multi-branch-reference.json](../examples/multi-branch-reference.json).
-- أو افتح [لوحة المصنع](../CONTROL_CENTER.html) واختار الباقة من القائمة.
+- مثال جاهز للباقة الأعلى: [examples/multi-branch-reference.json](../../examples/multi-branch-reference.json).
+- أو افتح [لوحة المصنع](../../CONTROL_CENTER.html) واختار الباقة من القائمة.

@@ -1,3 +1,5 @@
+> Reference spec. Living rules: [RULES.md](../RULES.md); parts: [PARTS.md](../PARTS.md).
+
 # Shared administration, demo, vendor support and revenue UX
 
 These are **implementation contracts**, not an assertion that the code exists. Every new paid product selects deployment mode + entitlement port in its manifest.
@@ -11,7 +13,7 @@ These are **implementation contracts**, not an assertion that the code exists. E
 | Dashboard | Today's work | Assigned tasks, filtered indicators, quick action, current subscription warning | Hidden data inaccessible through API |
 | Users | Accounts, invitations, activity | Invite/disable, scoped roles, session revoke, user lifecycle | Cannot self-escalate/re-enable revoked account |
 | Permissions | Role templates and matrix | Role per module/action/record/branch, least privilege, deny by default | Denied batch/export endpoints too |
-| Organization | Company / branches / fiscal locale | Branding, regional currency/calendar, assigned branches, legal contacts | Tenant A cannot modify tenant B |
+| Organization | Company / branches / fiscal locale | Branding, regional currency/calendar, assigned branches, contacts | Tenant A cannot modify tenant B |
 | Data & Recovery | Backups, import, export, retention | Backup, scheduled policy, preview import, reconciliation, restore rehearsal | Broken backup cannot be labeled healthy |
 | Security & Audit | Audit/search/alerts | Search who, when, action, before/after refs; login failures, data exports | Logs redact secrets and restricted PII |
 | Billing / Licence | Plan, invoices, devices, renewals | Clear expiry, feature limits, seats/devices, grace, upgrades, cancel, reactivation, export | Tampered browser cannot grant entitlement |
@@ -31,9 +33,9 @@ Use role/ability names semantically: `owner`, `administrator`, `manager`, `opera
 2. Customer signs up in trusted backend; payment provider handles sensitive card fields (avoid handling PAN/PCI scope).
 3. Provider sends **verified signature** event; system records `eventId` once, fetches authoritative subscription state and reconciles idempotently. Delay/out-of-order/retry events do not double-entitle or double-charge.
 4. Backend issues snapshot that entitlement middleware verifies **on every paid action** (including API/agent/batch/export where licensing applies).
-5. 7/3/1-day warnings are **configurable commercial policy**, not a legal default. Visible date/time zone and last sync.
+5. 7/3/1-day warnings are **configurable commercial policy**, not a fixed default. Visible date/time zone and last sync.
 6. Grace means retained limited service as contracted; expired/restricted preserves rights to read/export/backup, account notices and renewal. Never corrupt/delete business records.
-7. Upgrade/downgrade with seat reductions, refunds, chargebacks and cancellation has a written, tested, deterministic rule. Invoice is not automatically a legally compliant VAT invoice.
+7. Upgrade/downgrade with seat reductions, refunds, chargebacks and cancellation has a written, tested, deterministic rule. The invoice layout (tax lines, numbering) is a per-market product decision.
 8. Vendor billing key stays server-side; no private signing key or entitlement editing field in customer/client database.
 
 ## C. Offline desktop licences
@@ -41,7 +43,7 @@ Use role/ability names semantically: `owner`, `administrator`, `manager`, `opera
 - Customer executable contains only trusted verification public key(s), keyed for rotation. Verify canonical claims/signature, product and feature selection before paid actions.
 - Offline activation by copying request/response code or signed file. No assumption of permanent network access.
 - License move/reissue/revocation and device loss are support processes with auditable grants; support clock skew or rollback checks without claiming tamper resistance is perfect.
-- Expiry cannot hide/decrypt away customer business data; read/export/backup allowed by contract. Enforced licence is **not** equivalent to finance/legal-grade DRM.
+- Expiry cannot hide/decrypt away customer business data; read/export/backup allowed by contract. Enforced licence is **not** equivalent to bank-grade DRM.
 - Cloud subscription and offline licence verification are **different adapters**, not one hardcoded global check.
 
 ## D. Required acceptance cases

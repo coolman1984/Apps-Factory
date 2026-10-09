@@ -20,7 +20,7 @@ Recorded 2026-10-09 (Cairo). Nothing in the open list is decided, bought or sign
   - a failure in one channel never blocks the others;
   - delivery is logged per channel.
 
-- **Customer patch delivery stays free** (decided 2026-10-09 09:12). See [CUSTOMER_PATCH_PIPELINE.md](CUSTOMER_PATCH_PIPELINE.md):
+- **Customer patch delivery stays free** (decided 2026-10-09 09:12). See [CUSTOMER_PATCH_PIPELINE.md](../CUSTOMER_PATCH_PIPELINE.md):
   - the in-app «تحديث متاح» notice is primary;
   - email goes through the Resend free tier or SMTP;
   - WhatsApp is a wa.me link the owner sends by hand;
@@ -32,7 +32,7 @@ Recorded 2026-10-09 (Cairo). Nothing in the open list is decided, bought or sign
     channel is **on by default**: it is active as soon as `TELEGRAM_BOT_TOKEN` and `TELEGRAM_OWNER_CHAT_ID` are set, and
     it has no separate switch (implemented in the Control Center).
   - **Customer Telegram bot:** an optional channel next to the in-app notice and email (design in
-    [CUSTOMER_PATCH_PIPELINE.md](CUSTOMER_PATCH_PIPELINE.md) §5).
+    [CUSTOMER_PATCH_PIPELINE.md](../CUSTOMER_PATCH_PIPELINE.md) §5).
   - **Patch approvals:** when a fix PR is waiting for approval, Telegram sends the owner the PR link (design §7).
   - **Owner commands:** `/status` and `/incidents`, answered from the dashboard data through the relay webhook, and
     accepted only from the owner's chat id (design §7).

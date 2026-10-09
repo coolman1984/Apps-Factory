@@ -6,9 +6,9 @@ this session; rows marked **not inspected** were only listed, never opened. Priv
 ## Products built with the factory rules
 | Repository | What it is | Stack | Reuse in the factory |
 |---|---|---|---|
-| `Apps-Factory` | The factory: constitution, controls, schema, Control Center, af-license, **Licence Studio**, **af-ui**, **UI Lab**, knowledge | Python, JS | — |
+| `Apps-Factory` | The factory: rules, controls, schema, Control Center, af-license, **Licence Studio**, **af-ui**, **UI Lab**, knowledge | Python, JS | — |
 | `Store` | **Al-Store (الستور)** — household & appliance shop: counter, serials, instalments, owner's eye | Python stdlib + ES modules | First consumer of af-ui, UI Lab, licence codes |
-| `Teachers` | **Hessa (حِصّة)** — tutoring centres; office mesh sync, the Watch, parent gateway | Python stdlib + JS + Cloudflare Worker | Source of mesh, watch, advisor, help standards (docs/HESSA_FACTORY_ALIGNMENT.md) |
+| `Teachers` | **Hessa (حِصّة)** — tutoring centres; office mesh sync, the Watch, parent gateway | Python stdlib + JS + Cloudflare Worker | Source of mesh, watch, advisor, help standards (docs/archive/HESSA_FACTORY_ALIGNMENT.md) |
 | `Yousef-Transportation` | **Trip Orders** — transport office trips/drivers/km; the engine Hessa forked | Python stdlib + JS | Original engine and design family |
 | `Doctors` | **Eyada** — clinics, offline per PC, encrypted sharing, patient mailbox, signed-licence modules | — | Same architecture family (not inspected in depth) |
 | `Mr.Ayman-HR` | **BAMS** — break-area management, one installer, one-PC or many-PC | Python | Installer + multi-PC pattern |

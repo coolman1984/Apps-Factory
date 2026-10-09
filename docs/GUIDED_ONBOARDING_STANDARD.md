@@ -1,3 +1,5 @@
+> Reference spec. Living rules: [RULES.md](../RULES.md); parts: [PARTS.md](../PARTS.md).
+
 # Guided onboarding standard: role courses, coach, per-page help (af-guide)
 
 - **Decision:** [ADR-0006](decisions/ADR-0006-guided-onboarding-and-arabic-register.md).

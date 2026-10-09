@@ -1,3 +1,5 @@
+> Reference spec. Living rules: [RULES.md](../RULES.md); parts: [PARTS.md](../PARTS.md).
+
 # Quality department ✅
 
 **Status:** `implemented` as a checklist + the automated suites below; first product filled it: Al-Store 1.0.1. Control `QA-01`.

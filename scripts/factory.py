@@ -406,7 +406,7 @@ def main(argv=None):
             if errors:
                 print("\n".join("ERROR: "+e for e in errors), file=sys.stderr)
                 return 2
-            print("Read AGENTS.md, FACTORY_CONSTITUTION.md, docs/MARKET_AND_STANDARDS.md and DELIVERY_GATES.md first. "
+            print("Read AGENTS.md, RULES.md, PARTS.md and docs/DELIVERY_GATES.md first. "
                   "Research real competitors with cited dates and price evidence. Build only the paid journey for "
                   f"{product['name']} ({product['deployment']}, tier {connectivity(product)['tier']}, "
                   f"{','.join(product['markets'])}); read docs/CONNECTIVITY_AND_SYNC.md for the tier rules; "

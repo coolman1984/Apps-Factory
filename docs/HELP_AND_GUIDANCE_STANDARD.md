@@ -1,3 +1,5 @@
+> Reference spec. Living rules: [RULES.md](../RULES.md); parts: [PARTS.md](../PARTS.md).
+
 # Built-in help, "Guide me" and "Solve a problem" — a core part of every product
 
 Decisions: [ADR-0005](decisions/ADR-0005-help-diagnostics-remote.md), [ADR-0006](decisions/ADR-0006-guided-onboarding-and-arabic-register.md). Controls: `HELP-07`, `HELP-09`, `HELP-11` (core; the old ids `HELP-01` … `HELP-12` resolve to them, see `merged_from` in `factory/controls.json`).

@@ -1,3 +1,5 @@
+> Reference spec. Living rules: [RULES.md](../RULES.md); parts: [PARTS.md](../PARTS.md).
+
 # Copy protection, safe updates, vendor control center and AI-assisted support
 
 Decision: [ADR-0002](decisions/ADR-0002-protection-updates-vendor-control.md). Controls: `PROT-*`, `REL-*`, `SUP-*`, `AI-04` (+ existing `BIZ-04`, `IAM-05`, `OPS-01`).
@@ -15,7 +17,7 @@ No software protection is unbreakable. The goal is to make copying **inconvenien
 | L5 Code signing | Stage A (now): our own Ed25519 signature on installer and updates + published SHA-256, installed by us; stage C: Authenticode certificate ([ADR-0004](decisions/ADR-0004-windows-trust-without-certificate.md)) | free now, ~€ per year later | tampered installers/updates (now); "unknown publisher" warnings (later) |
 | L6 Business | Customer name shown in the header and on receipts; updates and support only for valid licences; fair price; cloud features live on the hub | free | silent resale; a cracked copy gets no updates/support/cloud |
 
-**Never:** hand-written crypto; trusting the algorithm field in a file; a hidden kill switch; deleting, hiding or encrypting customer data when a licence fails (expiry = read/export/backup mode, constitution §7–8); spyware; claiming "uncrackable".
+**Never:** hand-written crypto; trusting the algorithm field in a file; a hidden kill switch; deleting, hiding or encrypting customer data when a licence fails (expiry = read/export/backup mode, BIZ-03 in RULES.md); spyware; claiming "uncrackable".
 **Avoid for now:** PyArmor free tier for commercial products (its terms restrict commercial use and changed between versions); paid obfuscators sold as "irreversible" — they raise effort, not certainty.
 The current hand-written signing file in the existing apps is replaced by `af-license` (or proven equivalent) before any sale.
 
