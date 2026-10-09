@@ -18,7 +18,7 @@ import json
 import re
 import sys
 
-__version__ = '0.1.1'
+__version__ = '0.1.2'
 
 ID_RE = re.compile(r'^[a-z][a-zA-Z0-9_-]*$')
 
@@ -66,6 +66,9 @@ def check(cat):
 
     langs = cat.get('languages') or ['ar', 'en']
     guides = {g.get('id'): g for g in cat.get('guides', [])}
+    ids = [g.get('id') for g in cat.get('guides', [])]
+    for gid in sorted({str(i) for i in ids if ids.count(i) > 1}):
+        bad('guide-duplicate', gid, 'Two guides share an id; lessons and problems could not say which one they mean.')
     facts = set(cat.get('facts', []))
 
     def texts_ok(where, texts, need):
@@ -118,7 +121,9 @@ def check(cat):
         if lessons and checked * 2 < len(lessons):
             bad('path-unchecked', str(pid), 'At least half of a path\'s lessons are checked by the program itself (a fact), '
                 'so the person sees where they stand.', 'warning')
-        if p.get('admin') and lessons and lessons[0].get('guide') not in (cat.get('setup_guides') or [lessons[0].get('guide')]):
+        if p.get('admin') and not cat.get('setup_guides'):
+            bad('no-setup-guides', str(pid), 'Name the guides that set the program up (setup_guides); the administrator\'s path starts with one.')
+        elif p.get('admin') and lessons and lessons[0].get('guide') not in cat['setup_guides']:
             bad('admin-path-order', str(pid), 'The administrator\'s path starts with setting the program up.')
     for role in cat.get('roles') or []:
         if not any(role in (p.get('roles') or []) for p in paths):
@@ -137,13 +142,15 @@ def check(cat):
                     bad('lesson-not-allowed', f'{p.get("id")}#{i + 1}', f'{role} cannot do "{lesson.get("guide")}" '
                         f'(needs one of {need}); the screen would hide it and the path would skip a step.')
 
+    if not cat.get('situations'):
+        bad('no-problems', 'situations', 'A product ships "Solve a problem": the real situations of its users, each with a guide.')
     for s in cat.get('situations') or []:
         sid = s.get('id')
         texts_ok(f'problem {sid}', s.get('texts'), 2)  # question, answer
         if s.get('guide') and s['guide'] not in guides:
             bad('problem-unknown-guide', str(sid), f'"{s["guide"]}" is not a guide.')
         if not s.get('guide'):
-            bad('problem-without-guide', str(sid), 'A problem offers "Guide me" through the guide that fixes it.', 'warning')
+            bad('problem-without-guide', str(sid), 'A problem offers "Guide me" through the guide that fixes it.')
     for key, text in (cat.get('other_ar') or {}).items():
         for word, kind in register(text):
             bad('register', key, f'«{word}» is {kind}; help is written in simple formal Arabic (العربية المبسطة).')

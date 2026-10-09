@@ -55,6 +55,10 @@ class Catalogue(unittest.TestCase):
             ('role-without-path', lambda c: c['roles'].append('storekeeper')),
             ('problem-unknown-guide', lambda c: c['situations'][0].update(guide='nope')),
             ('no-guides', lambda c: c.update(guides=[], paths=[], situations=[])),
+            ('guide-duplicate', lambda c: c['guides'].append(dict(c['guides'][1]))),
+            ('no-problems', lambda c: c.update(situations=[])),
+            ('no-setup-guides', lambda c: c.pop('setup_guides')),
+            ('problem-without-guide', lambda c: c['situations'][0].pop('guide')),
             ('lesson-not-allowed', lambda c: (c['guides'][0].update(perm='settings.edit'), c.update(role_perms={'owner': '*', 'cashier': ['pos.sell']}),
                                               c['paths'][1]['lessons'].append({'guide': 'setup'}))),
         ]
@@ -66,10 +70,9 @@ class Catalogue(unittest.TestCase):
 
     def test_warnings(self):
         cat = good()
-        cat['situations'][0].pop('guide')
         for x in cat['paths'][1]['lessons']:
             x.pop('fact', None)
-        self.assertEqual({f.code for f in G.check(cat)}, {'problem-without-guide', 'path-unchecked'})
+        self.assertEqual({f.code for f in G.check(cat)}, {'path-unchecked'})
         self.assertEqual(G.errors(cat), [])
 
 
