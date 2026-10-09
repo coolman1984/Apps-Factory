@@ -338,6 +338,26 @@
       "items": {
         "type": "string"
       }
+    },
+    "telemetry": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "ROLL-01: practice/demo data first, then installations",
+      "properties": {
+        "rollout": {
+          "enum": [
+            "off",
+            "practice",
+            "installations"
+          ]
+        },
+        "practice_evidence": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "rollout"
+      ]
     }
   },
   "allOf": [

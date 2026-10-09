@@ -132,6 +132,21 @@ def advisories(product):
                      "no WebUSB printing (MOB-04).")
     return notes
 
+def telemetry_errors(product):
+    """ROLL-01: telemetry and alerts run on practice/demo data first, then on real installations."""
+    tel = product.get("telemetry")
+    if tel is None:
+        return []
+    if not isinstance(tel, dict) or set(tel) - {"rollout", "practice_evidence"}:
+        return ["telemetry must be {rollout, practice_evidence}"]
+    if tel.get("rollout") not in {"off", "practice", "installations"}:
+        return ["telemetry.rollout must be off, practice or installations"]
+    proof = tel.get("practice_evidence", "")
+    if tel["rollout"] == "installations" and (not isinstance(proof, str) or not proof.strip()
+                                             or proof.strip().upper().startswith(("PENDING", "TODO", "UNKNOWN"))):
+        return ["ROLL-01: telemetry.rollout installations needs practice_evidence (checked on demo/practice data first)"]
+    return []
+
 def valid_product(product, release=False):
     errors = []
     if not isinstance(product, dict):
@@ -187,6 +202,7 @@ def valid_product(product, release=False):
     if not isinstance(product["evidence"], dict) or any(k not in product["evidence"] for k in EVIDENCE):
         errors.append("Missing evidence slots")
     errors.extend(connectivity_errors(product))
+    errors.extend(telemetry_errors(product))
     if errors:
         return errors, []
     selected = applicable(catalog(), product)

@@ -37,6 +37,10 @@ For requests involving icons, motion graphics, layers, parallax, scroll transiti
 - `apps/licence-studio`: the owner's code program (loopback web UI + MCP). Agents read, verify and request; trial issuing only when the owner enables it; paid codes owner-only.
 - `packages/af-access`: access-and-administration gate (permission catalogue rules, lock-out guards, who-can-do-what matrix); copy into a product with `python scripts/vendor_access.py <product-dir>` and run `afaccess.errors(auth.catalogue())` in its tests (IAM-08…IAM-12).
 - `packages/af-guide`: guided onboarding (role courses with per-person server progress, auto-advancing coach, per-page "?", error→problem links, per-guide language switch, «العربية الميسّرة» style lint, browser walker); copy with `python scripts/vendor_guide.py <product-dir>`, check with `python scripts/factory.py guide <product>/guide …` (HELP-04, HELP-07…HELP-12; [standard](docs/GUIDED_ONBOARDING_STANDARD.md)).
+- `packages/af-consent` and `packages/af-telemetry`: two-level consent and ids-and-counts telemetry.
+  - Includes the offline outbox, signed batches and problem reports that work without consent.
+  - Copy them with `python scripts/vendor_consent.py` and `python scripts/vendor_telemetry.py`.
+  - Never add a never-list field or free text outside `fb.*` (PRIV/TEL/FB/ROLL controls; [standard](docs/PRIVACY_TELEMETRY_STANDARD.md)).
 - `packages/af-ui`: the Showroom design system (tokens, components, fonts, icons, motion). Re-brand tokens only (UX-09).
 - `tools/ui-lab`: performance + accessibility gate against `factory/ui-budgets.json` (PERF-01, PERF-02, A11Y-01); every UI release candidate commits its report.
 - `.claude/skills/`: new-product, ui-quality-pass, licence-codes, factory-knowledge.

@@ -4,7 +4,7 @@ Status words follow the constitution: `planned` → `implemented` → `verified`
 
 | Capability | Where | Status | Use it for |
 |---|---|---|---|
-| Product specification gate | `scripts/factory.py new/check/doctor`, `factory/product.schema.json`, `controls.json` (127 controls) | implemented | Every new product starts with a manifest (`examples/al-store-product.json`) |
+| Product specification gate | `scripts/factory.py new/check/doctor`, `factory/product.schema.json`, `controls.json` (138 controls) | implemented | Every new product starts with a manifest (`examples/al-store-product.json`) |
 | **People, profiles and permissions** (BAMS model) | `docs/ACCESS_AND_ADMINISTRATION_STANDARD.md`, gate `packages/af-access` vendored by `scripts/vendor_access.py`; reference BAMS `server/auth.py` | implemented; gate in Al-Store, Hessa, Trip Orders tests | Every product with more than one person |
 | Signed licences (JSON documents) | `packages/af-license` core | implemented | Paid editions, update manifests |
 | **Licence codes** (144-char, device-bound, Ed25519) | `packages/af-license/af_license/codes.py` + stdlib verifier `ed25519_verify.py`, vendored by `scripts/vendor_licence.py` | implemented, cross-tested with Al-Store | 14-day trials that cannot be passed to another PC |
@@ -18,6 +18,7 @@ Status words follow the constitution: `planned` → `implemented` → `verified`
 | The Watch / owner's eye | Hessa `journal`/watch, Al-Store `server/reports.py::watch` | implemented in 2 products | Money-leak detection |
 | Help standard (Guide me / Solve a problem, «العربية الميسّرة») | `docs/HELP_AND_GUIDANCE_STANDARD.md`, `Store/web/i18n/help-*.js` | implemented | Every product |
 | **Guided onboarding** (af-guide) | `packages/af-guide` (checker + style lint + per-person progress + coach/panel + `testing/walk_guides.py`), `scripts/vendor_guide.py`, `factory.py guide`; `docs/GUIDED_ONBOARDING_STANDARD.md` | implemented; unit + browser tests on the demo shop; no product yet | HELP-07…12 in every product |
+| **Consent + telemetry + problem reports** | `packages/af-consent`, `packages/af-telemetry` (taxonomy, firm limits in code, outbox, signed batches), `scripts/vendor_consent.py`, `scripts/vendor_telemetry.py`; `docs/PRIVACY_TELEMETRY_STANDARD.md` | implemented; unit-tested; no product yet | PRIV-01…06, TEL-01…03, FB-01, ROLL-01 |
 | Compiled Windows build + installer | `templates/windows-installer` (from Al-Store: Nuitka + Inno Setup + smoke test + workflow); Hessa, BAMS, Atrium have their own | **verified** on a real Windows runner (Al-Store, Actions run 3); clean-PC install by a person still pending | Every Windows product |
 | Junk-input robustness test | Al-Store `tests/test_fuzz.py` (control QA-02) | verified in Al-Store; found 20+ crashes and 6 real bugs | Every product with write routes |
 | Product → Control Center heartbeat | Al-Store `server/support.py` (opt-in, exact fields, secrets outside the DB); contract-tested against the Control Center model | implemented, contract-tested | SUP-01/04 in every product |

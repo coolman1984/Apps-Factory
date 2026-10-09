@@ -1,5 +1,5 @@
 {
-  "catalog_version": "1.8.0",
+  "catalog_version": "1.9.0",
   "updated": "2026-10-09",
   "policy": "Required-if-applicable, never auto-certifies an implementation. Profiles: desktop, lan, saas, paid, ai, regulated, sync, mesh, mobile, multi_site, multi_owner, windows. Connectivity tier cloud_sync activates sync and saas.",
   "references": [
@@ -1128,7 +1128,7 @@
         "lan",
         "saas"
       ],
-      "requirement": "Heartbeat/error fields listed in the contract, no personal data, switchable except what a cloud tier needs to run",
+      "requirement": "Heartbeat/error fields listed in the contract, no personal data, switchable except what a cloud tier needs to run; usage and error events go through packages/af-telemetry (PRIV/TEL controls)",
       "acceptance_evidence": "Captured heartbeat payload review",
       "required_if_applies": true,
       "implementation_status": "planned"
@@ -1324,6 +1324,160 @@
       ],
       "requirement": "Every guide of every role is walked end to end in a real browser against the running product before release",
       "acceptance_evidence": "packages/af-guide/testing/walk_guides.py returns no failures in the product's browser tests",
+      "required_if_applies": true,
+      "implementation_status": "implemented"
+    },
+    {
+      "id": "PRIV-01",
+      "slug": "consent-two-levels",
+      "category": "privacy",
+      "profiles": [
+        "desktop",
+        "lan",
+        "saas"
+      ],
+      "requirement": "Remote-help tracking needs two recorded agreements: the installation (owner, once) and each person (asked once at first sign-in with «أوافق حتى يستطيع [vendor] مساعدتي عن بُعد» and two equal buttons); the vendor name is one setting (vendor_display_name, default the product's DEVELOPER, fallback coolman1984)",
+      "acceptance_evidence": "packages/af-consent records in the product DB; browser test of the first sign-in card; unit test that tracking is off until both agreed",
+      "required_if_applies": true,
+      "implementation_status": "implemented"
+    },
+    {
+      "id": "PRIV-02",
+      "slug": "consent-record-and-withdraw",
+      "category": "privacy",
+      "profiles": [
+        "desktop",
+        "lan",
+        "saas"
+      ],
+      "requirement": "Every consent decision is kept append-only with time, exact text id, language and who recorded it; a person can withdraw at any time in Settings «الخصوصية والمساعدة», which deletes their pending events; a decline means zero events for that person and is never asked again",
+      "acceptance_evidence": "af_consent history shown in Settings; test: withdraw purges the person's outbox rows",
+      "required_if_applies": true,
+      "implementation_status": "implemented"
+    },
+    {
+      "id": "PRIV-03",
+      "slug": "ids-and-counts-only",
+      "category": "privacy",
+      "profiles": [
+        "desktop",
+        "lan",
+        "saas"
+      ],
+      "requirement": "Events carry only allowlisted fields from the factory taxonomy: short machine ids, counts, durations and booleans. Never passwords, keystrokes, screenshots, names, phones, national ids, e-mails, addresses, amounts or customer/student/money records; enforced in code (PrivacyError) not by convention",
+      "acceptance_evidence": "packages/af-telemetry FirmLimits tests pass in the product with its vendored taxonomy; the product's own emit() calls are covered by tests",
+      "required_if_applies": true,
+      "implementation_status": "implemented"
+    },
+    {
+      "id": "PRIV-04",
+      "slug": "pseudonymous-person",
+      "category": "privacy",
+      "profiles": [
+        "desktop",
+        "lan",
+        "saas"
+      ],
+      "requirement": "A person appears only as a pseudonym (HMAC of the person id with the installation's secret); usage is visible per pseudonym; the mapping to a name exists only inside the customer's program",
+      "acceptance_evidence": "Captured event review shows p_<hex> subjects only",
+      "required_if_applies": true,
+      "implementation_status": "implemented"
+    },
+    {
+      "id": "PRIV-05",
+      "slug": "what-was-sent-viewer",
+      "category": "privacy",
+      "profiles": [
+        "desktop",
+        "lan",
+        "saas"
+      ],
+      "requirement": "Optional: Settings shows «ماذا أُرسل؟» - the pending and last sent events exactly as sent",
+      "acceptance_evidence": "Screenshot of the viewer (optional control)",
+      "required_if_applies": false,
+      "implementation_status": "implemented"
+    },
+    {
+      "id": "PRIV-06",
+      "slug": "firm-limits-in-tests",
+      "category": "privacy",
+      "profiles": [
+        "desktop",
+        "lan",
+        "saas"
+      ],
+      "requirement": "The never-collect list and value guards are part of the product's test suite; a taxonomy change that adds a never-list field or free text outside feedback fails the build",
+      "acceptance_evidence": "af_telemetry.check_taxonomy() == [] in the product tests",
+      "required_if_applies": true,
+      "implementation_status": "implemented"
+    },
+    {
+      "id": "TEL-01",
+      "slug": "bounded-offline-outbox",
+      "category": "support",
+      "profiles": [
+        "desktop",
+        "lan",
+        "saas"
+      ],
+      "requirement": "Events wait in a separate telemetry.db outbox bounded by count (5,000), size (5 MB) and age (30 days), dropping the least important first; usage and repeated errors merge per hour; the program never slows or fails because of telemetry",
+      "acceptance_evidence": "af_telemetry Outbox tests; the program works with the network unplugged",
+      "required_if_applies": true,
+      "implementation_status": "implemented"
+    },
+    {
+      "id": "TEL-02",
+      "slug": "signed-batched-transport",
+      "category": "support",
+      "profiles": [
+        "desktop",
+        "lan",
+        "saas"
+      ],
+      "requirement": "Batches of at most 256 KB are gzip-compressed and signed (HMAC over timestamp, nonce and body hash with a 5-minute window, per-installation token) and sent to the vendor relay or Control Center with backoff from 1 minute to 6 hours",
+      "acceptance_evidence": "af_telemetry Sending tests; Control Center rejects a bad signature, an old timestamp and a reused nonce",
+      "required_if_applies": true,
+      "implementation_status": "implemented"
+    },
+    {
+      "id": "TEL-03",
+      "slug": "event-taxonomy",
+      "category": "support",
+      "profiles": [
+        "desktop",
+        "lan",
+        "saas"
+      ],
+      "requirement": "One factory event taxonomy (events.json): heartbeat, upgrades, server/client/shown errors, sync, backup, page/action/shortcut use, permission denials, guide funnel, problem entries, feedback, support window and licence state, each with its consent level",
+      "acceptance_evidence": "Vendored aftelemetry_events.json is byte-identical to the factory copy",
+      "required_if_applies": true,
+      "implementation_status": "implemented"
+    },
+    {
+      "id": "FB-01",
+      "slug": "in-app-problem-report",
+      "category": "support",
+      "profiles": [
+        "desktop",
+        "lan",
+        "saas"
+      ],
+      "requirement": "Every page offers «أبلغ عن مشكلة» (problem, idea, question) with a full preview of exactly what will be sent, automatic removal of phones, e-mails and ID numbers, optional allowlisted device info; it works without tracking consent and attaches no person reference when the person did not agree",
+      "acceptance_evidence": "Browser test of preview then send; unit test that a changed text after preview is refused",
+      "required_if_applies": true,
+      "implementation_status": "implemented"
+    },
+    {
+      "id": "ROLL-01",
+      "slug": "practice-data-first",
+      "category": "release",
+      "profiles": [
+        "desktop",
+        "lan",
+        "saas"
+      ],
+      "requirement": "Telemetry and alerts are switched on first for demo/practice data (env=practice) and checked end to end; only then for real installations. The manifest records telemetry.rollout and the practice evidence",
+      "acceptance_evidence": "factory.py check fails when telemetry.rollout is installations without practice_evidence",
       "required_if_applies": true,
       "implementation_status": "implemented"
     },
