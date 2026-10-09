@@ -2,6 +2,29 @@
 
 Factory versions (the `README.md` version line). The control catalogue has its own `catalog_version` in `factory/controls.json`.
 
+## 0.11.0 (2026-10-09)
+Docs diet (review item A12). Agents and people read three files, not 27. No code, package, template, workflow or catalogue change; the only edits outside Markdown are two lines of text: the `prompt` command's reading list in `scripts/factory.py` and the doc links in `CONTROL_CENTER.html`.
+- **Five living docs:** `README.md`, `RULES.md` (32 core controls with how each is checked, firm privacy limits, agent workflow, Arabic standard), `PARTS.md` (every shared part: version, vendoring, spec, users), `PLAYBOOK.md` (tests, drift check, release, controls, products, alerts), `DECISIONS.md` (dated decisions, ADR index, open items).
+- **`AGENTS.md` read order is three files:** README, RULES, PARTS. `CLAUDE.md` and `GEMINI.md` point to it. The legal framing in "Task classification" is gone.
+- **New:** `tests/test_docs.py` (living docs exist, read order, no broken relative links, no legal wording in living docs) and `docs/archive/README.md`.
+- **Reference specs:** 15 specs that code, tests, workflows, packages or products link to stay in `docs/` with one first line pointing to RULES and PARTS. Obvious legal wording was removed from them and from ADR-0001.
+- **`docs/DESIGN_SYSTEM.md` section 9** now holds the states, forms, shell and RTL rules of the old UX standard.
+
+| File | Where it went |
+|---|---|
+| `FACTORY_CONSTITUTION.md` | `docs/archive/` (essentials in `RULES.md`; decisions in `DECISIONS.md`) |
+| `docs/OPEN_POINTS.md` | `docs/archive/` (merged into `DECISIONS.md`) |
+| `docs/MARKET_AND_STANDARDS.md` | `docs/archive/` |
+| `docs/REPOSITORY_AUDIT.md` | `docs/archive/` (see `docs/knowledge/REPO_MAP.md`) |
+| `docs/COMMERCIAL_PLATFORM_BENCHMARK.md` | `docs/archive/` |
+| `docs/BUILD_PLAN.md` | `docs/archive/` |
+| `docs/ADOPTION_PLAN.md` | `docs/archive/` |
+| `docs/HESSA_FACTORY_ALIGNMENT.md` | `docs/archive/` |
+| `docs/UX_DESIGN_STANDARD.md` | `docs/archive/` (merged into `docs/DESIGN_SYSTEM.md` section 9) |
+| `docs/ci/PENDING_WORKFLOW_CHANGES.md` | `docs/archive/` (every step is already in the workflows) |
+| the other 15 `docs/*.md` specs, `docs/decisions/`, `docs/knowledge/` | unchanged path |
+| `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, `README.md` | rewritten short |
+
 ## 0.10.1 (2026-10-09)
 Help docs fitted to the 0.10.0 catalogue (controls catalogue 1.10.1). No code change; `packages/af-guide`, `scripts/vendor_guide.py` and the workflows are the 0.10.0 copies.
 - **Help standard:** `docs/HELP_AND_GUIDANCE_STANDARD.md` gets §2 the learning path per role (setup first for the administrator, "you are here" from catalogue states, `course()` / `state()`) and §3 «العربية الميسّرة» with the stiff-word rule and a three-column example table. Both point to HELP-07 and HELP-11.
