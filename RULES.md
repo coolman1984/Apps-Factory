@@ -3,6 +3,8 @@
 The only rules that block a release, plus the limits and the agent workflow that never change.
 Source of truth for the controls: `factory/controls.json` (catalogue 1.10.1). `python3 scripts/factory.py check <manifest> --release` fails when an **applicable core control** has no verified proof, or when one of the two evidence items is missing: `clean_device_restore` (restore on a clean device) and `core_user_acceptance` (first customer accepts the core journey). All other controls are `reference` advice and never block.
 
+**Owner decision (2026-10-09):** Windows-targeted products must run their actual installer acceptance on a Windows GitHub Actions runner for every PR and main push. Require the job in GitHub's branch protection. Commercial packages Solo / Connected / Mobile Operations / Cloud Business are separate from technical connectivity modes and have sale-blocking cloud-backup/mobile evidence. See [SMB commercial tiers](docs/SMB_COMMERCIAL_TIERS.md). No remote backup, phone, zero-loss or server mode is claimed from a plan name alone.
+
 ## 1. The 32 core controls
 "Checked by" is the acceptance evidence written in the catalogue.
 
@@ -84,7 +86,7 @@ These are enforced in code and tests, not by habit.
 1. State the customer, the core pain and acceptance criteria that can be checked. Label unknowns **UNKNOWN**.
 2. Inventory what exists before building (`docs/knowledge/README.md`). Reuse a versioned shared part; product-specific code stays in the product.
 3. Get cited market evidence and a product manifest. Business choices that change price, sensitive data or who bears risk need recorded owner approval (see `DECISIONS.md`).
-4. Pick the deployment and connectivity tier (`standalone`, `office_server`, `office_mesh`, `cloud_sync`, `cloud_only`). Use globally unique ids and org/branch scope from the first schema. Turn on only the controls that apply.
+4. Pick one commercial package if for sale (Solo, Connected, Mobile Operations, Cloud Business), independently from the deployment and connectivity tier (`standalone`, `office_server`, `office_mesh`, `cloud_sync`, `cloud_only`). Use globally unique ids and org/branch scope from the first schema. Turn on only the controls that apply.
 5. Deliver one thin customer workflow end to end: permissions, save and retry, errors, audit, report, recovery.
 6. Test: unit, integration, role-denial, rollback, backup and restore, browser UI in Arabic and English (RTL), keyboard use, the target OS installer where it applies.
 7. Work through a PR with CI and a small safe merge. Never force-push or mass-merge divergent branches. Preserve existing customer data and working design; audit an existing product before changing it.
