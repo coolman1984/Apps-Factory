@@ -122,7 +122,7 @@ async function issue(page, p) {
   put(page, html`${head('طلّع كود', 'اختار تجربة 14 يوم، أو اشتراك 30 يوم، أو شراء دائم. كل كود مرتبط بجهاز العميل.')}
     <div class="two"><form class="card form" id="f">
       <div class="cols"><div class="field"><label for="pr">البرنامج</label><select id="pr" class="input">${PRODUCTS.map((x) => html`<option value="${x.id}" ${x.id === prod?.id ? raw('selected') : ''}>${x.name}</option>`)}</select></div>
-        <div class="field"><span class="label">النوع</span><div class="seg" id="ed">${['trial', 'monthly', 'lifetime'].map((k) => [k, EDITION[k]]).map(([k, v]) => html`<button type="button" data-v="${k}" aria-pressed="${k === (p.edition || 'trial')}">${v}</button>`)}</div></div></div>
+        <div class="field"><span class="label">النوع</span><div class="seg" id="ed">${['trial', 'monthly', 'lifetime'].map((k) => [k, EDITION[k]]).map(([k, v]) => html`<button type="button" data-v="${k}" aria-pressed="${k === (DURATION[p.edition] ? p.edition : 'trial')}">${v}</button>`)}</div></div></div>
       <div class="field"><label for="dv">رقم الجهاز</label><input id="dv" class="input device-in" placeholder="XXXXX-XXXXX" value="${p.device || ''}" autocomplete="off" maxlength="11" autofocus>
         <span class="hint">10 حروف وأرقام. لو العميل كتب O بدل 0 أو I بدل 1 البرنامج بيصلحها لوحده.</span></div>
       <div class="cols"><div class="field"><label for="cu">اسم العميل / المحل</label><input id="cu" class="input" value="${p.customer || ''}"></div>
