@@ -44,3 +44,15 @@ The automation token that pushed this branch has no `workflow` scope, so GitHub 
           node --check packages/af-telemetry/af-telemetry.js
           node --test packages/af-telemetry/tests/core.test.mjs
 ```
+
+## PR 3 (Control Center telemetry, relay): add to the `validate` job
+```yaml
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Telemetry relay tests (Cloudflare Worker + D1 shim)
+        run: node --experimental-sqlite --test templates/telemetry-relay/test/relay.test.mjs
+```
+
+The Control Center tests (`apps/control-center/tests`, including `test_telemetry.py`) already run in the existing job.
+They need `packages/af-telemetry` and `packages/af-consent`, which are found by path inside this repo.

@@ -1,0 +1,19 @@
+# Copy, then replace the placeholders. Secrets are NEVER written here:
+#   wrangler secret put RELAY_PULL_TOKEN      (required; the Control Center's CC_RELAY_TOKEN)
+#   wrangler secret put RELAY_INGEST_KEY      (optional; products send it as X-AF-Relay-Key)
+name = "af-telemetry-relay"
+main = "src/worker.js"
+compatibility_date = "2026-10-01"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "af-telemetry-relay"
+database_id = "REPLACE_WITH_YOUR_D1_DATABASE_ID"
+
+[triggers]
+crons = ["17 3 * * *"]   # daily clean-up of anything older than KEEP_DAYS
+
+[vars]
+RATE_PER_HOUR = "120"
+MAX_ROWS = "50000"
+KEEP_DAYS = "14"

@@ -10,7 +10,9 @@ Status words follow the constitution: `planned` → `implemented` → `verified`
 | **Licence codes** (144-char, device-bound, Ed25519) | `packages/af-license/af_license/codes.py` + stdlib verifier `ed25519_verify.py`, vendored by `scripts/vendor_licence.py` | implemented, cross-tested with Al-Store | 14-day trials that cannot be passed to another PC |
 | **Licence Studio** (برنامج الأكواد) | `apps/licence-studio` — encrypted key, issue/verify/list, agent requests, audit, WhatsApp hand-off | implemented | The owner makes codes; agents check and request |
 | **MCP for agents** | `apps/licence-studio` (`python -m licence_studio mcp`); WinSight (`Performance` repo) has its own | implemented | Claude Code / Codex read, verify, request codes, run doctor |
-| Vendor Control Center (برج المراقبة) | `apps/control-center` — registry, heartbeats, tickets, grants, allowlisted repairs, licence desk | implemented (15 tests) | Support after the sale |
+| Vendor Control Center (برج المراقبة) | `apps/control-center` — registry, heartbeats, tickets, grants, allowlisted repairs, licence desk, telemetry ingest, incidents, per-person usage, guide funnel, 11 alert rules with parallel fan-out (dashboard, email, WhatsApp, Telegram, LinkedIn-unsupported) | implemented (unit + API tests); not deployed | Support after the sale; SUP-04, TEL-01…03 |
+| Telemetry relay | `templates/telemetry-relay` — Cloudflare Worker + D1 mailbox (`/ingest`, `/pull`, `/ack`) | implemented; Node tests on a D1 shim; not deployed (free-plan limits are an open point) | TEL-02 |
+| Customer patch pipeline + customer Telegram bot | `docs/CUSTOMER_PATCH_PIPELINE.md` | **design only** | MSG-01 |
 | **Design system** (Showroom) | `packages/af-ui` — tokens, base components, fonts, icons, motion | implemented in 2 consumers | Every new UI |
 | **UI Lab** (performance + a11y) | `tools/ui-lab` — Playwright + axe-core, CPU ×4, budgets | implemented | Release gate PERF-01 / A11Y-01 |
 | Measured layout sweep | Pattern in `Store/tests/test_e2e_browser.py`, `Teachers/tests/test_layout_overflow.py` | verified in 2 products | UX-08 |

@@ -9,15 +9,16 @@ from __future__ import annotations
 import json
 import os
 import sys
+import threading
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Literal, Optional
 
-from fastapi import Depends, FastAPI, Header, HTTPException
+from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, ConfigDict, Field
 
-from . import db
+from . import alerts, db, telemetry
 from .redact import redact
 from .security import grant_code, new_token, token_hash
 
@@ -40,6 +41,7 @@ HEARTBEAT_STALE_HOURS = 26
 BACKUP_STALE_HOURS = 48
 MAX_GRANT_MINUTES = 120
 STATIC = Path(__file__).parent / "static"
+VERSION = "0.2.0"
 
 
 class Strict(BaseModel):
@@ -99,6 +101,16 @@ class RepairIn(Strict):
     action: str
 
 
+class AlertSettingsIn(Strict):
+    channels: Optional[dict[str, bool]] = None
+    rules: Optional[dict[str, dict]] = None
+    dedupe_hours: Optional[int] = None
+
+
+class IncidentUpdate(Strict):
+    status: Literal["open", "acknowledged", "fixed"]
+
+
 class RepairResult(Strict):
     status: Literal["done", "failed"]
     result: str = Field(max_length=4000)
@@ -148,8 +160,18 @@ def trusted_licence_keys() -> dict[str, str]:
 
 def create_app(db_path: Optional[str] = None) -> FastAPI:
     conn = db.connect(db_path or os.environ.get("CC_DB", "data/control-center.db"))
-    app = FastAPI(title="Vendor Control Center", version="0.1.0", docs_url=None, redoc_url=None)
+    lock = threading.Lock()
+
+    def one_at_a_time():
+        """One shared sqlite connection: requests (run on several threads) and the background loop take turns.
+        Without this, parallel dashboard requests can read each other's cursors."""
+        with lock:
+            yield
+
+    app = FastAPI(title="Vendor Control Center", version=VERSION, docs_url=None, redoc_url=None,
+                  dependencies=[Depends(one_at_a_time)])
     app.state.conn = conn
+    app.state.lock = lock
 
     def one(sql: str, *args):
         row = conn.execute(sql, args).fetchone()
@@ -196,7 +218,7 @@ def create_app(db_path: Optional[str] = None) -> FastAPI:
 
     @app.get("/api/health")
     def service_health():
-        return {"ok": True, "version": "0.1.0"}
+        return {"ok": True, "version": VERSION}
 
     # ---------- vendor: registry ----------
     @app.post("/api/customers", status_code=201)
@@ -299,7 +321,9 @@ def create_app(db_path: Optional[str] = None) -> FastAPI:
                 "ok": count("ok"), "warning": count("warning"), "stale": count("stale"), "never": count("never"),
                 "open_tickets": one("SELECT COUNT(*) AS n FROM tickets WHERE status != 'resolved'")["n"],
                 "active_grants": len(rows("SELECT id FROM grants WHERE ended_at IS NULL AND expires_at > ?", db.now_iso())),
-                "expiring_licences": len(expiring(14, caller))}
+                "expiring_licences": len(expiring(14, caller)),
+                "open_alerts": one("SELECT COUNT(*) AS n FROM alerts WHERE acked_at IS NULL")["n"],
+                "open_incidents": one("SELECT COUNT(*) AS n FROM incidents WHERE status != 'fixed'")["n"]}
 
     @app.get("/api/tickets")
     def list_tickets(status: Optional[str] = None, caller: dict = Depends(vendor)):
@@ -369,7 +393,123 @@ def create_app(db_path: Optional[str] = None) -> FastAPI:
     def read_audit(limit: int = 200, caller: dict = Depends(vendor)):
         return rows("SELECT * FROM audit ORDER BY at DESC, id DESC LIMIT ?", max(1, min(limit, 1000)))
 
+    # ---------- vendor: telemetry dashboard ----------
+    @app.get("/api/alerts")
+    def list_alerts(open_only: bool = False, limit: int = 100, caller: dict = Depends(vendor)):
+        found = rows("SELECT a.*, c.name AS customer, i.product FROM alerts a LEFT JOIN installs i ON i.id = a.install_id "
+                     "LEFT JOIN customers c ON c.id = i.customer_id" + (" WHERE a.acked_at IS NULL" if open_only else "") +
+                     " ORDER BY a.created_at DESC LIMIT ?", max(1, min(limit, 500)))
+        for a in found:
+            a["deliveries"] = rows("SELECT channel, status, detail, attempted_at, ms FROM alert_deliveries WHERE alert_id = ? "
+                                   "ORDER BY channel", a["id"])
+        return found
+
+    @app.post("/api/alerts/{alert_id}/ack")
+    def ack_alert(alert_id: str, caller: dict = Depends(vendor)):
+        if not conn.execute("UPDATE alerts SET acked_at = ?, acked_by = ? WHERE id = ? AND acked_at IS NULL",
+                            (db.now_iso(), caller["name"], alert_id)).rowcount:
+            raise HTTPException(404, "no open alert")
+        db.audit(conn, caller["name"], "alert.ack", alert_id)
+        return {"ok": True}
+
+    @app.get("/api/alert-settings")
+    def read_alert_settings(caller: dict = Depends(vendor)):
+        s = alerts.get_settings(conn)
+        return {"channels": alerts.channel_status(conn), "rules": s["rules"], "dedupe_hours": s["dedupe_hours"],
+                "note": "Secrets are read from environment variables only and are never shown or stored here."}
+
+    @app.put("/api/alert-settings")
+    def write_alert_settings(body: AlertSettingsIn, caller: dict = Depends(owner)):
+        try:
+            alerts.save_settings(conn, body.channels, body.rules, body.dedupe_hours)
+        except ValueError as error:
+            raise HTTPException(422, str(error)) from error
+        db.audit(conn, caller["name"], "alerts.settings", None, channels=body.channels, rules=body.rules,
+                 dedupe_hours=body.dedupe_hours)
+        return read_alert_settings(caller)
+
+    @app.post("/api/alerts/test")
+    def test_alert(caller: dict = Depends(owner)):
+        """Sends one test alert on every enabled channel and returns each channel's result."""
+        a = alerts.raise_alert(conn, "problem_report", None, f"تنبيه تجريبي من {caller['name']}", db.uuid7())
+        db.audit(conn, caller["name"], "alerts.test", a["id"] if a else None)
+        return a
+
+    @app.get("/api/incidents")
+    def list_incidents(status: Optional[str] = None, caller: dict = Depends(vendor)):
+        found = rows("SELECT * FROM incidents" + (" WHERE status = ?" if status else "") + " ORDER BY last_seen DESC LIMIT 300",
+                     *([status] if status else []))
+        for i in found:
+            i["installs"], i["versions"] = json.loads(i["installs"]), json.loads(i["versions"])
+        return found
+
+    @app.post("/api/incidents/{incident_id}")
+    def update_incident(incident_id: str, body: IncidentUpdate, caller: dict = Depends(vendor)):
+        if not conn.execute("UPDATE incidents SET status = ? WHERE id = ?", (body.status, incident_id)).rowcount:
+            raise HTTPException(404, "incident not found")
+        db.audit(conn, caller["name"], "incident.update", incident_id, status=body.status)
+        return {"ok": True}
+
+    @app.get("/api/usage")
+    def usage(install_id: Optional[str] = None, days: int = 30, caller: dict = Depends(vendor)):
+        """Per person (pseudonym) and per item, for one installation or all. Only ids and counts exist here."""
+        since = _iso(datetime.now(timezone.utc) - timedelta(days=max(1, min(days, 730))))[:10]
+        where, args = "WHERE day >= ?", [since]
+        if install_id:
+            where, args = where + " AND install_id = ?", args + [install_id]
+        people = rows("SELECT install_id, subject, COUNT(DISTINCT day) AS active_days, SUM(count) AS actions, MAX(day) AS last_day "
+                      f"FROM usage_daily {where} AND type IN ('use.page','use.action','use.shortcut') "
+                      "GROUP BY install_id, subject ORDER BY actions DESC LIMIT 500", *args)
+        items = rows(f"SELECT type, item, SUM(count) AS count, COUNT(DISTINCT subject) AS people FROM usage_daily {where} "
+                     "GROUP BY type, item ORDER BY count DESC LIMIT 300", *args)
+        return {"since": since, "people": people, "items": items}
+
+    @app.get("/api/guides/funnel")
+    def guide_funnel(days: int = 90, caller: dict = Depends(vendor)):
+        since = _iso(datetime.now(timezone.utc) - timedelta(days=max(1, min(days, 730))))[:10]
+        out = {}
+        for r in rows("SELECT item, type, SUM(count) AS n, COUNT(DISTINCT subject) AS people FROM usage_daily "
+                      "WHERE day >= ? AND type IN ('guide.start','guide.done','guide.abandon') GROUP BY item, type", since):
+            g = out.setdefault(r["item"], {"guide": r["item"], "start": 0, "done": 0, "abandon": 0, "people": 0})
+            g[r["type"].split(".")[1]] = r["n"]
+            g["people"] = max(g["people"], r["people"])
+        for g in out.values():
+            g["completion"] = round(g["done"] / g["start"], 2) if g["start"] else None
+        return sorted(out.values(), key=lambda g: (g["completion"] is None, g["completion"] or 0))
+
+    @app.get("/api/releases")
+    def releases(caller: dict = Depends(vendor)):
+        return rows("SELECT product, version, COUNT(DISTINCT install_id) AS installs, "
+                    "SUM(CASE WHEN type IN ('err.server','err.client') THEN 1 ELSE 0 END) AS errors, "
+                    "SUM(CASE WHEN type = 'upgrade.fail' THEN 1 ELSE 0 END) AS upgrade_failures, MAX(ts) AS last_seen, "
+                    "SUM(CASE WHEN env = 'practice' THEN 1 ELSE 0 END) AS practice_events "
+                    "FROM events GROUP BY product, version ORDER BY product, last_seen DESC")
+
+    @app.get("/api/feedback")
+    def feedback_inbox(caller: dict = Depends(vendor)):
+        return [t for t in list_tickets(None, caller) if str(t["bundle"].get("kind", "")).startswith("fb.")]
+
+    @app.post("/api/relay/pull")
+    def relay_pull(caller: dict = Depends(owner)):
+        url, token = os.environ.get("CC_RELAY_URL", ""), os.environ.get("CC_RELAY_TOKEN", "")
+        if not url or not token:
+            raise HTTPException(409, "CC_RELAY_URL and CC_RELAY_TOKEN are not set")
+        return telemetry.pull_relay(conn, url, token)
+
+    @app.post("/api/alerts/periodic")
+    def run_periodic(caller: dict = Depends(owner)):
+        return {"fired": len(alerts.periodic(conn))}
+
     # ---------- install (customer product) ----------
+    @app.post("/api/agent/events", status_code=202)
+    async def receive_events(request: Request):
+        """Signed gzip batch straight from a product (when this server is reachable); the relay path uses the same checks."""
+        body = await request.body()
+        try:
+            return telemetry.receive(conn, dict(request.headers), body)
+        except telemetry.Rejected as error:
+            raise HTTPException(error.status, error.reason) from error
+
     @app.post("/api/agent/heartbeat")
     def heartbeat(body: Heartbeat, me: dict = Depends(install)):
         conn.execute("INSERT INTO heartbeats (id, install_id, received_at, version, licence_state, last_backup_at, "

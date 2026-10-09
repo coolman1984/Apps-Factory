@@ -20,6 +20,16 @@ Recorded 2026-10-09 (Cairo). Nothing in the open list is decided, bought or sign
   - a failure in one channel never blocks the others;
   - delivery is logged per channel.
 
+- **Customer patch delivery stays free** (decided 2026-10-09 09:12). See [CUSTOMER_PATCH_PIPELINE.md](CUSTOMER_PATCH_PIPELINE.md):
+  - the in-app «تحديث متاح» notice is primary;
+  - email goes through the Resend free tier or SMTP;
+  - WhatsApp is a wa.me link the owner sends by hand;
+  - the optional customer Telegram bot is free.
+- **Rejected (no payment):** WhatsApp Cloud API utility templates for **customer** delivery. They cost about $0.0036 per
+  message plus 14% VAT and need a Meta business account and a payment method. No automated WhatsApp goes to customers (MSG-01).
+- **Recommended for owner alerts:** Telegram, which is free and already built, disabled by default. It is preferred over
+  the paid WhatsApp API. The WhatsApp owner-alert open point below is unchanged.
+
 ## Open points (the owner decides; no payment has started)
 | Item | Why it is open | Note |
 |---|---|---|
