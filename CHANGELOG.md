@@ -2,6 +2,12 @@
 
 Factory versions (the `README.md` version line). The control catalogue has its own `catalog_version` in `factory/controls.json`.
 
+## 0.12.0 (2026-10-09)
+- Licence Studio 1.1.0: explicit 14-day trial, 30-day monthly, and perpetual purchase buttons; owner approval for paid codes, and device-bound activation.
+- af-license 0.3.0: retains all old signed code formats; reserves a signed no-expiry value for lifetime licences and validates 30-day monthly terms. Consumers must update their vendored verifier before issuing new codes to them.
+- Permanent licences work offline indefinitely on the licensed device, with no renewal or new payment; machine replacement needs a free reissue of the same entitlement.
+- No code, privacy data or live customer data is deleted. Auto-payment and deployment to existing customer installations are not included.
+
 ## 0.11.0 (2026-10-09)
 Docs diet (review item A12). Agents and people read three files, not 27. No code, package, template, workflow or catalogue change; the only edits outside Markdown are two lines of text: the `prompt` command's reading list in `scripts/factory.py` and the doc links in `CONTROL_CENTER.html`.
 - **Five living docs:** `README.md`, `RULES.md` (32 core controls with how each is checked, firm privacy limits, agent workflow, Arabic standard), `PARTS.md` (every shared part: version, vendoring, spec, users), `PLAYBOOK.md` (tests, drift check, release, controls, products, alerts), `DECISIONS.md` (dated decisions, ADR index, open items).
