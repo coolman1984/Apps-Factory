@@ -1,10 +1,10 @@
 # Licence Studio | برنامج الأكواد 🔑
 
-The owner's program that makes **trial and paid codes** for every factory product. A code is 144 characters (24 groups of 6),
+The owner's program that makes **14-day trial, 30-day monthly subscription, and lifetime purchase codes** for every factory product. A code is 144 characters (24 groups of 6),
 signed with Ed25519, bound to one PC's device code, and carries product, edition, start and end day. A product verifies it
 offline with the stdlib verifier (`packages/af-license/af_license/codes.py`, vendored by `scripts/vendor_licence.py`).
 
-**Status:** implemented and tested (`tests/test_studio.py`: key lock, issue → verify, other PC refused, agent limits, MCP over a
+**Status:** implemented (including the three sales types); automated tests are required before release (`tests/test_studio.py`: key lock, issue → verify, other PC refused, agent limits, MCP over a
 real subprocess, full chain with Al-Store). Not field-verified yet.
 
 ## Run
@@ -34,4 +34,7 @@ and a daily limit when the owner turns it on. Paid codes always need the owner. 
 ## Product side (Al-Store example)
 1. Put the public key line from the Keys page in the product's `licence_keys.txt`.
 2. The customer opens the product → Licence card shows the **device code** → sends it to you.
-3. Issue a 14-day trial for that device → paste the code → product unlocks. After the end day it locks to read/export/backup only.
+3. Issue one 14-day trial for that device → paste the code → product unlocks. After day 14, the customer may buy a new 30-day monthly code or one permanent code. Expired codes leave read/export/backup available.
+4. **Monthly:** 30 days per paid code, manually renewed after payment. No automatic charging or hidden online dependency.
+5. **Lifetime:** a cryptographically signed permanent code with **no expiry**, no renewal, no subscription, and offline verification. It is bound to the licensed PC: replacement/reinstallation that changes the device code needs a **free replacement code**, not a second purchase. Updates/support are separate terms; licence validity never depends on paying again. Old standard/pro fixed-term codes remain valid.
+6. **Compatibility:** clients must receive the updated `afcodes.py` verifier before monthly/lifetime codes will work. Do not issue the new codes to old app builds.
