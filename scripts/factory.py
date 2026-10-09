@@ -159,6 +159,13 @@ def advisories(product):
                      "no WebUSB printing (MOB-04).")
     return notes
 
+def competitor_advice(product):
+    """Fewer than 5 competitor/alternative rows is advice only; it never blocks a release."""
+    if len(product["competitors"]) < 5:
+        return [f"{len(product['competitors'])} of 5 competitor/alternative rows recorded; "
+                "add priced alternatives when you have them (does not block a release)"]
+    return []
+
 def telemetry_errors(product):
     """ROLL-01: telemetry and alerts run on practice/demo data first, then on real installations."""
     tel = product.get("telemetry")
@@ -246,8 +253,6 @@ def valid_product(product, release=False):
             errors.append("Release requires independent field acceptance")
         if tier in CLOUD_TIERS and str(product["data"].get("residency", "")).upper().startswith(("TODO", "PENDING", "UNKNOWN")):
             errors.append("Release needs a decided hosting region (data.residency)")
-        if len(product["competitors"]) < 5:
-            errors.append("Release needs 5 competitor/alternative evidence rows, or documented owner exception")
         for k in EVIDENCE:
             v = product["evidence"].get(k, "")
             if not isinstance(v, str) or not v.strip() or v.upper().startswith(("PENDING", "TODO", "UNKNOWN")):
@@ -414,6 +419,8 @@ def main(argv=None):
         reference = [c["id"] for c in selected if c["tier"] != "core"]
         if reference:
             print(f"ADVICE: {len(reference)} reference controls apply; they never block a release: {', '.join(reference)}")
+        for note in competitor_advice(product):
+            print("ADVICE:", note)
         if errors:
             for e in errors:
                 print("NO-GO:", e)

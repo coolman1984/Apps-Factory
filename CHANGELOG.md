@@ -31,6 +31,7 @@ Rules cleanup (step 1 of the simplification). Controls catalogue 1.10.0: 138 con
   - REG-01, REG-02: the gate has no outside-review step; consent (PRIV-01) and the never-collect limits (PRIV-03) are what is enforced.
   - PRO-01, PRO-02: `check` already requires buyer, problem, core journey and an acceptance scenario in the manifest.
 - **Release evidence is two items:** `clean_device_restore` and `core_user_acceptance`. `market_review`, `privacy_review` and `security_review` are gone from the gate. Manifests that still carry them validate; the keys are ignored (the schema keeps them as optional legacy keys).
+- **Competitor rows are advice:** fewer than 5 competitor/alternative rows no longer fails `--release`; `check` prints an `ADVICE:` line instead. The hosting-region check for cloud tiers stays.
 - **Wording:** no law, legal or jurisdiction wording in the controls; SYNC-10 and SYNC-13 now state the practical outcome (erasure reaches every replica; the customer is told where data is stored). The advisory for cloud tiers says the same in plain words.
 - **Unchanged:** all packages, apps, templates, design-factory and workflows. Control ids that stay in the catalogue keep their ids.
 

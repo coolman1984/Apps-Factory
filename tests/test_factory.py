@@ -225,7 +225,7 @@ class CoreGateTests(unittest.TestCase):
         """A product that passes --release: both evidence items verified, proof for every applicable core control."""
         p = copy.deepcopy(product or factory.load(ROOT / "examples/hessa-product.json"))
         p["stage"] = "field_accepted"
-        p["competitors"] = [{"name": f"Alternative {i}"} for i in range(5)]
+        p["competitors"] = []  # competitor rows are advice only
         p["evidence"] = {"clean_device_restore": "2026-10-09 restored on a second PC, run log 41",
                          "core_user_acceptance": "2026-10-09 first customer did the journey alone"}
         p["control_evidence"] = {c["id"]: {"status": "verified", "proof": "test run 41"}
@@ -317,6 +317,22 @@ class CoreGateTests(unittest.TestCase):
         for name in ("hessa-product.json", "al-store-product.json", "trip-orders-product.json"):
             with self.subTest(name=name):
                 self.assertEqual(factory.valid_product(self.proven(factory.load(ROOT / "examples" / name)), release=True)[0], [])
+
+    def test_zero_competitors_is_advice_not_a_release_error(self):
+        p = self.proven()
+        self.assertEqual(p["competitors"], [])
+        self.assertEqual(factory.valid_product(p, release=True)[0], [])
+        self.assertTrue(factory.competitor_advice(p))
+        p["competitors"] = [{"name": f"Alternative {i}"} for i in range(5)]
+        self.assertEqual(factory.competitor_advice(p), [])
+        with tempfile.TemporaryDirectory() as d:
+            p["competitors"] = []
+            path = Path(d) / "p.json"
+            path.write_text(json.dumps(p), encoding="utf-8")
+            out = subprocess.run([sys.executable, str(ROOT / "scripts/factory.py"), "check", str(path), "--release"],
+                                 capture_output=True, text=True, check=False)
+            self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
+            self.assertIn("ADVICE: 0 of 5 competitor", out.stdout)
 
     def test_missing_core_proof_or_evidence_blocks_release(self):
         p = self.proven()
