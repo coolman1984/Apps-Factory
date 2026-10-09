@@ -65,6 +65,32 @@ class ServiceTests(unittest.TestCase):
         with self.assertRaises(Exception):
             self.s.db.execute("UPDATE codes SET last_day = '2099-01-01'")
 
+    def test_three_sales_types_and_existing_codes(self):
+        self.s.create_key(PASS)
+        trial = self.s.issue('al-store', 'trial', DEVICE, 'Store')
+        self.assertEqual(trial['days_left'], 14)
+        with self.assertRaises(StudioError):
+            self.s.issue('al-store', 'trial', DEVICE, 'Store')
+        monthly = self.s.issue('al-store', 'monthly', DEVICE, 'Store')
+        self.assertEqual(monthly['days_left'], 30)
+        self.assertEqual(monthly['status'], 'active')
+        with self.assertRaises(StudioError):
+            self.s.issue('al-store', 'monthly', DEVICE, 'Store', days=31)
+        lifetime = self.s.issue('al-store', 'lifetime', DEVICE, 'Store')
+        self.assertTrue(lifetime['permanent'])
+        self.assertIsNone(lifetime['last_day'])
+        self.assertIsNone(lifetime['days_left'])
+        self.assertFalse(lifetime['expiring_soon'])
+        check = self.s.verify(lifetime['code'], 'al-store', DEVICE)
+        self.assertTrue(check['valid'])
+        self.assertTrue(check['terms']['permanent'])
+        self.assertEqual(check['state'], 'active')
+        with self.assertRaises(StudioError):
+            self.s.issue('al-store', 'lifetime', None, 'Store')
+        self.assertFalse(any(c['edition'] == 'lifetime' for c in self.s.list_codes(status='expiring')))
+        self.assertEqual(self.s.request('al-store', 'lifetime', DEVICE, 'Another shop')['status'], 'pending')
+        self.assertEqual(self.s.request('al-store', 'monthly', DEVICE, 'Another shop')['days'], 30)
+
     def test_wrong_passphrases_are_throttled(self):
         self.s.create_key(PASS)
         fresh = Studio(self.dir)
