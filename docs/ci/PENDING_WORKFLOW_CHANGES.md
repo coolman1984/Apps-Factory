@@ -1,5 +1,11 @@
 # CI steps still to be added to `.github/workflows/`
 
+> **Status (2026-10-09): applied.** Every step below is now in `.github/workflows/factory-checks.yml` (the `validate` job
+> and the new `guide-browser` job), added with an account that has the `workflow` scope in the PR
+> `ci/align-workflows-20261009`. The relay test runs on Node `^22.13.0`. The vendored-copy drift tests, which skip when the
+> product repositories are not next to this one, now run against real checkouts in `.github/workflows/vendored-drift.yml`.
+> Nothing below is pending any more; this file is kept as the record of what was added and why.
+
 The automation token that pushed this branch has no `workflow` scope, so GitHub refuses any change under `.github/workflows/`. Until the owner adds these steps with one commit from an account that has that right, they run locally. The results are in each PR description.
 
 ## PR 1 (af-guide): add to `.github/workflows/factory-checks.yml`

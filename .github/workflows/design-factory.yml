@@ -4,14 +4,20 @@ on:
     branches: [main, "feat/**"]
   pull_request:
     branches: [main]
+  workflow_dispatch:
 permissions:
   contents: read
+concurrency:
+  # a newer push to the same PR cancels the older run; pushes to main and tags always finish
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 jobs:
   structure:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
       - name: Design Factory standards and pinned upstream gitlinks
@@ -28,11 +34,12 @@ jobs:
           node --check design-factory/icon-studio/qa/test.mjs
   browser:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
-          node-version: '22'
+          node-version: '^22.13.0'  # the factory's Node baseline (22.13+)
       - name: Install exact Playwright version for QA only
         working-directory: design-factory
         run: npm install --no-save --no-package-lock --no-audit --no-fund
@@ -45,7 +52,7 @@ jobs:
           npm run test:browser
           npm run test:creative
           npm run test:icons
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: design-factory-screenshots
