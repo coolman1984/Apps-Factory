@@ -67,6 +67,7 @@ class Catalogue(unittest.TestCase):
             ('pages-missing', lambda c: c.pop('pages')),
             ('pages-missing', lambda c: c.update(pages={})),
             ('profile-id', lambda c: c['profiles'][1].pop('id')),
+            ('no-page-perms', lambda c: c['groups'][0]['permissions'][0].update(kind='action')),
         ]
         for code, breaks in cases:
             with self.subTest(code=code):
