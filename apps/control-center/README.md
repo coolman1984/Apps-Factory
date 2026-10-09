@@ -42,8 +42,8 @@
     |---|---|---|
     | dashboard | — | always on |
     | email | `CC_SMTP_HOST`, `CC_SMTP_PORT`, `CC_SMTP_USER`, `CC_SMTP_PASSWORD`, `CC_ALERT_EMAIL_FROM`, `CC_ALERT_EMAIL_TO` | on when configured |
-    | whatsapp | `CC_WA_TOKEN`, `CC_WA_PHONE_NUMBER_ID`, `CC_WA_TO`, `CC_WA_TEMPLATE` (+ `CC_WA_TEMPLATE_LANG`). Without a template, plain text only reaches the owner inside WhatsApp's 24-hour window. «⚠️ نقطة مفتوحة: لسه ما بدأناش ندفع — التكلفة و/أو شرط توثيق الشركة مش واضحين» | on when configured |
-    | telegram | `CC_TG_BOT_TOKEN`, `CC_TG_CHAT_ID`. Free; **recommended** for owner alerts. | **off** until switched on |
+    | whatsapp | `CC_WA_TOKEN`, `CC_WA_PHONE_NUMBER_ID`, `CC_WA_TO`, `CC_WA_TEMPLATE` (+ `CC_WA_TEMPLATE_LANG`). Without a template, plain text only reaches the owner inside WhatsApp's 24-hour window. **superseded by Telegram for owner alerts**; left unconfigured | on when configured |
+    | telegram | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_OWNER_CHAT_ID` (or `CC_TG_BOT_TOKEN`, `CC_TG_CHAT_ID`). Free; **core owner channel** (owner decision 2026-10-09 09:26). | **on as soon as configured**; no switch |
     | linkedin | `CC_LINKEDIN_TOKEN`. **Cannot deliver:** member DMs are partner-only and automated sends are prohibited, and the free API only makes public posts on your own profile. The adapter logs `unsupported` and never posts. «⚠️ نقطة مفتوحة: لسه ما بدأناش ندفع — التكلفة و/أو شرط توثيق الشركة مش واضحين» | **off** |
 
   - **Settings:** `GET/PUT /api/alert-settings` (owner) holds on/off switches and thresholds only. Secret-looking keys are refused. `POST /api/alerts/test` sends a test alert to every enabled channel.

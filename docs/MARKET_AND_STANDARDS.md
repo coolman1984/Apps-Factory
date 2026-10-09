@@ -22,7 +22,7 @@ This is a **risk-scoped engineering baseline**, NOT an assertion of audit certif
 **Conditional:** MFA for high-risk/public exposed owners, hosted tenancy, offline signature licensing, SSO, mobile camera, AI tool governance, HIPAA/PCI/education/medical/finance requirements, localization/tax adapters, dedicated penetration tests.
 
 ## 2. Localization and market routing
-**Egypt:** Egyptian Arabic content help for SME staff, correct RTL and Arabic numbers/date/currency/time formatting, offline/LAN offerings where appropriate; legal review for [Egypt Law 151/2020 and Executive Regulations 816/2025](https://www.pdpc.gov.eg/) including data roles, notices, consent/legitimate basis, rights, retention and cross-border transfers. **Never assume** local-only deployment automatically exempts privacy duties.
+**Egypt:** Egyptian Arabic content help for SME staff, correct RTL and Arabic numbers/date/currency/time formatting, offline/LAN offerings where appropriate; review of personal-data duties, including data roles, notices, consent/legitimate basis, rights, retention and cross-border transfers. **Never assume** local-only deployment automatically exempts privacy duties.
 
 **Saudi Arabia:** Arabic-first product and official forms, localized SAR/VAT support if applicable, contractual hosting/transfer preferences; legal review against [SDAIA PDPL implementing regulation](https://sdaia.gov.sa/en/SDAIA/about/Documents/ImplementingRegulation.pdf) and [cross-border transfer rules](https://dgp.sdaia.gov.sa/wps/portal/pdp/knowledgecenter/details/RegulationonPersonalDataTransferOutsidetheKingdom). Government or regulated buyers may require sector-specific security standards.
 

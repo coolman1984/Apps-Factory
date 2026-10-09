@@ -79,7 +79,7 @@ class Recorder(alerts.Channel):
 class Base(unittest.TestCase):
     def setUp(self):
         for k in list(os.environ):
-            if k.startswith(("CC_SMTP", "CC_ALERT", "CC_WA_", "CC_TG_", "CC_LINKEDIN")):
+            if k.startswith(("CC_SMTP", "CC_ALERT", "CC_WA_", "CC_TG_", "CC_LINKEDIN", "TELEGRAM_")):
                 del os.environ[k]
         self.tmp = tempfile.TemporaryDirectory()
         self.app = create_app(str(Path(self.tmp.name) / "cc.db"))
@@ -296,7 +296,7 @@ class FanOut(Base):
         os.environ.update({"CC_SMTP_HOST": "smtp.example", "CC_ALERT_EMAIL_FROM": "cc@example.com",
                            "CC_ALERT_EMAIL_TO": "owner@example.com", "CC_WA_TOKEN": "wa-secret-token",
                            "CC_WA_PHONE_NUMBER_ID": "123", "CC_WA_TO": "201000000000", "CC_WA_TEMPLATE": "cc_alert",
-                           "CC_TG_BOT_TOKEN": "tg-secret", "CC_TG_CHAT_ID": "42", "CC_LINKEDIN_TOKEN": "li-secret"})
+                           "TELEGRAM_BOT_TOKEN": "tg-secret", "TELEGRAM_OWNER_CHAT_ID": "42", "CC_LINKEDIN_TOKEN": "li-secret"})
         sent_mail, posts = [], []
 
         class FakeSMTP:
@@ -313,12 +313,14 @@ class FanOut(Base):
                 a = alerts.raise_alert(self.conn, "problem_report", None, "تجربة", "k3")
                 status = {d["channel"]: d["status"] for d in a["deliveries"]}
                 self.assertEqual(status, {"dashboard": "sent", "email": "sent", "whatsapp": "sent",
-                                          "telegram": "disabled", "linkedin": "disabled"},
-                                 "Telegram and LinkedIn stay off until switched on")
+                                          "telegram": "sent", "linkedin": "disabled"},
+                                 "Telegram is on as soon as it is configured; LinkedIn stays off")
+                tg = [b for u, b in posts if urlparse(u).hostname == "api.telegram.org"]
+                self.assertEqual(tg[0]["chat_id"], "42")
                 self.assertEqual(sent_mail[0]["To"], "owner@example.com")
                 self.assertEqual(posts[0][1]["type"], "template")
                 self.assertEqual(posts[0][1]["template"]["name"], "cc_alert")
-                r = self.c.put("/api/alert-settings", json={"channels": {"telegram": True, "linkedin": True}}, headers=self.O)
+                r = self.c.put("/api/alert-settings", json={"channels": {"linkedin": True}}, headers=self.O)
                 self.assertEqual(r.status_code, 200, r.text)
                 self.assertNotIn("secret", r.text)
                 a = self.c.post("/api/alerts/test", headers=self.O).json()
@@ -331,11 +333,11 @@ class FanOut(Base):
                 self.assertEqual(hosts, {"graph.facebook.com", "api.telegram.org"}, "nothing was sent to LinkedIn")
         finally:
             for k in list(os.environ):
-                if k.startswith(("CC_SMTP", "CC_ALERT", "CC_WA_", "CC_TG_", "CC_LINKEDIN")):
+                if k.startswith(("CC_SMTP", "CC_ALERT", "CC_WA_", "CC_TG_", "CC_LINKEDIN", "TELEGRAM_")):
                     del os.environ[k]
 
     def test_settings_refuse_secrets_and_unknowns(self):
-        for body in ({"channels": {"dashboard": False}}, {"channels": {"pager": True}}, {"channels": {"email": "yes"}},
+        for body in ({"channels": {"dashboard": False}}, {"channels": {"telegram": False}}, {"channels": {"pager": True}}, {"channels": {"email": "yes"}},
                      {"rules": {"made_up": {"on": True}}}, {"rules": {"incident_spike": {"token": "x"}}},
                      {"rules": {"incident_spike": {"count": "20"}}}, {"dedupe_hours": 0}, {"smtp_password": "x"}):
             with self.subTest(body=body):
@@ -364,6 +366,17 @@ class Concurrency(Base):
         for t in threads:
             t.join()
         self.assertEqual(codes, [200] * len(paths))
+
+
+class TelegramDefault(Base):
+    def test_on_when_configured_off_when_not(self):
+        tg = alerts.TelegramChannel()
+        self.assertFalse(tg.status({})["enabled"], "no token: nothing to send with")
+        with mock.patch.dict(os.environ, {"TELEGRAM_BOT_TOKEN": "t", "TELEGRAM_OWNER_CHAT_ID": "1"}):
+            st = tg.status({"telegram": False})
+            self.assertTrue(st["enabled"] and st["always_on"], "a stored switch cannot turn the core channel off")
+        with mock.patch.dict(os.environ, {"CC_TG_BOT_TOKEN": "t", "CC_TG_CHAT_ID": "1"}):
+            self.assertTrue(tg.configured(), "older CC_TG_* names still work")
 
 
 class Relay(Base):

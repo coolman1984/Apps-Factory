@@ -15,7 +15,7 @@ Secrets come ONLY from environment variables; the database keeps on/off switches
 |           | CC_ALERT_EMAIL_FROM, CC_ALERT_EMAIL_TO (comma list)                          |         |
 | whatsapp  | CC_WA_TOKEN, CC_WA_PHONE_NUMBER_ID, CC_WA_TO (comma list), CC_WA_TEMPLATE*,  | on when configured |
 |           | CC_WA_TEMPLATE_LANG* (ar), CC_WA_GRAPH_VERSION* (v21.0)                      |         |
-| telegram  | CC_TG_BOT_TOKEN, CC_TG_CHAT_ID                                               | OFF until switched on in settings |
+| telegram  | TELEGRAM_BOT_TOKEN, TELEGRAM_OWNER_CHAT_ID (or CC_TG_BOT_TOKEN, CC_TG_CHAT_ID) | ON as soon as configured; no switch |
 | linkedin  | CC_LINKEDIN_TOKEN                                                            | OFF; see LinkedInChannel |
 
 Open cost/verification points (docs/OPEN_POINTS.md): WhatsApp Cloud API needs Meta business verification and is
@@ -72,6 +72,7 @@ def _env(name, default=""):
 class Channel:
     name = "base"
     default_on = True
+    always_on = False   # core channels: active whenever configured; settings cannot switch them off
 
     def configured(self) -> bool:
         return True
@@ -81,8 +82,9 @@ class Channel:
         raise NotImplementedError
 
     def status(self, switches: dict) -> dict:
-        return {"name": self.name, "configured": self.configured(), "switched_on": switches.get(self.name, self.default_on),
-                "enabled": self.configured() and switches.get(self.name, self.default_on), "note": self.note}
+        on = True if self.always_on else switches.get(self.name, self.default_on)
+        return {"name": self.name, "configured": self.configured(), "switched_on": on, "always_on": self.always_on,
+                "enabled": self.configured() and on, "note": self.note}
 
 
 Channel.note = ""
@@ -101,6 +103,7 @@ def text_of(alert: dict) -> str:
 class DashboardChannel(Channel):
     note = "دائمًا مفعّلة"
     name = "dashboard"
+    always_on = True
 
     def send(self, alert):
         return "stored"   # the alerts row is what the dashboard shows
@@ -169,18 +172,27 @@ class WhatsAppChannel(Channel):
         return f"sent to {len(to)} number(s)" + ("" if _env("CC_WA_TEMPLATE") else " (text: 24-hour window only)")
 
 
+def _tg_token():
+    return _env("TELEGRAM_BOT_TOKEN") or _env("CC_TG_BOT_TOKEN")
+
+
+def _tg_chat():
+    return _env("TELEGRAM_OWNER_CHAT_ID") or _env("CC_TG_CHAT_ID")
+
+
 class TelegramChannel(Channel):
-    """Telegram Bot API sendMessage to one chat. Free; off until the owner switches it on in settings."""
-    note = "مجانية، مقفولة لحد ما تفعّلها"
+    """Telegram Bot API sendMessage to the owner's chat. Free (BotFather). A core owner channel (owner decision
+    2026-10-09 09:26): ON as soon as the bot token and the owner chat id are set; there is no separate switch."""
+    note = "قناة أساسية مجانية: تعمل بمجرد ضبط التوكن ورقم محادثة المالك"
     name = "telegram"
-    default_on = False
+    always_on = True
 
     def configured(self):
-        return bool(_env("CC_TG_BOT_TOKEN") and _env("CC_TG_CHAT_ID"))
+        return bool(_tg_token() and _tg_chat())
 
     def send(self, alert):
-        _post_json(f"https://api.telegram.org/bot{_env('CC_TG_BOT_TOKEN')}/sendMessage",
-                   {"chat_id": _env("CC_TG_CHAT_ID"), "text": text_of(alert)[:4000]}, {})
+        _post_json(f"https://api.telegram.org/bot{_tg_token()}/sendMessage",
+                   {"chat_id": _tg_chat(), "text": text_of(alert)[:4000]}, {})
         return "sent"
 
 
@@ -225,8 +237,9 @@ def save_settings(conn, channels: dict | None = None, rules: dict | None = None,
         stored["rules"] = json.loads(row[0]).get("rules", {})
     names = {c.name for c in CHANNELS}
     for k, v in (channels or {}).items():
-        if k not in names or not isinstance(v, bool) or k == "dashboard" and v is False:
-            raise ValueError(f"channel {k!r}: true/false for a known channel (the dashboard cannot be switched off)")
+        always = {c.name for c in CHANNELS if c.always_on}
+        if k not in names or not isinstance(v, bool) or k in always and v is False:
+            raise ValueError(f"channel {k!r}: true/false for a known channel (dashboard and telegram cannot be switched off)")
         stored["channels"][k] = v
     for rule, change in (rules or {}).items():
         if rule not in RULES or not isinstance(change, dict):
