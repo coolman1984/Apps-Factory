@@ -1,0 +1,104 @@
+{
+  "product": "demo-shop",
+  "languages": [
+    "en",
+    "ar"
+  ],
+  "manage": "users.manage",
+  "groups": [
+    {
+      "id": "work",
+      "labels": {
+        "en": "Work",
+        "ar": "العمل"
+      },
+      "permissions": [
+        {
+          "id": "shift.open",
+          "kind": "action",
+          "labels": {
+            "en": "Open and close shifts",
+            "ar": "فتح وإغلاق الوردية"
+          }
+        },
+        {
+          "id": "sales.sell",
+          "kind": "action",
+          "labels": {
+            "en": "Sell",
+            "ar": "البيع"
+          }
+        },
+        {
+          "id": "stock.edit",
+          "kind": "action",
+          "labels": {
+            "en": "Edit stock",
+            "ar": "تعديل المخزن"
+          }
+        }
+      ]
+    },
+    {
+      "id": "admin",
+      "admin": true,
+      "labels": {
+        "en": "Administrator rights",
+        "ar": "صلاحيات المدير"
+      },
+      "permissions": [
+        {
+          "id": "users.manage",
+          "kind": "admin",
+          "labels": {
+            "en": "Manage people",
+            "ar": "إدارة الأشخاص"
+          }
+        }
+      ]
+    }
+  ],
+  "pages": {
+    "home": "*",
+    "help": "*",
+    "sell": [
+      "sales.sell"
+    ],
+    "shift": [
+      "shift.open"
+    ],
+    "stock": [
+      "stock.edit"
+    ],
+    "people": [
+      "users.manage"
+    ]
+  },
+  "profiles": [
+    {
+      "id": "owner",
+      "locked": true,
+      "labels": {
+        "en": "Owner",
+        "ar": "المالك"
+      },
+      "perms": [
+        "shift.open",
+        "sales.sell",
+        "stock.edit",
+        "users.manage"
+      ]
+    },
+    {
+      "id": "cashier",
+      "labels": {
+        "en": "Cashier",
+        "ar": "كاشير"
+      },
+      "perms": [
+        "shift.open",
+        "sales.sell"
+      ]
+    }
+  ]
+}

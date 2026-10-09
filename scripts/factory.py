@@ -257,6 +257,21 @@ def new_product(args):
         f.write("\n")
     return target
 
+def guide_check(args):
+    """Run the af-guide checker from the factory checkout (same rules the product runs in its own tests)."""
+    sys.path.insert(0, str(ROOT / "packages" / "af-guide"))
+    import af_guide
+    cat, texts = af_guide.load_dir(args.folder)
+    found = af_guide.check(cat, texts, ui=af_guide._ui_files(args.ui) if args.ui else None,
+                           access=load(args.access) if args.access else None,
+                           error_codes=load(args.errors) if args.errors else None, release=args.release)
+    for f in found:
+        print(f)
+    bad = [f for f in found if f.level == "error"]
+    print(f"GUIDE {'NO-GO' if bad else 'OK'}: {len(cat.get('guides', []))} guides, {len(cat.get('roles', []))} roles, "
+          f"{len(cat.get('problems', []))} problems, {len(bad)} errors, {len(found) - len(bad)} warnings")
+    return 1 if bad else 0
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description="Apps Factory manifest and evidence gate (NOT production app generator)")
     sub = parser.add_subparsers(dest="action", required=True)
@@ -277,8 +292,16 @@ def main(argv=None):
     sub.add_parser("controls", help="List standard control IDs")
     prompt = sub.add_parser("prompt", help="Print safe agent starting prompt for a product manifest")
     prompt.add_argument("product")
+    guide = sub.add_parser("guide", help="Check a product's guide folder with packages/af-guide (HELP-07..12)")
+    guide.add_argument("folder", help="Folder with catalogue.json and <lang>.json")
+    guide.add_argument("--ui", action="append", default=[], help="UI dictionary JSON per language (ui-ar.json, ui-en.json)")
+    guide.add_argument("--access", help="af-access permission catalogue JSON")
+    guide.add_argument("--errors", help="JSON list of every error code the server can return")
+    guide.add_argument("--release", action="store_true", help="Style warnings become errors (HELP-11)")
     args = parser.parse_args(argv)
     try:
+        if args.action == "guide":
+            return guide_check(args)
         if args.action == "doctor":
             controls = catalog()
             schema = load(ROOT / "factory" / "product.schema.json")

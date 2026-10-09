@@ -1,0 +1,15 @@
+{
+  "nav.shift": "Cash & shift",
+  "nav.sell": "Sell",
+  "nav.stock": "Stock",
+  "nav.people": "People",
+  "shift.open": "Open shift",
+  "shift.save": "Save",
+  "shift.close": "Close shift",
+  "sell.pay": "Pay",
+  "sell.done": "Sale done",
+  "stock.new": "New item",
+  "stock.save": "Save item",
+  "people.new": "New person",
+  "people.save": "Save"
+}

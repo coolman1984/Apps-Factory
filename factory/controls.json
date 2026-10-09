@@ -1,5 +1,5 @@
 {
-  "catalog_version": "1.7.0",
+  "catalog_version": "1.8.0",
   "updated": "2026-10-09",
   "policy": "Required-if-applicable, never auto-certifies an implementation. Profiles: desktop, lan, saas, paid, ai, regulated, sync, mesh, mobile, multi_site, multi_owner, windows. Connectivity tier cloud_sync activates sync and saas.",
   "references": [
@@ -1203,15 +1203,15 @@
     },
     {
       "id": "HELP-04",
-      "slug": "plain-egyptian-help",
+      "slug": "simple-formal-arabic-help",
       "category": "help",
       "profiles": [
         "desktop",
         "lan",
         "saas"
       ],
-      "requirement": "Help written in polished Egyptian Arabic a 12-year-old understands; reading pass by a non-developer each release",
-      "acceptance_evidence": "Release evidence names the reviewer",
+      "requirement": "Help written in «العربية الميسّرة»: simple, correct Arabic between Modern Standard and polite Egyptian (MSA order without case endings, everyday words, one action per step, 0-9 digits, no technical words); a 12-year-old understands it; reading pass by a non-developer each release",
+      "acceptance_evidence": "af_guide lint clean with --release (packages/af-guide/style/ar-lexicon.json) and release evidence names the reviewer",
       "required_if_applies": true,
       "implementation_status": "planned"
     },
@@ -1242,6 +1242,90 @@
       "acceptance_evidence": "Ticket log linked to help changes",
       "required_if_applies": true,
       "implementation_status": "planned"
+    },
+    {
+      "id": "HELP-07",
+      "slug": "role-courses-server-progress",
+      "category": "help",
+      "profiles": [
+        "desktop",
+        "lan",
+        "saas"
+      ],
+      "requirement": "Every role has an ordered course of short guides (its first-day path); each guide names the permission it needs; each person's progress is saved on the server (not only in the browser) and steps already done in the data count as done",
+      "acceptance_evidence": "af_guide check passes in the product's tests (role-without-path, path-order, role-perm, unknown-perm) and a browser test shows progress following the person to a second browser",
+      "required_if_applies": true,
+      "implementation_status": "implemented"
+    },
+    {
+      "id": "HELP-08",
+      "slug": "coach-auto-advance-resume",
+      "category": "help",
+      "profiles": [
+        "desktop",
+        "lan",
+        "saas"
+      ],
+      "requirement": "The coach lights up the exact control, moves on by itself when the step is done (route, target, gone, filled, dialog or server-confirmed event) and offers to resume an unfinished guide after reload or on another PC",
+      "acceptance_evidence": "Browser test: a guide completes with no Next presses on action steps; reload shows Resume at the same step",
+      "required_if_applies": true,
+      "implementation_status": "implemented"
+    },
+    {
+      "id": "HELP-09",
+      "slug": "errors-link-to-problems",
+      "category": "help",
+      "profiles": [
+        "desktop",
+        "lan",
+        "saas"
+      ],
+      "requirement": "Every error code the server can return links to a problem entry (what you see, why, what to do, if it still fails) with a Take me there link or a guide",
+      "acceptance_evidence": "af_guide check --errors <all server error codes> has no error-unexplained finding",
+      "required_if_applies": true,
+      "implementation_status": "implemented"
+    },
+    {
+      "id": "HELP-10",
+      "slug": "guide-language-switch",
+      "category": "help",
+      "profiles": [
+        "desktop",
+        "lan",
+        "saas"
+      ],
+      "requirement": "Guides exist in every guide language of the product with a per-person language switch that does not change the app's UI language; button names stay as the screen shows them",
+      "acceptance_evidence": "af_guide check has no text-missing finding; browser test switches the guide language and the coach direction follows it",
+      "required_if_applies": true,
+      "implementation_status": "implemented"
+    },
+    {
+      "id": "HELP-11",
+      "slug": "help-style-lint",
+      "category": "help",
+      "profiles": [
+        "desktop",
+        "lan",
+        "saas"
+      ],
+      "requirement": "The Arabic and English help text passes the factory style lint (sentence length, banned colloquial and technical words, 0-9 digits, no quotes around [[ui]] labels, one action per step); lint warnings block a release",
+      "acceptance_evidence": "af_guide check --release is clean",
+      "required_if_applies": true,
+      "implementation_status": "implemented"
+    },
+    {
+      "id": "HELP-12",
+      "slug": "guides-walked-in-browser",
+      "category": "help",
+      "profiles": [
+        "desktop",
+        "lan",
+        "saas"
+      ],
+      "requirement": "Every guide of every role is walked end to end in a real browser against the running product before release",
+      "acceptance_evidence": "packages/af-guide/testing/walk_guides.py returns no failures in the product's browser tests",
+      "required_if_applies": true,
+      "implementation_status": "implemented"
     },
     {
       "id": "DIAG-01",

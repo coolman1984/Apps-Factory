@@ -1,0 +1,399 @@
+{
+  "product": "demo-shop",
+  "format": 1,
+  "languages": [
+    "ar",
+    "en"
+  ],
+  "defaultLang": "ar",
+  "uiLanguages": [
+    "ar",
+    "en"
+  ],
+  "pages": [
+    "home",
+    "sell",
+    "shift",
+    "stock",
+    "people",
+    "help"
+  ],
+  "unguided": [
+    "help"
+  ],
+  "states": [
+    "shift.open",
+    "sale.first",
+    "product.first",
+    "person.second"
+  ],
+  "checklist": [
+    "open-shift",
+    "add-product",
+    "add-person"
+  ],
+  "targets": {
+    "shift.open": {
+      "page": "shift",
+      "sel": "[data-guide=\"shift.open\"]"
+    },
+    "shift.cash": {
+      "page": "shift",
+      "sel": "[data-guide=\"shift.cash\"]"
+    },
+    "shift.save": {
+      "page": "shift",
+      "sel": "[data-guide=\"shift.save\"]"
+    },
+    "shift.close": {
+      "page": "shift",
+      "sel": "[data-guide=\"shift.close\"]"
+    },
+    "shift.counted": {
+      "page": "shift",
+      "sel": "[data-guide=\"shift.counted\"]"
+    },
+    "shift.status": {
+      "page": "shift",
+      "sel": "[data-guide=\"shift.status\"]"
+    },
+    "sell.search": {
+      "page": "sell",
+      "sel": "[data-guide=\"sell.search\"]"
+    },
+    "sell.pay": {
+      "page": "sell",
+      "sel": "[data-guide=\"sell.pay\"]"
+    },
+    "sell.done": {
+      "page": "sell",
+      "sel": "[data-guide=\"sell.done\"]"
+    },
+    "stock.new": {
+      "page": "stock",
+      "sel": "[data-guide=\"stock.new\"]"
+    },
+    "stock.name": {
+      "page": "stock",
+      "sel": "[data-guide=\"stock.name\"]"
+    },
+    "stock.save": {
+      "page": "stock",
+      "sel": "[data-guide=\"stock.save\"]"
+    },
+    "people.new": {
+      "page": "people",
+      "sel": "[data-guide=\"people.new\"]"
+    },
+    "people.profile": {
+      "page": "people",
+      "sel": "[data-guide=\"people.profile\"]"
+    },
+    "people.save": {
+      "page": "people",
+      "sel": "[data-guide=\"people.save\"]"
+    }
+  },
+  "guides": [
+    {
+      "id": "open-shift",
+      "cat": "shift",
+      "perm": "shift.open",
+      "minutes": 2,
+      "requires": [],
+      "done": {
+        "state": "shift.open"
+      },
+      "steps": [
+        {
+          "k": "go",
+          "page": "shift",
+          "until": {
+            "route": "shift"
+          }
+        },
+        {
+          "k": "click",
+          "target": "shift.open",
+          "until": {
+            "target": "shift.cash"
+          }
+        },
+        {
+          "k": "type",
+          "target": "shift.cash",
+          "until": {
+            "filled": "shift.cash"
+          }
+        },
+        {
+          "k": "click",
+          "target": "shift.save",
+          "until": {
+            "event": "shift.opened"
+          }
+        },
+        {
+          "k": "done"
+        }
+      ]
+    },
+    {
+      "id": "first-sale",
+      "cat": "sell",
+      "perm": "sales.sell",
+      "minutes": 3,
+      "requires": [
+        "open-shift"
+      ],
+      "done": {
+        "state": "sale.first"
+      },
+      "steps": [
+        {
+          "k": "go",
+          "page": "sell",
+          "until": {
+            "route": "sell"
+          }
+        },
+        {
+          "k": "type",
+          "target": "sell.search",
+          "until": {
+            "filled": "sell.search"
+          }
+        },
+        {
+          "k": "tip"
+        },
+        {
+          "k": "click",
+          "target": "sell.pay",
+          "until": {
+            "target": "sell.done"
+          }
+        },
+        {
+          "k": "check",
+          "target": "sell.done",
+          "until": {
+            "event": "sale.done"
+          }
+        },
+        {
+          "k": "done"
+        }
+      ]
+    },
+    {
+      "id": "close-shift",
+      "cat": "shift",
+      "perm": "shift.open",
+      "minutes": 3,
+      "requires": [
+        "open-shift"
+      ],
+      "steps": [
+        {
+          "k": "go",
+          "page": "shift",
+          "until": {
+            "route": "shift"
+          }
+        },
+        {
+          "k": "click",
+          "target": "shift.close",
+          "until": {
+            "target": "shift.counted"
+          }
+        },
+        {
+          "k": "type",
+          "target": "shift.counted",
+          "until": {
+            "filled": "shift.counted"
+          }
+        },
+        {
+          "k": "warn"
+        },
+        {
+          "k": "click",
+          "target": "shift.save",
+          "until": {
+            "event": "shift.closed"
+          }
+        },
+        {
+          "k": "done"
+        }
+      ]
+    },
+    {
+      "id": "add-product",
+      "cat": "stock",
+      "perm": "stock.edit",
+      "minutes": 2,
+      "requires": [],
+      "done": {
+        "state": "product.first"
+      },
+      "steps": [
+        {
+          "k": "go",
+          "page": "stock",
+          "until": {
+            "route": "stock"
+          }
+        },
+        {
+          "k": "click",
+          "target": "stock.new",
+          "until": {
+            "target": "stock.name"
+          }
+        },
+        {
+          "k": "type",
+          "target": "stock.name",
+          "until": {
+            "filled": "stock.name"
+          }
+        },
+        {
+          "k": "click",
+          "target": "stock.save",
+          "until": {
+            "gone": "stock.name"
+          }
+        },
+        {
+          "k": "done"
+        }
+      ]
+    },
+    {
+      "id": "add-person",
+      "cat": "people",
+      "perm": "users.manage",
+      "minutes": 3,
+      "requires": [],
+      "done": {
+        "state": "person.second"
+      },
+      "steps": [
+        {
+          "k": "go",
+          "page": "people",
+          "until": {
+            "route": "people"
+          }
+        },
+        {
+          "k": "click",
+          "target": "people.new",
+          "until": {
+            "target": "people.profile"
+          }
+        },
+        {
+          "k": "choose",
+          "target": "people.profile",
+          "until": {
+            "filled": "people.profile"
+          }
+        },
+        {
+          "k": "click",
+          "target": "people.save",
+          "until": {
+            "event": "person.saved"
+          }
+        },
+        {
+          "k": "done"
+        }
+      ]
+    }
+  ],
+  "roles": [
+    {
+      "id": "cashier",
+      "profiles": [
+        "cashier"
+      ],
+      "path": [
+        "open-shift",
+        "first-sale",
+        "close-shift"
+      ]
+    },
+    {
+      "id": "owner",
+      "profiles": [
+        "owner"
+      ],
+      "path": [
+        "add-product",
+        "add-person",
+        "open-shift",
+        "first-sale",
+        "close-shift"
+      ]
+    }
+  ],
+  "problems": [
+    {
+      "id": "no-shift",
+      "cat": "sell",
+      "page": "shift",
+      "guide": "open-shift",
+      "errors": [
+        "sale.no_shift"
+      ],
+      "roles": [
+        "cashier",
+        "owner"
+      ]
+    },
+    {
+      "id": "drawer-mismatch",
+      "cat": "shift",
+      "page": "shift",
+      "guide": "close-shift",
+      "errors": [
+        "shift.drawer_mismatch"
+      ],
+      "roles": [
+        "cashier",
+        "owner"
+      ]
+    },
+    {
+      "id": "not-enough-stock",
+      "cat": "stock",
+      "page": "stock",
+      "guide": "add-product",
+      "errors": [
+        "stock.not_enough"
+      ],
+      "roles": [
+        "owner"
+      ]
+    },
+    {
+      "id": "no-permission",
+      "cat": "people",
+      "page": "home",
+      "errors": [
+        "auth.forbidden"
+      ],
+      "roles": [
+        "cashier",
+        "owner"
+      ]
+    }
+  ]
+}
