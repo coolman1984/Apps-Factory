@@ -19,7 +19,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
 from .relay import RelayError
-from .service import PRODUCT_TRIAL_MAX, Studio, StudioError
+from .service import PRODUCT_TRIAL_MAX, Studio, StudioError, _whole_days
 
 STATIC = Path(__file__).parent / 'static'
 AF_UI = Path(__file__).resolve().parents[3] / 'packages' / 'af-ui'  # the factory's shared design system
@@ -201,7 +201,7 @@ def make_handler(app: App):
                     if 'auto_trials' in d:
                         S.set_setting('auto_trials', d['auto_trials'] is True)
                     if 'auto_trial_days' in d:
-                        S.set_setting('auto_trial_days', max(1, min(PRODUCT_TRIAL_MAX, int(d['auto_trial_days']))))
+                        S.set_setting('auto_trial_days', _whole_days(d['auto_trial_days'], 'policy.days', f'The automatic trial cap must be a whole number from 1 to {PRODUCT_TRIAL_MAX}.'))
                     if 'auto_trial_daily_cap' in d:
                         S.set_setting('auto_trial_daily_cap', max(0, min(100, int(d['auto_trial_daily_cap']))))
                     return self.send(200, S.policy())

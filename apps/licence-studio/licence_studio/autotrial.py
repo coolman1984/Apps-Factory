@@ -319,7 +319,7 @@ class AutoTrial:
             else:
                 # a button is the owner's decision on THIS request: it gets the product's saved trial length (14 until the owner sets another);
                 # the policy gives that length too, but never more than the term the owner set for the automatic policy (14 until raised)
-                pol = s.policy()  # read once: the length and the cap come from one snapshot
+                pol = s.policy()  # read once: the cap and the daily limit come from one snapshot (the product's length is read as the code is signed)
                 code = s.issue(r['product'], 'trial', r['device'], r['customer'], '',
                                s.trial_length(r['product']) if approved else s.trial_length(r['product'], cap=pol['auto_trial_days']),
                                note='تجربة بموافقتك على تليجرام' if approved else 'تجربة تلقائية بسياسة المالك',

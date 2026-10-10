@@ -84,6 +84,22 @@ MAX_KEEP_UNLOCKED_HOURS = 12
 DEFAULT_PRODUCTS = [('al-store', 'Al-Store · الستور', 14), ('hessa-centre', 'Hessa · حصّة', 14)]
 
 
+def _whole_days(value, key, message, low=1, high=None):
+    """A number of days typed by a person: a whole number in range, else a clear refusal (never a bare ValueError or TypeError).
+    Accepts an int or a string of ASCII digits; refuses booleans, floats, empty text, other digit scripts and anything out of range."""
+    high = PRODUCT_TRIAL_MAX if high is None else high
+    if isinstance(value, bool) or not isinstance(value, (int, str)):
+        raise StudioError(key, message)
+    if isinstance(value, str):
+        text = value.strip()
+        if not (text.isascii() and text.isdigit() and len(text) <= 4):
+            raise StudioError(key, message)
+        value = int(text)
+    if not (low <= value <= high):
+        raise StudioError(key, message)
+    return value
+
+
 class StudioError(Exception):
     def __init__(self, key, text, status=400):
         super().__init__(text)
@@ -201,7 +217,7 @@ class Studio:
                 'lock_minutes': LOCK_AFTER_SECONDS // 60,
                 # the owner-approved automatic trial policy (off until the owner switches it on): see autotrial.py
                 'auto_trials': bool(self.setting('auto_trials', False)),
-                'auto_trial_days': int(self.setting('auto_trial_days', AGENT_MAX_TRIAL_DAYS)),
+                'auto_trial_days': int(self.setting('auto_trial_days', DEFAULT_TRIAL_DAYS)),
                 'auto_trial_daily_cap': int(self.setting('auto_trial_daily_cap', 10)),
                 'keep_unlocked_until': (datetime.fromtimestamp(keep, timezone.utc).replace(microsecond=0).isoformat().replace('+00:00', 'Z') if keep else None)}
 
@@ -294,13 +310,9 @@ class Studio:
         pid = (pid or '').strip().lower()
         if not (3 <= len(pid) <= 48) or not all(ch.isalnum() or ch == '-' for ch in pid) or not pid[0].isalpha():
             raise StudioError('product.id', 'Product id: 3–48 letters, digits or dashes, starting with a letter (e.g. al-store).')
-        if isinstance(trial_days, bool) or not isinstance(trial_days, (int, str)) or (isinstance(trial_days, str) and not trial_days.strip().isdigit()):
-            raise StudioError('product.days', f'Trial days must be a whole number from 1 to {PRODUCT_TRIAL_MAX}.')
-        trial_days = int(trial_days)
-        if not (1 <= trial_days <= PRODUCT_TRIAL_MAX):
-            raise StudioError('product.days', f'Trial days must be 1 to {PRODUCT_TRIAL_MAX}.')
-        before = self.one('SELECT trial_days FROM products WHERE id = ?', pid)
+        trial_days = _whole_days(trial_days, 'product.days', f'Trial days must be a whole number from 1 to {PRODUCT_TRIAL_MAX}.')
         with self.lock:
+            before = self.one('SELECT trial_days FROM products WHERE id = ?', pid)  # (read under the same lock as the write: the audit's «previous» is the one really replaced)
             self.db.execute('INSERT OR REPLACE INTO products(id, name, trial_days, created_at) VALUES (?, ?, ?, COALESCE((SELECT created_at '
                             'FROM products WHERE id = ?), ?))', (pid, (name or pid).strip()[:80], trial_days, pid, now_iso()))
         # a code already signed is never touched: it carries its own last day. Only the codes made from now on use the new length.
@@ -312,7 +324,7 @@ class Studio:
         Read when the code is signed, so the owner's latest setting counts; a code already signed keeps its own last day."""
         prod = self.one('SELECT trial_days FROM products WHERE id = ?', product)
         days = int(prod['trial_days']) if prod and 1 <= int(prod['trial_days']) <= PRODUCT_TRIAL_MAX else DEFAULT_TRIAL_DAYS
-        return min(days, int(cap)) if cap else days
+        return days if cap is None else min(days, max(1, int(cap)))  # (a cap of 0 or less never means «no cap»: the shortest trial is 1 day)
 
     # ------------------------------------------------------------------ codes
     def _check_terms(self, product, edition, device, days):
@@ -458,6 +470,10 @@ class Studio:
             if r['source'] == 'relay' and r['status'] == 'pending':  # what the owner-approved policy would do with it (a hint, nothing is changed)
                 kind, reason, _ = self.auto.verdict(r, approved=r['tg_decision'] == 'approved')
                 r['policy'] = {'verdict': 'hold', 'reason': 'relay_gone'} if r['held'] == 'relay_gone' else {'verdict': kind, 'reason': reason}  # (no automatic round signs a request the relay lost)
+                if r['kind'] == 'trial':  # the length that would be signed if it were decided now: the product's, and for the policy also its cap (what was stored at pull time may be older)
+                    full = self.trial_length(r['product'])
+                    r['days'] = full
+                    r['policy']['days'] = full if r['tg_decision'] == 'approved' else self.trial_length(r['product'], cap=self.policy()['auto_trial_days'])
         return rows
 
     def decide(self, rid, approve, actor='owner', payment_confirmed=False, payment_ref='', defer=False):
@@ -534,9 +550,9 @@ class Studio:
     def agent_issue_trial(self, product, device, customer, phone='', days=None, note=''):
         """The agent's only direct way to make a code: trial, device-bound, ≤ 14 days, daily limit, owner switched it on."""
         pol = self.policy()
+        days = int(days or self.trial_length(product, cap=AGENT_MAX_TRIAL_DAYS))  # the product's length, but an agent's own default is never above its limit of 14
         if not pol['agent_may_issue_trials']:
             return {'status': 'requested', 'request': self.request(product, 'trial', device, customer, phone, days, note)}
-        days = int(days or self.trial_length(product, cap=AGENT_MAX_TRIAL_DAYS))  # the product's length, and never above the agent's own limit
         if days > AGENT_MAX_TRIAL_DAYS:
             raise StudioError('agent.days', f'An agent may issue at most {AGENT_MAX_TRIAL_DAYS} trial days.')
         if not device:

@@ -754,7 +754,7 @@ class Buttons(Harness):
         self.s.auto.relay_gone(self.s.requests()[0])
         [r] = self.s.requests()
         self.assertEqual(r['held'], 'relay_gone', 'the lost record matters more than the cap: nothing can be delivered')
-        self.assertEqual(r['policy'], {'verdict': 'hold', 'reason': 'relay_gone'}, 'the list does not say «the policy will sign it by itself»')
+        self.assertEqual({k: r['policy'][k] for k in ('verdict', 'reason')}, {'verdict': 'hold', 'reason': 'relay_gone'}, 'the list does not say «the policy will sign it by itself»')
         self.assertEqual(self.s.one("SELECT COUNT(*) AS n FROM audit WHERE action = 'request.relay_gone'")['n'], 1, 'said once, not per round')
 
     def test_a_gone_mark_is_cleared_when_the_relay_says_it_is_still_waiting(self):

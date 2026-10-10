@@ -120,12 +120,19 @@ class StudioPage(unittest.TestCase):
             # the owner switches the policy on and keeps the key open; the next round issues the trial by itself
             pg.check('#au')
             self.assertEqual(pg.input_value('#ad'), '14', 'the automatic trial cap shows 14 until the owner raises it')
-            pg.fill('#ad', '99')
-            pg.press('#ad', 'Tab')
-            self.until(pg, "document.querySelector('#ad').value === '60'")   # the program holds it to the longest a product may be set to
-            pg.fill('#ad', '14')
-            pg.press('#ad', 'Tab')
-            self.until(pg, "document.querySelector('#ad').value === '14'")
+            clear = "document.querySelectorAll('.toast').forEach((t) => t.remove())"   # a toast from an earlier step must not stand in for the next one
+            for odd in ('99', '', 'abc', '0'):                               # never saved as «1 day» or «60 days» by accident
+                pg.evaluate(clear)
+                pg.fill('#ad', odd)
+                pg.press('#ad', 'Tab')
+                pg.wait_for_selector('.toast.bad')
+                self.until(pg, "document.querySelector('#ad').value === '14'")
+            for typed in ('21', '14'):                                       # a good value is saved and shown back as the program holds it
+                pg.evaluate(clear)
+                pg.fill('#ad', typed)
+                pg.press('#ad', 'Tab')
+                self.until(pg, "[...document.querySelectorAll('.toast')].some((t) => t.innerText.includes('اتحفظ'))")
+                self.assertEqual(pg.input_value('#ad'), typed)
             pg.fill('#kh', '2')
             pg.click('#keep')
             self.until(pg, "document.querySelector('#relay-box').innerText.includes('مفتوح لحد')")

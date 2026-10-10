@@ -8,6 +8,7 @@ Factory versions (the `README.md` version line). The control catalogue has its o
 - **A code already signed is never changed.** Re-requesting from the same device returns the same code with the same last day, another install on the same PC is still refused, and the shop's own `days` field is never read, whatever the length is later set to.
 - The length the owner types is validated (a whole number, 1 to 60; booleans, floats, empty and text are refused and nothing is saved) and the audit records the previous value.
 - The alert on the owner's phone and the Studio no longer say «14 يوم»: the relay does not know the product's length.
+- Independent review of this PR: a cap of 0 or less never means «no cap» (it is the shortest trial); the length typed for a product or the cap is a whole number of ASCII digits (superscripts, other digit scripts and thousand-digit strings are refused cleanly, never as a bare error); the audit's «previous» is read under the write lock; the request list shows the length that would be signed now (what was stored when the request arrived may be older); an agent's request for the owner starts from at most 14 days; the cap field in the Studio refuses an empty or odd box instead of saving «1 day»; DECISIONS records the owner's instruction.
 - Studio: a field for the automatic cap, the products page stays the place to set a product's length; the quick «تجربة» preset takes the product's length.
 
 ## 0.15.1 (2026-10-10)

@@ -152,7 +152,7 @@ class Chain(Harness):
         out = self.s.auto.cycle()
         self.assertEqual((out['ok'], out['pulled'], out['issued']), (True, 1, 0))
         [req] = self.s.requests()
-        self.assertEqual((req['source'], req['kind'], req['status'], req['policy']), ('relay', 'trial', 'pending', {'verdict': 'issue', 'reason': ''}))
+        self.assertEqual((req['source'], req['kind'], req['status'], req['policy']), ('relay', 'trial', 'pending', {'verdict': 'issue', 'reason': '', 'days': 14}))
         self.assertEqual(self.status(d)['status'], 'pending')
         self.assertEqual(self.s.one('SELECT COUNT(*) AS n FROM codes')['n'], 0)
         # the owner switches the policy on, and keeps the key open for the working day

@@ -132,6 +132,33 @@ class ServiceTests(unittest.TestCase):
             self.s.add_product('al-store', 'Al-Store', good)
             self.assertEqual(self.s.trial_length('al-store'), expect)
 
+    def test_a_cap_never_means_no_cap_and_odd_digits_are_refused_cleanly(self):
+        self.s.add_product('al-store', 'Al-Store', 30)
+        self.assertEqual(self.s.trial_length('al-store', cap=0), 1, 'a cap of 0 is the shortest trial, not «no cap»')
+        self.assertEqual(self.s.trial_length('al-store', cap=-5), 1)
+        self.assertEqual(self.s.trial_length('al-store', cap=None), 30)
+        for bad in ('\u00b2', '\u2460', '\u0661\u0664', '9' * 5000, ' ', '1_0', '+5', '-5', '1e1'):
+            with self.assertRaises(StudioError, msg=repr(bad)) as e:
+                self.s.add_product('al-store', 'Al-Store', bad)
+            self.assertEqual(e.exception.key, 'product.days', repr(bad))
+        self.assertEqual(self.s.trial_length('al-store'), 30)
+
+    def test_the_request_list_shows_the_length_that_would_be_signed_now(self):
+        """A relay request stores its length when it arrives; the owner may change the product afterwards: the list must not show the old one."""
+        self.s.set_setting('auto_trial_days', 21)
+        item = {'id': '11111111-1111-4111-8111-111111111111', 'product': 'al-store', 'kind': 'trial', 'device': DEVICE, 'machine': 'a' * 64, 'shop': 'S'}
+        self.s.auto.ingest(item)
+        self.assertEqual(self.s.requests()[0]['days'], 14)
+        self.s.add_product('al-store', 'Al-Store', 45)
+        [r] = self.s.requests()
+        self.assertEqual((r['days'], r['policy']['days']), (45, 21), 'the button would give 45, the automatic policy at most its own 21')
+        self.assertEqual(self.s.one('SELECT days FROM requests')['days'], 14, 'the stored row is only what it was at pull time')
+
+    def test_an_agent_request_the_owner_must_decide_also_starts_from_at_most_14_days(self):
+        self.s.add_product('al-store', 'Al-Store', 45)
+        out = self.s.agent_issue_trial('al-store', DEVICE, 'Shop')                 # off by default: a request for the owner
+        self.assertEqual((out['status'], out['request']['days']), ('requested', 14))
+
     def test_the_agent_gets_the_products_length_but_never_more_than_its_own_limit_of_14(self):
         self.s.create_key(PASS)
         self.s.set_setting('agent_may_issue_trials', True)
