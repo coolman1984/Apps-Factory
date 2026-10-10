@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/coolman1984/Apps-Factory/blob/main/company-os/task.schema.json",
-  "title": "Pixel Plus AI Company Work Handoff v0.2 (non-authorizing)",
-  "description": "Machine-readable handoff, NEVER authority to execute. Schema enforces evidence and provenance. Run validate_task.py for cross-field reviewer independence.",
+  "title": "Pixel Plus AI Company Work Handoff v0.3 (non-authorizing)",
+  "description": "Strict cross-account handoff metadata, not a real-world approval. Both the schema and company-os/validate_task.py MUST be applied.",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -20,7 +20,14 @@
     "evidence",
     "requires_owner_approval",
     "decision_ref",
-    "customer_data_policy"
+    "customer_data_policy",
+    "open_prs",
+    "known_errors",
+    "tests_run",
+    "tests_skipped",
+    "current_commit",
+    "branch",
+    "next_action"
   ],
   "properties": {
     "task_id": {
@@ -52,11 +59,13 @@
     },
     "assignee": {
       "type": "string",
-      "minLength": 2
+      "minLength": 2,
+      "pattern": "\\S"
     },
     "reviewer": {
       "type": "string",
-      "minLength": 2
+      "minLength": 2,
+      "pattern": "\\S"
     },
     "risk": {
       "type": "string",
@@ -139,7 +148,8 @@
               "string",
               "null"
             ],
-            "format": "date-time"
+            "format": "date-time",
+            "pattern": "^\\d{4}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12]\\d|3[01])T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|[+-](?:0\\d|1[0-4]):[0-5]\\d)$"
           }
         }
       }
@@ -151,16 +161,16 @@
       ]
     },
     "next_action": {
-      "type": [
-        "string",
-        "null"
-      ]
+      "type": "string",
+      "minLength": 8,
+      "pattern": "\\S"
     },
     "current_commit": {
       "type": [
         "string",
         "null"
-      ]
+      ],
+      "pattern": "^[a-fA-F0-9]{7,40}$"
     },
     "customer_data_policy": {
       "type": "string",
@@ -172,13 +182,49 @@
     },
     "decision_ref": {
       "type": "string",
-      "minLength": 6,
-      "pattern": "^(docs/|DECISIONS\\.md|https://)"
+      "pattern": "^(?:docs/[A-Za-z0-9_./-]+\\.md|DECISIONS\\.md|https://[^\\s/]+/\\S+)$",
+      "minLength": 7
     },
     "branch": {
-      "type": "string",
+      "type": [
+        "string",
+        "null"
+      ],
       "minLength": 2,
       "pattern": "^[^\\s]+$"
+    },
+    "open_prs": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 8,
+        "pattern": "^https://github\\.com/[^/\\s]+/[^/\\s]+/pull/[1-9][0-9]*$"
+      },
+      "uniqueItems": true
+    },
+    "known_errors": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 4
+      },
+      "uniqueItems": true
+    },
+    "tests_run": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 3
+      },
+      "uniqueItems": true
+    },
+    "tests_skipped": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 3
+      },
+      "uniqueItems": true
     }
   },
   "allOf": [
@@ -209,6 +255,25 @@
                 }
               }
             }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "owner_gate"
+          }
+        },
+        "required": [
+          "status"
+        ]
+      },
+      "then": {
+        "properties": {
+          "requires_owner_approval": {
+            "minItems": 1
           }
         }
       }
