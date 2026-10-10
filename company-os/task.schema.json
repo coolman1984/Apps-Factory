@@ -1,0 +1,176 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/coolman1984/Apps-Factory/blob/main/company-os/task.schema.json",
+  "title": "Pixel Plus AI Company Work Handoff v0.1 (non-authorizing)",
+  "description": "Metadata that travels between model sessions. This file NEVER authenticates or authorizes external actions.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "task_id",
+    "goal",
+    "project",
+    "department",
+    "assignee",
+    "reviewer",
+    "risk",
+    "status",
+    "budget_usd",
+    "allowed_actions",
+    "acceptance",
+    "evidence",
+    "requires_owner_approval"
+  ],
+  "properties": {
+    "task_id": {
+      "type": "string",
+      "pattern": "^PX-[0-9]{3,6}$"
+    },
+    "goal": {
+      "type": "string",
+      "minLength": 10,
+      "maxLength": 500
+    },
+    "project": {
+      "type": "string",
+      "minLength": 2
+    },
+    "department": {
+      "type": "string",
+      "enum": [
+        "engineering",
+        "qa-security",
+        "research",
+        "design",
+        "marketing",
+        "sales",
+        "finance",
+        "support",
+        "management"
+      ]
+    },
+    "assignee": {
+      "type": "string",
+      "minLength": 2
+    },
+    "reviewer": {
+      "type": "string",
+      "minLength": 2
+    },
+    "risk": {
+      "type": "string",
+      "enum": [
+        "low",
+        "medium",
+        "high"
+      ]
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "backlog",
+        "ready",
+        "working",
+        "review",
+        "blocked",
+        "done"
+      ]
+    },
+    "budget_usd": {
+      "type": "number",
+      "minimum": 0
+    },
+    "time_cap_minutes": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "allowed_actions": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "uniqueItems": true
+    },
+    "requires_owner_approval": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "uniqueItems": true
+    },
+    "acceptance": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string"
+      }
+    },
+    "evidence": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "type",
+          "reference"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "commit",
+              "pr",
+              "ci",
+              "screenshot",
+              "field",
+              "source",
+              "customer_acceptance"
+            ]
+          },
+          "reference": {
+            "type": "string",
+            "minLength": 3
+          },
+          "verified_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          }
+        }
+      }
+    },
+    "blocker": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "next_action": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "current_commit": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "customer_data_policy": {
+      "type": "string",
+      "enum": [
+        "synthetic_only",
+        "approved_read_only",
+        "none"
+      ]
+    },
+    "decision_ref": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  }
+}
