@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - 'apps/pixel-plus-owner-mobile/**'
+      - 'templates/telemetry-relay/**'
       - '.github/workflows/pixel-plus-owner-android.yml'
   workflow_dispatch:
 
@@ -36,6 +37,6 @@ jobs:
       - name: Upload demo APK (no signer and no customer data)
         uses: actions/upload-artifact@v4
         with:
-          name: pixel-plus-owner-demo-apk
+          name: pixel-plus-owner-debug-apk
           path: apps/pixel-plus-owner-mobile/app/build/outputs/apk/debug/app-debug.apk
           retention-days: 7
