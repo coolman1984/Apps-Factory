@@ -313,5 +313,32 @@ class CompanyOSContractTests(unittest.TestCase):
         self.assertEqual(self.validate(t), [])
 
 
+    def test_padded_single_letter_evidence_rejected(self):
+        t = self.sample()
+        t["status"] = "done"
+        t["evidence"] = [{"type":"customer_acceptance", "reference":"     a",
+                          "verified_at":"2026-10-10T09:20:00Z"}]
+        self.assertInvalid(t, "reference")
+
+    def test_padded_one_letter_next_action_rejected(self):
+        t = self.sample()
+        t["next_action"] = "       x"
+        self.assertInvalid(t, "next_action")
+
+    def test_padded_short_goal_rejected(self):
+        t = self.sample()
+        t["goal"] = "           abc"
+        self.assertInvalid(t, "goal")
+
+    def test_informative_values_with_real_spaces_pass(self):
+        t = self.sample()
+        t["goal"] = "Review the real Store workflow carefully"
+        t["next_action"] = "Inspect and test the next build"
+        t["status"] = "done"
+        t["evidence"] = [{"type":"ci","reference":"ci-run-12345",
+                          "verified_at":"2026-10-10T09:20:00Z"}]
+        self.assertEqual(self.validate(t), [])
+
+
 if __name__ == "__main__":
     unittest.main()
