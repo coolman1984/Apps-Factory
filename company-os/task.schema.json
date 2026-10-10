@@ -172,7 +172,7 @@
     },
     "decision_ref": {
       "type": "string",
-      "minLength": 5,
+      "minLength": 6,
       "pattern": "^(docs/|DECISIONS\\.md|https://)"
     },
     "branch": {
