@@ -200,6 +200,18 @@ class ServiceTests(unittest.TestCase):
         self.assertEqual((len(got), bad), (1, [429]))
         self.assertEqual(self.s.one("SELECT COUNT(*) AS n FROM codes WHERE issued_by = 'auto-trial'")['n'], 1)
 
+    def test_a_request_another_window_already_signed_gets_its_code_not_a_cap_error(self):
+        """Review of PR #42: the cap was checked before the «already signed for this request» re-check, so the window that lost the race to sign
+        the same request was told the cap was reached instead of being given the existing code."""
+        self.s.create_key(PASS)
+        self.s.keep_unlocked(1)
+        first = self.s.issue('al-store', 'trial', DEVICE, 'Shop', actor='auto-trial', request_id='req-1', daily_cap=1)
+        again = self.s.issue('al-store', 'trial', codes.device_code('pc-9', 'i-9'), 'Shop', actor='auto-trial', request_id='req-1', daily_cap=1)
+        self.assertEqual(first['serial'], again['serial'])
+        with self.assertRaises(StudioError) as e:
+            self.s.issue('al-store', 'trial', codes.device_code('pc-8', 'i-8'), 'Shop', actor='auto-trial', request_id='req-2', daily_cap=1)
+        self.assertEqual(e.exception.key, 'daily_cap')
+
     def test_two_agent_requests_for_one_device_at_once_make_one_trial(self):
         """Review of PR #26: «one trial per device» was a look followed by a write, so two requests arriving together (a double click, two windows)
         both passed the look and both trials were signed."""

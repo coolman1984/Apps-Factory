@@ -270,10 +270,11 @@ class AutoTrial:
             else:
                 # a button is the owner's decision on THIS request, which asked for (and the alert offered) the standard 14-day trial;
                 # the shorter term the owner may have set for the automatic policy applies to the policy only
-                code = s.issue(r['product'], 'trial', r['device'], r['customer'], '', TRIAL_DAYS if approved else s.policy()['auto_trial_days'],
+                pol = s.policy()  # read once: the length and the cap come from one snapshot
+                code = s.issue(r['product'], 'trial', r['device'], r['customer'], '', TRIAL_DAYS if approved else pol['auto_trial_days'],
                                note='تجربة بموافقتك على تليجرام' if approved else 'تجربة تلقائية بسياسة المالك',
                                actor=by, request_id=r['id'], machine=r['machine'], claim=token,
-                               daily_cap=None if approved else s.policy()['auto_trial_daily_cap'])  # (the owner's own «✅» is not held back by the cap)
+                               daily_cap=None if approved else pol['auto_trial_daily_cap'])  # (the owner's own «✅» is not held back by the cap)
                 serial = code['serial']
         except StudioError as e:
             s.release(r['id'], token)

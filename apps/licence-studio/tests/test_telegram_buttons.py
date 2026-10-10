@@ -372,6 +372,27 @@ class Buttons(Harness):
         with self.assertRaises(StudioError):
             self.s.decide(row['id'], False)
 
+    def test_a_cap_reached_under_the_lock_holds_the_request_and_does_not_refuse_it(self):
+        """Review of PR #42: the new cap error used to fall through to «refused: bad_device». It must stay pending (released) and count as held."""
+        _, _, d = self.ask()
+        self.s.set_setting('auto_trials', True)
+        self.s.keep_unlocked(1)
+        self.s.auto.ingest(self.s.relay.pending_all()[0])
+        [req] = self.s.requests()
+        real = self.s.issue
+
+        def capped(*a, **k):
+            raise StudioError('daily_cap', 'cap', 429)
+        self.s.issue = capped
+        try:
+            self.s.auto.decide_auto(req, 'auto-trial')
+        finally:
+            self.s.issue = real
+        row = self.s.one('SELECT status, held FROM requests')
+        self.assertEqual(row['status'], 'pending', 'released, not refused')
+        self.assertEqual(self.s.auto.last['held'], 1)
+        self.assertEqual(self.s.one('SELECT COUNT(*) AS n FROM codes')['n'], 0)
+
     def test_a_paid_request_left_by_the_old_version_with_a_code_and_no_saved_payment_waits_for_the_owner(self):
         """Review of PR #40: a studio upgraded with such a request in `deciding` (the old version saved the owner's payment only after signing) would
         have approved and delivered the paid code with the record saying the payment was never confirmed, and his reference is lost."""

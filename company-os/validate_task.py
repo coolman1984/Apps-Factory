@@ -25,9 +25,13 @@ SAFE_ACTIONS = {
     "edit_files", "write_code", "create_branch", "commit_changes", "push_branch", "open_pr", "comment_on_pr",
     "draft_report", "draft_copy", "draft_docs",
 }
-ZERO_COUNT = re.compile(r"\b(?:0|no|zero)\s+(?:fail\w*|errors?|skipp\w*|xfail\w*)\b|\b(?:fail\w*|errors?|skipp\w*|xfail\w*)\s*[:=]?\s*0\b", re.I)
-FAILURE_FORMS = re.compile(r"\b(?:fail\w*|errors?|skipp\w*|xfail\w*|red|aborted|crash\w*|timed?\s*out|not\s+(?:green|passing|passed))\b|exited with (?:code|status) [1-9]|exit code [1-9]", re.I)
-PASS_EVIDENCE = re.compile(r"\bpass(?:ed|ing)?\b|\b(?:green|succeeded|success)\b|(?-i:\bOK\b)", re.I)
+# tests_run is free text, so «green» is read from what the line says: a pass with a count above zero, and no failure, error, skip, abort,
+# timeout or non-zero exit once zero counts («0 failed», «failed: 0», TAP «# fail 0») are set aside.
+_LABEL = r"(?:fail(?:ed|ing|ures?)?|errors?|errored|skipp?(?:ed|s|ing)?|xfail\w*)"
+ZERO_COUNT = re.compile(rf"\b(?:0|no|zero)\s+{_LABEL}\b|\b{_LABEL}\s*[:=]\s*0\b|(?m:^\s*#\s*{_LABEL}\s+0\b)", re.I)
+FAILURE_FORMS = re.compile(rf"(?<![\d.])[1-9]\d*\s*{_LABEL}\b|\b{_LABEL}\s*[:=#]?\s*[1-9]\d*\b|\b(?:failed|failing|failures?|errored|aborted|crash\w*|timed?[\s-]*out|timeout)\b"
+                           r"|(?-i:\b(?:FAIL|FAILED|ERROR)\b)|\bred\b|\bnot\s+(?:green|passing|passed)\b|\bexit(?:ed)?(?:\s+with)?(?:\s+(?:code|status))?\s+[1-9]", re.I)
+PASS_EVIDENCE = re.compile(r"(?<![\d.])[1-9]\d*\s*(?:tests?\s+)?pass(?:ed|ing)\b|\bpass(?:ed|ing)?\s*[:=#]?\s*[1-9]\d*|\b(?:green|succeeded|success|all\s+(?:tests\s+)?pass(?:ed|ing)?)\b|(?-i:\bOK\b)", re.I)
 ACTIVE = {"ready", "working", "review", "owner_gate"}  # statuses in which a person or agent is expected to be doing the task
 
 
@@ -219,7 +223,7 @@ def validate_task(task, schema=None):
     return errors
 
 
-def batch_conflicts(tasks, check_ids=True):
+def batch_conflicts(tasks):
     """Work that would be done twice: the same id in two handoffs, or two ACTIVE tasks on the same branch or the same open PR."""
     problems, ids, branches, prs = [], {}, {}, {}  # a branch name is only unique inside its project (Factory and Store may both have fix/x)
     for index, task in enumerate(tasks):
@@ -227,7 +231,7 @@ def batch_conflicts(tasks, check_ids=True):
             continue
         name = task.get("task_id") if isinstance(task.get("task_id"), str) else f"#{index + 1}"
         key = name.strip()
-        if check_ids and key in ids:
+        if key in ids:
             problems.append(f"{name}: duplicate task identifier (also {ids[key]})")
         ids.setdefault(key, name)
         if task.get("status") not in ACTIVE:
@@ -280,14 +284,8 @@ def main(argv=None):
         print("No tasks supplied", file=sys.stderr)
         return 1
     failed = False
-    seen_ids = set()
     for idx, task in enumerate(tasks):
         issues = validate_task(task, schema)
-        if isinstance(task, dict) and isinstance(task.get("task_id"), str):
-            task_id = task["task_id"].strip()  # compare canonical IDs, even when invalid input has trailing whitespace
-            if task_id in seen_ids:
-                issues.append("$.task_id: duplicate task identifier in the handoff batch")
-            seen_ids.add(task_id)
         if issues:
             failed = True
             print(f"Task {idx + 1}: INVALID")
@@ -295,7 +293,7 @@ def main(argv=None):
                 print("  " + issue)
         else:
             print(f"Task {idx + 1}: valid handoff metadata (NOT an authorization)")
-    for problem in batch_conflicts(tasks, check_ids=False):  # (a repeated id is reported per task above)
+    for problem in batch_conflicts(tasks):  # the one place that knows «the same work twice»: an id, a branch or a pull request
         failed = True
         print("CONFLICT: " + problem)
     stale = []
