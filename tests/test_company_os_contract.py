@@ -175,5 +175,82 @@ class CompanyOSContractTests(unittest.TestCase):
             self.assertIn("independent reviewer", bad.stdout)
 
 
+    def test_blank_actor_identities_rejected(self):
+        for field in ("assignee", "reviewer"):
+            for value in ("  ", "\\t", "  \\n  "):
+                with self.subTest(field=field, value=value):
+                    t = self.sample()
+                    t[field] = value
+                    self.assertInvalid(t, field)
+
+    def test_decision_link_requires_actual_path(self):
+        for bad in ("https://", "https://example.com", "DECISIONS.mdgarbage", "docs/", "docs/no-extension", "docs/../", "https:// "):
+            with self.subTest(bad=bad):
+                t = self.sample()
+                t["decision_ref"] = bad
+                self.assertInvalid(t, "decision_ref")
+
+    def test_decision_link_examples_are_valid(self):
+        for good in ("DECISIONS.md", "docs/PIXEL_PLUS_COMPANY_OS_PLAYBOOK.md", "https://example.org/article"):
+            with self.subTest(good=good):
+                t = self.sample()
+                t["decision_ref"] = good
+                self.assertEqual(self.validate(t), [])
+
+    def test_date_syntax_is_strict_even_when_format_assertion_off(self):
+        for bad in ("2026-10-10 09:20:00+03:00", "2026-10-10T09:20+03:00", "2026-10-10T09:20:00", "2026-02-30T09:20:00Z"):
+            with self.subTest(bad=bad):
+                t = self.sample()
+                t["status"] = "done"
+                t["evidence"] = [{"type":"ci","reference":"https://example.org/ci/1","verified_at":bad}]
+                self.assertInvalid(t, "date-time" if "02-30" in bad or bad.endswith("00") else "verified_at")
+
+    def test_owner_gate_requires_named_pending_approval(self):
+        t = self.sample()
+        t["status"] = "owner_gate"
+        t["requires_owner_approval"] = []
+        self.assertInvalid(t, "requires_owner_approval")
+
+    def test_cross_session_handoff_fields_are_required(self):
+        for field in ("current_commit","branch","open_prs","known_errors","tests_run","tests_skipped","next_action"):
+            with self.subTest(field=field):
+                t = self.sample()
+                t.pop(field)
+                self.assertInvalid(t, field)
+
+    def test_cross_session_lists_are_strictly_typed(self):
+        for field in ("open_prs","known_errors","tests_run","tests_skipped"):
+            with self.subTest(field=field):
+                t = self.sample()
+                t[field] = "one text entry instead of array"
+                self.assertInvalid(t, field)
+
+    def test_cross_session_pr_needs_url_and_commit_needs_sha(self):
+        t = self.sample()
+        t["open_prs"] = ["https://example.org/pr/123"]
+        self.assertInvalid(t, "open_prs")
+        t = self.sample()
+        t["current_commit"] = "not-a-commit"
+        self.assertInvalid(t, "current_commit")
+
+    def test_handoffs_accept_real_reviewable_context(self):
+        t = self.sample()
+        t["branch"] = "review/store-safe-fix"
+        t["current_commit"] = "a" * 40
+        t["open_prs"] = ["https://github.com/coolman1984/Store/pull/20"]
+        t["known_errors"] = ["Licence Studio unavailable for end-to-end field test"]
+        t["tests_run"] = ["unittest suite: 300 passed, 0 failed"]
+        t["tests_skipped"] = ["Real 58mm receipt printer unavailable"]
+        self.assertEqual(self.validate(t), [])
+
+    def test_schema_has_mandatory_handoff_and_owner_gate_conditions(self):
+        schema = self.schema
+        for field in ("branch","current_commit","open_prs","known_errors","tests_run","tests_skipped","next_action"):
+            self.assertIn(field, schema["required"])
+        owner_gate_cond = schema["allOf"][1]
+        self.assertEqual(owner_gate_cond["if"]["properties"]["status"]["const"], "owner_gate")
+        self.assertEqual(owner_gate_cond["then"]["properties"]["requires_owner_approval"]["minItems"], 1)
+
+
 if __name__ == "__main__":
     unittest.main()
