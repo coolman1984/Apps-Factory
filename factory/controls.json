@@ -1413,7 +1413,7 @@
       ],
       "tier": "core",
       "requirement": "Pages use the factory design system (packages/af-ui): tokens only (no colours or sizes in views), layered surfaces, Readex Pro/Alexandria or a documented brand pair, motion from the motion kit with reduced-motion honoured, logical CSS for RTL; shared navigation, table, form and error-state patterns come from the same system",
-      "acceptance_evidence": "design-factory/qa/token_gate.py passes in the product's own tests (contrast of every token pair in every theme, base sizes) + static page checks (no inline styles, no left/right CSS, no hex colours in views) + screenshot set in light/dark/RTL/LTR",
+      "acceptance_evidence": "design-factory/qa/token_gate.py passes, or the product's own test applies the same thresholds (contrast of every token pair in every theme, base sizes) + static page checks (no inline styles, no left/right CSS, no hex colours in views) + screenshot set in light/dark/RTL/LTR",
       "required_if_applies": true,
       "implementation_status": "implemented",
       "merged_from": [

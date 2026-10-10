@@ -55,7 +55,7 @@ Source of truth for the controls: `factory/controls.json` (catalogue 1.11.0). `p
 |---|---|---|
 | UX-04 | Loading, empty, saving, error, denied and retry states, and the no-network behaviour of the product's connectivity tier (standalone works offline; cloud_only shows an actionable disconnected state; see `design-factory/DESIGN.md`) | real-browser journey with the failure injected for that tier, screenshots looked at by a person |
 | UX-08 | A browser sweep opens every page with large realistic data at phone, laptop and desktop widths in every language and fails on overflowing text | sweep run on the release commit, and proof it fails on a known overflow |
-| UX-09 | Tokens only: contrast of every token pair in every theme and the base sizes pass the design gate; no inline styles, no left/right CSS, no hex colours in views | `design-factory/qa/token_gate.py` in the product's own tests, static page checks, screenshots in light/dark/RTL/LTR |
+| UX-09 | Tokens only: contrast of every token pair in every theme and the base sizes pass the design gate; no inline styles, no left/right CSS, no hex colours in views | `design-factory/qa/token_gate.py` (or a product test with the same thresholds), static page checks, screenshots in light/dark/RTL/LTR |
 | PERF-01 | Every main page stays within `factory/ui-budgets.json` on a throttled CPU | `tools/ui-lab` REPORT.md with "All pages within budget" |
 | A11Y-01 | Zero serious or critical axe findings in both languages; contrast 4.5:1; keyboard reachable | ui-lab accessibility column = 0, plus a manual keyboard journey |
 

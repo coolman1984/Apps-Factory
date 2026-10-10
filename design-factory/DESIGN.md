@@ -40,7 +40,7 @@ The class is the product's profile (`desktop`, `lan`, `saas`) and its tier. Ever
 
 | Gate | Control | Applies to | How it is enforced |
 |---|---|---|---|
-| Tokens only, contrast and base sizes | UX-09 | desktop, lan, saas | `design-factory/qa/token_gate.py` in the product's own tests |
+| Tokens only, contrast and base sizes | UX-09 | desktop, lan, saas | `design-factory/qa/token_gate.py`, or a test of the product's own with the same thresholds (Store: `tests/test_frontend.py::DesignSystem`) |
 | No text outside its box, at 3 widths, in every language | UX-08 | desktop, lan, saas | the product's measured layout sweep, shown failing on a known overflow |
 | Speed on a slow CPU | PERF-01 | desktop, lan, saas | `tools/ui-lab` against `factory/ui-budgets.json` |
 | Accessibility | A11Y-01 | desktop, lan, saas | axe-core zero serious or critical, plus a manual keyboard journey |
