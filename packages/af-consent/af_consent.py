@@ -18,7 +18,7 @@ Every decision is kept (append-only) with the time, the exact text id the person
 """
 from datetime import datetime, timezone
 
-__version__ = '0.1.0'
+__version__ = '0.1.1'
 
 FALLBACK_VENDOR = 'coolman1984'
 SCOPES = {'install', 'person'}

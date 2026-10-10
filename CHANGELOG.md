@@ -2,6 +2,12 @@
 
 Factory versions (the `README.md` version line). The control catalogue has its own `catalog_version` in `factory/controls.json`.
 
+## 0.14.1 (2026-10-10)
+Found by looking at the real screens of Al-Store in a browser, not by any test: the word **«null» was printed in the guide's coach on every step** («nullnull» between the instruction and «سأنتقل وحدي…») and in **Settings → Privacy** for a person who cannot change settings. Same cause as the «الدليلnull» button fixed in 0.11.2: `replaceChildren(a, null, b)` turns the null into text.
+- **af-guide 0.1.3:** the coach and the panel only receive real nodes. `testing/walk_guides.py` now fails any step whose coach prints `null`, `undefined`, `NaN` or `[object` (the walker never read the text before), and `tests/test_browser.py` has a regression for it; both fail on 0.1.2.
+- **af-consent 0.1.1:** same fix in the settings block; `tests/core.test.mjs` (node, a DOM stub that follows the real `replaceChildren` rule) fails on 0.1.0 and runs in CI.
+- Al-Store vendors both (byte-identical below the header).
+
 ## 0.14.0 (2026-10-10)
 The owner's buttons on Telegram, end to end. Relay template and Licence Studio change; `af-license` and the catalogue do not.
 - **Relay (`templates/telemetry-relay`):** every alert has «✅ موافق» / «❌ رفض» (only when the webhook can really answer them); new `POST /telegram` webhook trusted only with the secret token **and** a press from the owner's private chat. «رفض» closes the request at once (final; «سحب الموافقة» after an approval until the code is signed); «موافق» only records the approval in a new table `licence_owner` (re-running `schema.sql` is the whole upgrade) and, for a trial, makes the shop's status `stage: approved` while it counts. The relay judges how long an approval counts (`LICENCE_APPROVAL_HOURS`, 72, at least 1) and answers `expired`. A wrong secret costs no database query; other refused presses are logged, capped at 50 an hour. `POST /licence/states` for the Studio. `test/telegram.test.mjs`: 19 tests.
