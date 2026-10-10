@@ -129,6 +129,62 @@ class ServiceTests(unittest.TestCase):
         self.assertEqual(actors, {'owner', 'agent'})
 
 
+    def _two_windows_at_once(self, jobs):
+        """Each job is a call on its own Studio window (same folder). Both are past their first look and have signed when either starts to write."""
+        gate = threading.Barrier(len(jobs))
+        real = codes.issue_code
+
+        def slow(*a, **k):
+            out = real(*a, **k)
+            gate.wait(10)
+            return out
+        got, bad = [], []
+
+        def run(job):
+            try:
+                got.append(job())
+            except StudioError as e:
+                bad.append(e.status)
+        codes.issue_code = slow
+        try:
+            threads = [threading.Thread(target=run, args=(j,)) for j in jobs]
+            [t.start() for t in threads]
+            [t.join(30) for t in threads]
+        finally:
+            codes.issue_code = real
+        return got, bad
+
+    def test_two_agent_requests_for_one_device_at_once_make_one_trial(self):
+        """Review of PR #26: «one trial per device» was a look followed by a write, so two requests arriving together (a double click, two windows)
+        both passed the look and both trials were signed."""
+        self.s.create_key(PASS)
+        self.s.set_setting('agent_may_issue_trials', True)
+        other = Studio(self.dir)
+        other.unlock(PASS)
+        try:
+            got, bad = self._two_windows_at_once([lambda: self.s.agent_issue_trial('al-store', DEVICE, 'Shop'),
+                                                  lambda: other.agent_issue_trial('al-store', DEVICE, 'Shop')])
+        finally:
+            other.db.close()
+        self.assertEqual((len(got), bad), (1, [409]))
+        self.assertEqual(self.s.one('SELECT COUNT(*) AS n FROM codes WHERE device = ?', DEVICE)['n'], 1)
+
+    def test_the_agents_daily_limit_holds_when_requests_arrive_together(self):
+        self.s.create_key(PASS)
+        self.s.set_setting('agent_may_issue_trials', True)
+        self.s.set_setting('agent_daily_limit', 1)
+        other = Studio(self.dir)
+        other.unlock(PASS)
+        d1, d2 = codes.device_code('pc-2', 'i-2'), codes.device_code('pc-3', 'i-3')
+        try:
+            got, bad = self._two_windows_at_once([lambda: self.s.agent_issue_trial('al-store', d1, 'Shop'),
+                                                  lambda: other.agent_issue_trial('al-store', d2, 'Shop')])
+        finally:
+            other.db.close()
+        self.assertEqual((len(got), bad), (1, [429]))
+        self.assertEqual(self.s.one("SELECT COUNT(*) AS n FROM codes WHERE issued_by = 'agent'")['n'], 1)
+
+
 class WebAndMcpTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
