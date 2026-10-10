@@ -36,7 +36,7 @@ const fmt = (d) => (d ? d.split('-').reverse().join('/') : '');
 const STATUS = { active: 'شغال', grace: 'سماح', expired: 'خلص', not_started: 'لسه مبدأش' };
 const EDITION = { trial: 'تجربة', standard: 'عادي', pro: 'برو', perpetual: 'دائم' };
 // The three kinds a shop buys: [label, edition, days, grace days]. Days and grace stay editable after picking one.
-const PRESETS = [['تجربة 14 يوم', 'trial', 14, 0], ['اشتراك شهري', 'standard', 30, 3], ['تفعيل دائم', 'perpetual', 0, 0]];
+const PRESETS = [['تجربة', 'trial', 0, 0], ['اشتراك شهري', 'standard', 30, 3], ['تفعيل دائم', 'perpetual', 0, 0]];
 const until = (c) => (c.edition === 'perpetual' ? 'دائم، مش بيخلص' : fmt(c.last_day));
 
 let ST = {}, PRODUCTS = [];
@@ -120,7 +120,7 @@ const head = (title, sub, actions = '') => html`<div class="page-head"><div clas
 
 async function issue(page, p) {
   const prod = PRODUCTS.find((x) => x.id === p.product) || PRODUCTS[0];
-  put(page, html`${head('طلّع كود', 'كود التجربة بيتربط بجهاز العميل ومدته 14 يوم. البرنامج اللي عند العميل بيوريه «رقم الجهاز» في الإعدادات ← الرخصة.')}
+  put(page, html`${head('طلّع كود', 'كود التجربة بيتربط بجهاز العميل ومدته من صفحة المنتجات (14 يوم لحد ما تغيّرها). البرنامج اللي عند العميل بيوريه «رقم الجهاز» في الإعدادات ← الرخصة.')}
     <div class="two"><form class="card form" id="f">
       <div class="cols"><div class="field"><label for="pr">البرنامج</label><select id="pr" class="input">${PRODUCTS.map((x) => html`<option value="${x.id}" ${x.id === prod?.id ? raw('selected') : ''}>${x.name}</option>`)}</select></div>
         <div class="field"><span class="label">النوع</span><div class="seg" id="ed">${Object.entries(EDITION).map(([k, v]) => html`<button type="button" data-v="${k}" aria-pressed="${k === (p.edition || 'trial')}">${v}</button>`)}</div></div></div>
@@ -154,11 +154,12 @@ async function issue(page, p) {
     put($('#pv'), html`${icon('calendar')}<span>${EDITION[edition]} · <b>${d}</b> يوم · من <span class="mono">${fmt($('#fd').value)}</span> لحد <span class="mono">${fmt(addDays($('#fd').value, d - 1))}</span>
       ${$('#dv').value ? html` · مربوط بجهاز <span class="mono">${$('#dv').value.toUpperCase()}</span>` : html` · <b>مش مربوط بجهاز</b>`}</span>`);
   };
-  $$('#ed button').forEach((b) => b.addEventListener('click', () => { setEdition(b.dataset.v); if (edition !== 'trial' && +$('#days').value === 14) $('#days').value = 365; pv(); }));
+  $$('#ed button').forEach((b) => b.addEventListener('click', () => { setEdition(b.dataset.v); if (edition !== 'trial' && +$('#days').value === ((PRODUCTS.find((x) => x.id === $('#pr').value) || {}).trial_days || 14)) $('#days').value = 365; pv(); }));
   $$('[data-preset]').forEach((b) => b.addEventListener('click', () => {
     const [, ed, days, grace] = PRESETS[+b.dataset.preset];
     setEdition(ed);
     if (days) $('#days').value = days;
+    else if (ed === 'trial') $('#days').value = (PRODUCTS.find((x) => x.id === $('#pr').value) || {}).trial_days || 14;   // the product's own trial length
     $('#gr').value = grace;
     pv();
   }));
@@ -238,7 +239,7 @@ function codeFile(c) {
   $$('a.btn.volt', scrim).forEach((a) => a.addEventListener('click', close));
 }
 
-const KIND = { trial: 'تجربة 14 يوم', monthly: 'اشتراك شهري', permanent: 'تفعيل دائم' };
+const KIND = { trial: 'تجربة', monthly: 'اشتراك شهري', permanent: 'تفعيل دائم' };
 const HELD = { locked: 'البرنامج مقفول: افتحه وهيتعمل لوحده', daily_cap: 'عدد التجارب النهاردة وصل الحد', review_src: 'طلبات كتير من نفس المكان: راجعها', payment_needed: 'مستني تأكيد الدفع',
   already_used: 'الكمبيوتر ده خد تجربة قبل كده', owner_refused: 'إنت رفضت', expired: 'الطلب انتهى عند الوسيط', closed_elsewhere: 'الطلب اتقفل عند الوسيط', relay_gone: 'الوسيط مابقاش يعرف الطلب ده: راجعه بنفسك', bad_device: 'رقم الجهاز مش مظبوط', bad_machine: 'بصمة الكمبيوتر مش مظبوطة', unknown_product: 'البرنامج مش معروف' };
 const POLICY_SAYS = { issue: 'السياسة هتصدّره لوحدها', reissue: 'السياسة هتبعت نفس الكود تاني', refuse: 'السياسة هترفضه', hold: 'السياسة هتسيبه لك' };
@@ -255,9 +256,10 @@ async function relayPanel(page) {
       <div class="field"><label for="rt">مفتاح الوسيط ${r.has_token ? '(محفوظ، اكتب جديد لو عايز تغيّره)' : ''}</label><input id="rt" type="password" class="input mono" autocomplete="off"></div>
       <p class="err small" id="re"></p><div class="row wrap"><button class="btn primary">${icon('check')}احفظ</button><button type="button" class="btn" id="pull" ${r.configured ? '' : raw('disabled')}>${icon('refresh')}اسحب الطلبات دلوقتي</button></div></form>
     <div class="stack tight">
-      <div class="toggle-row"><div><b>اصدر التجارب لوحدك</b><div class="small muted">تجربة 14 يوم، مربوطة بالجهاز، وجهاز واحد مايخدش تجربة تانية. المدفوع مايتعملش لوحده أبدًا.</div></div>
+      <div class="toggle-row"><div><b>اصدر التجارب لوحدك</b><div class="small muted">تجربة بمدة المنتج (14 يوم لحد ما تغيّرها)، مربوطة بالجهاز، وجهاز واحد مايخدش تجربة تانية. المدفوع مايتعملش لوحده أبدًا.</div></div>
         <label class="check"><input type="checkbox" id="au" ${pol.auto_trials ? raw('checked') : ''}>شغّال</label></div>
       <div class="toggle-row"><div><b>أقصى تجارب في اليوم</b></div><input id="cap" class="input q-in mono" value="${pol.auto_trial_daily_cap}" inputmode="numeric"></div>
+      <div class="toggle-row"><div><b>أقصى مدة للتجربة التلقائية (أيام)</b><div class="small muted">التلقائي بيدّي مدة المنتج بس مايزيدش عن الرقم ده (14 لحد ما ترفعه). زرار «موافق» على تليجرام بيدّي مدة المنتج كاملة.</div></div><input id="ad" class="input q-in mono" value="${pol.auto_trial_days}" inputmode="numeric"></div>
       <div class="toggle-row"><div><b>افضل مفتوح عشان يصدّر وإنت مش قدام الجهاز</b><div class="small muted">${pol.keep_unlocked_until ? 'مفتوح لحد ' + pol.keep_unlocked_until.replace('T', ' ').slice(0, 16) : 'مقفول بعد 30 دقيقة من غير استخدام'}. أقصى حاجة 12 ساعة.</div></div>
         <div class="row"><input id="kh" class="input q-in mono" value="8" inputmode="numeric"><button type="button" class="btn sm" id="keep">افضل مفتوح</button></div></div></div></div></div>`);
   $('#rf').addEventListener('submit', async (e) => {
@@ -269,6 +271,7 @@ async function relayPanel(page) {
   });
   $('#au').addEventListener('change', async (e) => { await post('/api/policy', { auto_trials: e.target.checked }); toast('اتحفظ'); });
   $('#cap').addEventListener('change', async (e) => { await post('/api/policy', { auto_trial_daily_cap: +e.target.value }); toast('اتحفظ'); });
+  $('#ad').addEventListener('change', async (e) => { try { const r = await post('/api/policy', { auto_trial_days: +e.target.value }); e.target.value = r.auto_trial_days; toast('اتحفظ'); } catch (err) { toast(err.message, true); } });
   $('#keep').addEventListener('click', async () => { try { await post('/api/auto/keep', { hours: +$('#kh').value }); toast('اتحفظ'); relayPanel(page); } catch (err) { toast(err.message, true); } });
 }
 
@@ -352,7 +355,7 @@ async function agent(page) {
   const pol = ST.policy;
   put(page, html`${head('الإيجنت والسجل', 'الإيجنت (Claude Code وغيره) بيتوصل بالبرنامج ده عن طريق MCP: بيقرا، ويفحص، ويطلب. وإنت اللي بتحدد يقدر يعمل إيه.')}
     <div class="two"><div class="card"><h2>المسموح للإيجنت</h2>
-      <div class="toggle-row"><div><b>يطلّع أكواد تجربة لوحده</b><div class="small muted">مربوطة بجهاز، و14 يوم بالكتير. والمدفوع دايمًا بيستنى موافقتك.</div></div>
+      <div class="toggle-row"><div><b>يطلّع أكواد تجربة لوحده</b><div class="small muted">مربوطة بجهاز، وبمدة المنتج لكن 14 يوم بالكتير. والمدفوع دايمًا بيستنى موافقتك.</div></div>
         <label class="check"><input type="checkbox" id="ag" ${pol.agent_may_issue_trials ? raw('checked') : ''}>مسموح</label></div>
       <div class="toggle-row"><div><b>أقصى عدد في اليوم</b></div><input id="lim" class="input q-in mono" value="${pol.agent_daily_limit}"></div>
       <h2>التوصيل</h2><p class="small muted">اعمل مفتاح للإيجنت (بيظهر مرة واحدة)، وحطه في إعدادات MCP:</p>

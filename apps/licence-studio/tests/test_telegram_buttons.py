@@ -880,6 +880,79 @@ class Buttons(Harness):
         read = codes.read_code(self.status(d)['code'], [self.public], 'al-store', device)
         self.assertEqual(read.terms['days_left'], 14)
 
+    # ---- the trial length is the product's own (phase 2)
+    def days_of(self, d, device):
+        return codes.read_code(self.status(d)['code'], [self.public], 'al-store', device).terms['days_left']
+
+    def test_a_button_gives_the_products_saved_trial_length(self):
+        self.s.add_product('al-store', 'Al-Store', 30)
+        self.s.set_setting('auto_trial_days', 3)                   # the policy's own term does not shorten the owner's own button
+        device, _, d = self.ask()
+        self.press(self.ok(d))
+        self.s.auto.cycle()
+        self.assertEqual(self.days_of(d, device), 30)
+
+    def test_the_automatic_policy_gives_the_products_length_but_never_more_than_its_own_cap(self):
+        self.s.set_setting('auto_trials', True)
+        self.s.add_product('al-store', 'Al-Store', 30)
+        for cap, pc, expect in ((None, 'pc-a', 14), (21, 'pc-b', 21), (60, 'pc-c', 30), (3, 'pc-d', 3)):
+            if cap is None:
+                with self.s.lock:
+                    self.s.db.execute("DELETE FROM meta WHERE key = 'auto_trial_days'")
+            else:
+                self.s.set_setting('auto_trial_days', cap)
+            device, _, d = self.ask(pc=pc, install='i-' + pc)
+            self.s.auto.cycle()
+            self.assertEqual(self.days_of(d, device), expect, (cap, expect))
+
+    def test_a_product_never_set_keeps_the_14_days_and_old_installs_are_unchanged(self):
+        self.s.set_setting('auto_trials', True)
+        device, _, d = self.ask(pc='pc-old', install='i-old')
+        self.s.auto.cycle()
+        self.assertEqual(self.days_of(d, device), 14)
+        self.assertEqual(self.s.trial_length('al-store'), 14)
+        self.assertEqual(self.s.trial_length('no-such-product'), 14)
+
+    def test_changing_the_length_later_never_changes_a_code_already_signed_or_gives_a_second_trial(self):
+        self.s.set_setting('auto_trials', True)
+        device, _, d = self.ask(pc='pc-same', install='i-same')
+        self.s.auto.cycle()
+        first = self.status(d)['code']
+        before = codes.read_code(first, [self.public], 'al-store', device).terms
+        self.s.add_product('al-store', 'Al-Store', 60)             # the owner lengthens the trial afterwards
+        after = codes.read_code(first, [self.public], 'al-store', device).terms
+        self.assertEqual((before['last_day'], before['serial']), (after['last_day'], after['serial']), 'the signed code is untouched')
+        # the same shop asks again (it lost the code): it gets the SAME code back, not a new, longer trial
+        _, _, again = self.ask(pc='pc-same', install='i-same')
+        self.s.auto.cycle()
+        self.assertEqual(self.status(again)['code'], first)
+        self.assertEqual(self.s.one('SELECT COUNT(*) AS n FROM codes')['n'], 1)
+        # another install on the same PC is still refused, whatever the length is now
+        _, _, other = self.ask(pc='pc-same', install='i-other')
+        self.s.auto.cycle()
+        self.assertEqual((self.status(other)['status'], self.status(other)['reason']), ('refused', 'already_used'))
+        self.assertEqual(self.s.one('SELECT COUNT(*) AS n FROM codes')['n'], 1)
+
+    def test_the_shop_cannot_choose_its_own_length(self):
+        self.s.set_setting('auto_trials', True)
+        device, _, d = self.ask(pc='pc-greedy', install='i-greedy', days=365, trial_days=365)
+        item = {'id': str(uuid.uuid4()), 'product': 'al-store', 'kind': 'trial', 'device': codes.device_code('pc-x', 'i-x'), 'machine': machine_tag('pc-x'),
+                'shop': 'x', 'days': 3650, 'trial_days': 3650}
+        row = self.s.auto.ingest(item)
+        self.assertEqual(row['days'], 14, 'the field a shop sends is never read')
+        self.s.auto.cycle()
+        self.assertEqual(self.days_of(d, device), 14)
+
+    def test_the_owner_deciding_in_the_studio_uses_the_length_set_now_not_when_it_arrived(self):
+        device, _, d = self.ask(pc='pc-late', install='i-late')
+        self.s.auto.cycle()
+        rid = self.s.requests()[0]['id']
+        self.assertEqual(self.s.requests()[0]['days'], 14)
+        self.s.add_product('al-store', 'Al-Store', 21)
+        self.s.unlock(PASS)
+        self.s.decide(rid, True)
+        self.assertEqual(self.days_of(d, device), 21)
+
     def test_the_command_that_sets_the_webhook_never_prints_the_secret(self):
         import io
         import contextlib

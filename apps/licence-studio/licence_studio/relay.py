@@ -22,7 +22,7 @@ DEVICE = re.compile(r'^[0-9A-HJKMNP-TV-Z]{5}-[0-9A-HJKMNP-TV-Z]{5}$')
 MACHINE = re.compile(r'^[0-9a-f]{64}$')
 UUID = re.compile(r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$')
 KIND_EDITION = {'trial': 'trial', 'monthly': 'standard', 'permanent': 'perpetual'}
-KIND_AR = {'trial': 'تجربة 14 يوم', 'monthly': 'اشتراك شهري', 'permanent': 'تفعيل دائم'}
+KIND_AR = {'trial': 'تجربة', 'monthly': 'اشتراك شهري', 'permanent': 'تفعيل دائم'}
 REASON_AR = {
     'already_used': 'الجهاز ده أو الكمبيوتر ده خد تجربة قبل كده',
     'bad_device': 'رقم الجهاز مش مظبوط',

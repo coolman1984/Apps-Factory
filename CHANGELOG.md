@@ -2,6 +2,14 @@
 
 Factory versions (the `README.md` version line). The control catalogue has its own `catalog_version` in `factory/controls.json`.
 
+## 0.16.0 (2026-10-10)
+**The trial length is a per-product setting (Licence Studio 1.3.0), 14 days by default.** Al-Store 1.9.1 is the first product whose screens stopped promising «14 يوم».
+- A product's trial length (1 to 60) is read when a code is **signed**: the owner's «✅ موافق» on Telegram and a click in the Studio give the product's length; the automatic policy gives it but never more than its own saved cap (`auto_trial_days`, 14 until raised, now up to 60); the agent gets it but never more than 14. A saved value, a cap or a product never set all behave as before (14).
+- **A code already signed is never changed.** Re-requesting from the same device returns the same code with the same last day, another install on the same PC is still refused, and the shop's own `days` field is never read, whatever the length is later set to.
+- The length the owner types is validated (a whole number, 1 to 60; booleans, floats, empty and text are refused and nothing is saved) and the audit records the previous value.
+- The alert on the owner's phone and the Studio no longer say «14 يوم»: the relay does not know the product's length.
+- Studio: a field for the automatic cap, the products page stays the place to set a product's length; the quick «تجربة» preset takes the product's length.
+
 ## 0.15.1 (2026-10-10)
 The six findings left open on purpose in PR #42 (earlier, merged code), closed with a test each that fails without the fix. Nothing commercial changes: a paid kind is still never signed without the payment tick and reference in the Licence Studio, and a button still only decides a trial.
 - **Relay:** pressing «✅ موافق» again on an approval nobody used for longer than `LICENCE_APPROVAL_HOURS` no longer answers «the program will issue the code»: it says the approval is old, shows no button, records one audit line and signs nothing.

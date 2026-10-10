@@ -113,12 +113,19 @@ class StudioPage(unittest.TestCase):
             pg.click('#pull')
             pg.wait_for_selector('[data-yes]')
             text = pg.inner_text('#page')
-            self.assertIn('تجربة 14 يوم', text)
+            self.assertIn('تجربة', text)
             self.assertIn('اشتراك شهري', text)
             self.assertIn('السياسة هتصدّره لوحدها', text)  # the policy's verdict is a hint: nothing was issued while it is off
             self.assertEqual(self.shop('GET', '/licence/status?id=' + trial['id'], token=trial['poll_token'])['status'], 'pending')
             # the owner switches the policy on and keeps the key open; the next round issues the trial by itself
             pg.check('#au')
+            self.assertEqual(pg.input_value('#ad'), '14', 'the automatic trial cap shows 14 until the owner raises it')
+            pg.fill('#ad', '99')
+            pg.press('#ad', 'Tab')
+            self.until(pg, "document.querySelector('#ad').value === '60'")   # the program holds it to the longest a product may be set to
+            pg.fill('#ad', '14')
+            pg.press('#ad', 'Tab')
+            self.until(pg, "document.querySelector('#ad').value === '14'")
             pg.fill('#kh', '2')
             pg.click('#keep')
             self.until(pg, "document.querySelector('#relay-box').innerText.includes('مفتوح لحد')")

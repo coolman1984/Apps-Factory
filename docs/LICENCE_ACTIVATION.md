@@ -2,7 +2,7 @@
 
 Reference spec (not a living doc: rules are in [RULES.md](../RULES.md) LIC-01 and BIZ-03, parts in [PARTS.md](../PARTS.md)). Written for Al-Store; any product with a device-bound code can use it.
 
-**Owner decisions behind it** ([DECISIONS.md](../DECISIONS.md)): the three kinds of code (14-day trial, monthly, permanent); **Telegram is the owner's notification channel, not WhatsApp**; the private signing key lives only on the owner's trusted PC; automatic issuing follows a trial policy the owner switches on; subscriptions and permanent activation need confirmed payment and the owner's own approval.
+**Owner decisions behind it** ([DECISIONS.md](../DECISIONS.md)): the three kinds of code (trial, monthly, permanent; the trial is 14 days unless the owner sets another length for the product); **Telegram is the owner's notification channel, not WhatsApp**; the private signing key lives only on the owner's trusted PC; automatic issuing follows a trial policy the owner switches on; subscriptions and permanent activation need confirmed payment and the owner's own approval.
 
 **Status:** `implemented` and tested end to end over real HTTP (relay Worker + Licence Studio + codes), including the owner's **✅ موافق / ❌ رفض** buttons on Telegram (0.14.0, section 4b). **Not deployed.** Not field-verified. What the owner still has to do is in section 9.
 
@@ -11,7 +11,7 @@ Reference spec (not a living doc: rules are in [RULES.md](../RULES.md) LIC-01 an
 ```
  shop PC (Al-Store)                relay (Cloudflare Worker + D1)            owner's trusted PC
  ─────────────────                 ───────────────────────────               ──────────────────
- «اطلب تجربة 14 يوم»  ──POST /licence/request──►  row "pending"  ──Telegram──►  owner's phone: "طلب جديد" [✅ موافق] [❌ رفض]
+ «اطلب تجربة»        ──POST /licence/request──►  row "pending"  ──Telegram──►  owner's phone: "طلب جديد" [✅ موافق] [❌ رفض]
  (device code, machine tag,                        (no signing key)   ◄──POST /telegram (secret token + owner chat)
   nonce — no secret)                                     ▲   │
                                               GET /licence/pending │ POST /licence/decide

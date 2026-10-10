@@ -36,6 +36,8 @@ except ImportError:  # running from the repository checkout
 
 LOCK_AFTER_SECONDS = 30 * 60
 AGENT_MAX_TRIAL_DAYS = 14
+DEFAULT_TRIAL_DAYS = 14   # a product's trial length until the owner sets another
+PRODUCT_TRIAL_MAX = 60    # the longest trial a product may be set to (the agent's own limit stays AGENT_MAX_TRIAL_DAYS)
 EDITIONS = ('trial', 'standard', 'pro', 'perpetual')
 PERPETUAL = 'perpetual'  # stored as the last day of a code that never expires
 SCHEMA = """
@@ -288,17 +290,29 @@ class Studio:
     def products(self):
         return self.rows('SELECT p.*, (SELECT COUNT(*) FROM codes c WHERE c.product = p.id) AS codes FROM products p ORDER BY p.created_at')
 
-    def add_product(self, pid, name, trial_days=14, actor='owner'):
+    def add_product(self, pid, name, trial_days=DEFAULT_TRIAL_DAYS, actor='owner'):
         pid = (pid or '').strip().lower()
         if not (3 <= len(pid) <= 48) or not all(ch.isalnum() or ch == '-' for ch in pid) or not pid[0].isalpha():
             raise StudioError('product.id', 'Product id: 3–48 letters, digits or dashes, starting with a letter (e.g. al-store).')
-        if not (1 <= int(trial_days) <= 60):
-            raise StudioError('product.days', 'Trial days must be 1 to 60.')
+        if isinstance(trial_days, bool) or not isinstance(trial_days, (int, str)) or (isinstance(trial_days, str) and not trial_days.strip().isdigit()):
+            raise StudioError('product.days', f'Trial days must be a whole number from 1 to {PRODUCT_TRIAL_MAX}.')
+        trial_days = int(trial_days)
+        if not (1 <= trial_days <= PRODUCT_TRIAL_MAX):
+            raise StudioError('product.days', f'Trial days must be 1 to {PRODUCT_TRIAL_MAX}.')
+        before = self.one('SELECT trial_days FROM products WHERE id = ?', pid)
         with self.lock:
             self.db.execute('INSERT OR REPLACE INTO products(id, name, trial_days, created_at) VALUES (?, ?, ?, COALESCE((SELECT created_at '
-                            'FROM products WHERE id = ?), ?))', (pid, (name or pid).strip()[:80], int(trial_days), pid, now_iso()))
-        self.audit(actor, 'product.save', {'id': pid, 'trial_days': trial_days})
+                            'FROM products WHERE id = ?), ?))', (pid, (name or pid).strip()[:80], trial_days, pid, now_iso()))
+        # a code already signed is never touched: it carries its own last day. Only the codes made from now on use the new length.
+        self.audit(actor, 'product.save', {'id': pid, 'trial_days': trial_days, **({'previous': before['trial_days']} if before else {})})
         return pid
+
+    def trial_length(self, product, cap=None) -> int:
+        """The trial length for the next code of a product: the owner's saved setting for it (14 until set), never more than `cap` when given.
+        Read when the code is signed, so the owner's latest setting counts; a code already signed keeps its own last day."""
+        prod = self.one('SELECT trial_days FROM products WHERE id = ?', product)
+        days = int(prod['trial_days']) if prod and 1 <= int(prod['trial_days']) <= PRODUCT_TRIAL_MAX else DEFAULT_TRIAL_DAYS
+        return min(days, int(cap)) if cap else days
 
     # ------------------------------------------------------------------ codes
     def _check_terms(self, product, edition, device, days):
@@ -500,6 +514,8 @@ class Studio:
             days, grace = r['days'], 0
             if relay and r['kind'] == 'monthly':
                 days, grace = MONTHLY_DAYS, MONTHLY_GRACE
+            elif relay and r['kind'] == 'trial':  # the shop never chooses the length: the product's saved trial length decides, as of now
+                days = self.trial_length(r['product'])
             machine = r['machine'] if relay and r['kind'] == 'trial' else None
             if machine and self.one('SELECT 1 FROM trial_ledger WHERE product = ? AND machine = ?', r['product'], machine):
                 machine = None  # the owner knowingly gives a second trial to this PC: it stays in the audit, the ledger keeps the first
@@ -520,7 +536,7 @@ class Studio:
         pol = self.policy()
         if not pol['agent_may_issue_trials']:
             return {'status': 'requested', 'request': self.request(product, 'trial', device, customer, phone, days, note)}
-        days = int(days or AGENT_MAX_TRIAL_DAYS)
+        days = int(days or self.trial_length(product, cap=AGENT_MAX_TRIAL_DAYS))  # the product's length, and never above the agent's own limit
         if days > AGENT_MAX_TRIAL_DAYS:
             raise StudioError('agent.days', f'An agent may issue at most {AGENT_MAX_TRIAL_DAYS} trial days.')
         if not device:
