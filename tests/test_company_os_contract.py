@@ -438,14 +438,16 @@ class CompanyOSSafetyTests(unittest.TestCase):
     def test_a_handoff_cannot_pre_grant_money_customers_production_or_secrets(self):
         for action in ("send_payment", "refund_customer", "deploy_to_production", "publish_release", "merge_main", "force_push", "delete_customer_data",
                        "send_whatsapp", "post_announcement", "rotate_signing_key", "read_secrets", "push_main", "Spend-Budget", "drop table",
-                       "read_customer_data", "export_customer_records", "contact_customer", "call_client", "upload_backup", "read_real_database"):
+                       "read_customer_data", "export_customer_records", "contact_customer", "call_client", "upload_backup", "read_real_database",
+                       "issue_paid_license", "grant_licence", "activate_trial_license", "revoke_code"):
             problems = self.validate(self.sample(allowed_actions=["read_repo", action]))
             self.assertTrue(any("is sensitive" in p and action in p for p in problems), (action, problems))
 
-    def test_ordinary_actions_and_look_alike_words_are_accepted(self):
-        for action in ("read_repo", "run_synthetic_tests", "draft_report", "inspect_payload", "comment_on_pr", "push_branch", "read_main_branch", "write_tests",
-                       "read_synthetic_data", "export_synthetic_records"):
-            self.assertEqual([p for p in self.validate(self.sample(allowed_actions=[action])) if "is sensitive" in p], [], action)
+    def test_only_actions_on_the_allowlist_are_granted_and_anything_else_is_refused(self):
+        for action in ("read_repo", "run_synthetic_tests", "draft_report", "comment_on_pr", "push_branch", "write_tests", "  Read_Repo  "):
+            self.assertEqual([p for p in self.validate(self.sample(allowed_actions=[action])) if "allowed_actions" in p], [], action)
+        for action in ("inspect_payload", "frobnicate", "read_synthetic_data", "do_anything", "shell"):   # unknown is refused too: a word list is never complete
+            self.assertTrue(any("not on the allowlist" in p for p in self.validate(self.sample(allowed_actions=[action]))), action)
 
     def test_the_same_sensitive_action_is_fine_as_a_request_for_approval(self):
         task = self.sample(allowed_actions=["read_repo"], requires_owner_approval=["merge_main", "production_deploy", "send_payment"])
@@ -461,7 +463,11 @@ class CompanyOSSafetyTests(unittest.TestCase):
     def test_a_recorded_failure_or_skip_in_the_test_list_is_never_green(self):
         for line in ("pytest: 3 failed", "113 passed, 2 failed", "FAILED test_x", "5 skipped", "2 errors in 4s", "browser tests: not green", "suite is red"):
             self.assertTrue(any("records a failure or a skip" in p for p in self.validate(self.done(tests_run=[line]))), line)
-        for line in ("python -m unittest discover -s tests: 113 passed, 0 failed, 0 skipped", "node --test: 34 passed", "Ran 304 tests OK"):
+        for line in ("1 failing", "pytest: failed", "npm test exited with code 1", "tests aborted", "browser run timed out", "FAIL tests/x.py", "2 errors"):
+            self.assertTrue(any("records a failure" in p for p in self.validate(self.done(tests_run=[line]))), line)
+        for line in ("ran the tests", "tests were run on the branch"):                       # no stated result is not a pass
+            self.assertTrue(any("does not say the tests passed" in p for p in self.validate(self.done(tests_run=[line]))), line)
+        for line in ("python -m unittest discover -s tests: 113 passed, 0 failed, 0 skipped", "node --test: 34 passed", "Ran 304 tests OK", "all green, no failures"):
             self.assertEqual(self.validate(self.done(tests_run=[line])), [], line)
 
     def test_the_same_work_cannot_be_carried_twice(self):

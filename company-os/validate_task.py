@@ -15,7 +15,16 @@ import sys
 HERE = Path(__file__).resolve().parent
 DEFAULT_SCHEMA = HERE / "task.schema.json"
 
-# A handoff may never PRE-GRANT an action that spends money, reaches customers, touches production or real data, or handles secrets:
+# What a handoff MAY grant by itself: a short allowlist of actions that touch nothing real. Anything else is refused (fail closed): a word
+# list can never be complete (review of PR #42 found customer, licence, export... in turn), so the list below is the rule and the words
+# further down only make the message say why. To grant a new kind of action, add it here in a reviewed change.
+SAFE_ACTIONS = {
+    "read_repo", "read_docs", "read_ci_logs", "research_public",
+    "run_synthetic_tests", "run_unit_tests", "write_tests", "review_diff",
+    "draft_report", "draft_copy", "draft_docs", "comment_on_pr", "push_branch", "open_pr",
+}
+
+# Why an action that is not on the allowlist is refused. A handoff may never PRE-GRANT an action that spends money, reaches customers, touches production or real data, or handles secrets:
 # such an action belongs in requires_owner_approval (fail closed). Words, not substrings: «payload» is not «pay».
 SENSITIVE_WORDS = {
     "pay", "payment", "payments", "charge", "refund", "invoice", "spend", "purchase", "transfer", "wire",
@@ -28,6 +37,9 @@ SENSITIVE_WORDS = {
 DATA_WORDS = {"customer", "customers", "client", "clients", "data", "record", "records", "personal", "real", "pii", "database", "db", "backup", "backups"}
 OUTREACH_WORDS = {"contact", "call", "upload", "export", "share", "notify", "submit", "phone", "dm", "reply"}
 WRITE_WORDS = {"push", "write", "commit", "edit", "update", "change", "modify"}
+ZERO_COUNT = re.compile(r"\b(?:0|no|zero)\s+(?:fail\w*|errors?|skipp\w*|xfail\w*)\b", re.I)
+FAILURE_FORMS = re.compile(r"\b(?:fail\w*|errors?|skipp\w*|xfail\w*|red|aborted|crash\w*|timed?\s*out|not\s+(?:green|passing|passed))\b|exited with (?:code|status) [1-9]|exit code [1-9]", re.I)
+PASS_EVIDENCE = re.compile(r"\b(?:passed|passing|green|succeeded|success)\b|(?-i:\bOK\b)", re.I)
 FAILED_TESTS = re.compile(r"(?<![\d.])[1-9]\d*\s*(?:failed|failures?|errors?|skipped|xfail)\b|(?-i:\b(?:FAILED|FAILURE|ERROR)\b)|\bnot\s+(?:green|passing|passed)\b|\bred\b", re.I)
 ACTIVE = {"ready", "working", "review", "owner_gate"}  # statuses in which a person or agent is expected to be doing the task
 
@@ -37,15 +49,21 @@ def _words(action):
 
 
 def sensitive_actions(allowed):
-    """The entries of allowed_actions that a handoff is not allowed to grant by itself."""
+    """The entries of allowed_actions that a handoff is not allowed to grant by itself: everything that is not on SAFE_ACTIONS.
+    Returns (action, why) pairs; `why` is "sensitive" when its words name money, customers, production, real data or secrets."""
     found = []
     for action in allowed:
         if not isinstance(action, str):
             continue
+        if " ".join(action.split()).casefold() in SAFE_ACTIONS:
+            continue
         words = _words(action)
         if (words & SENSITIVE_WORDS or ("main" in words and words & WRITE_WORDS)
-                or ((words & DATA_WORDS or words & OUTREACH_WORDS) and "synthetic" not in words)):
-            found.append(action)
+                or ((words & DATA_WORDS or words & OUTREACH_WORDS) and "synthetic" not in words)
+                or words & {"license", "licence", "licenses", "licences", "activate", "activation", "grant", "issue", "revoke", "approve"}):
+            found.append((action, "sensitive"))
+        else:
+            found.append((action, "unlisted"))
     return found
 
 
@@ -166,9 +184,13 @@ def validate_task(task, schema=None):
                 errors.append("$.allowed_actions: must not overlap requires_owner_approval: " + ", ".join(sorted(overlap)))
 
         if isinstance(allowed, list):
-            for action in sensitive_actions(allowed):
-                errors.append(f"$.allowed_actions: {action!r} is sensitive (money, customers, production, real data, secrets, main): "
-                              "list it in requires_owner_approval, a handoff cannot grant it")
+            for action, why in sensitive_actions(allowed):
+                if why == "sensitive":
+                    errors.append(f"$.allowed_actions: {action!r} is sensitive (money, customers, licences, production, real data, secrets, main): "
+                                  "list it in requires_owner_approval, a handoff cannot grant it")
+                else:
+                    errors.append(f"$.allowed_actions: {action!r} is not on the allowlist ({', '.join(sorted(SAFE_ACTIONS))}): "
+                                  "list it in requires_owner_approval, or add it to SAFE_ACTIONS in a reviewed change")
 
         # A syntactically valid local path that does not exist cannot restore context.
         # Keep the whole validator offline; HTTPS references must be checked separately.
@@ -212,8 +234,12 @@ def validate_task(task, schema=None):
             if task.get("current_commit") and isinstance(task.get("tests_run"), list) and not task["tests_run"]:
                 errors.append("$.tests_run: a completed task with code (current_commit) must list the tests that were run on it")
             for line in task.get("tests_run") if isinstance(task.get("tests_run"), list) else []:
-                if isinstance(line, str) and FAILED_TESTS.search(line):  # a description is free text: a recorded failure or skip is never read as green
-                    errors.append(f"$.tests_run: {line!r} records a failure or a skip; a completed task needs a clean run")
+                if isinstance(line, str):  # free text: green needs a stated pass and no failure, error, skip or non-zero exit in any form
+                    rest = ZERO_COUNT.sub("", line)
+                    if FAILURE_FORMS.search(rest) or FAILED_TESTS.search(rest):
+                        errors.append(f"$.tests_run: {line!r} records a failure or a skip; a completed task needs a clean run")
+                    elif not PASS_EVIDENCE.search(line):
+                        errors.append(f"$.tests_run: {line!r} does not say the tests passed (write the result, for example '113 passed, 0 failed')")
     return errors
 
 
