@@ -21,7 +21,7 @@ unlocked into memory only, and locks itself after 30 minutes. It never enters a 
 The Issue page has three quick buttons. Each one fills the form, and the days and grace stay editable:
 | Button | Edition | Days | Grace | Device |
 |---|---|---|---|---|
-| «تجربة 14 يوم» | `trial` | 14 | 0 | required |
+| «تجربة» | `trial` | the product's trial length (14 until set, 1 to 60) | 0 | required |
 | «اشتراك شهري» | `standard` | 30 | 3 | optional (bind it) |
 | «تفعيل دائم» | `perpetual` | never ends | — | required |
 A permanent code needs af-license 0.3.0 in the product. An older product refuses it as `unknown_edition`, so it is never granted by mistake.
@@ -54,8 +54,16 @@ and a daily limit when the owner turns it on. Paid codes always need the owner. 
 ## Product side (Al-Store example)
 1. Put the public key line from the Keys page in the product's `licence_keys.txt`.
 2. The customer opens the product → Licence card shows the **device code** → sends it to you.
-3. Issue a 14-day trial for that device → paste the code → product unlocks. After the end day it locks to read/export/backup only.
+3. Issue a trial (14 days unless you set another for the product) for that device → paste the code → product unlocks. After the end day it locks to read/export/backup only.
 4. When the customer pays: a monthly code each month («اشتراك شهري»), or one permanent code («تفعيل دائم») for that device.
 
 ### 1.2.1
 Chat ids are trimmed and plain alerts also reach a group (a signed code never does: only the owner's private chat). A copy of a code is sent only while it is under two days old. A waiting request the relay does not know is kept and marked for you (never signed automatically; closed as expired after three days). Your click returns when the decision is saved and signed: sending to the shop and the copy to your phone run behind it and are retried each round.
+
+### 1.3.0 — the trial length is the product's own setting
+Set it per product on the Products page (1 to 60 days, 14 until you set it; a value that is not a whole number in range is refused and nothing is saved). It is read **when a code is signed**, so the next code uses your latest setting and **a code already signed is never touched** (it carries its own last day; the audit records the previous value).
+- Your **«✅ موافق» on Telegram** and your own click in this program give the product's full length.
+- The **automatic policy** gives the product's length but never more than «أقصى مدة للتجربة التلقائية» (14 until you raise it; up to 60): an automatic trial can never be longer than the number you saved, whatever a product is set to.
+- The **agent** gets the product's length but never more than **14 days**, and cannot ask for more.
+- The **shop never chooses**: whatever length a request carries is not read.
+- **Nothing about repeats changes:** one trial per PC and per device (a second request from the same device gets the same code back, with the same last day; another install on the same PC is refused), whatever the length is later set to.

@@ -3,10 +3,10 @@ Owner request: 2026-10-09. **Status (Factory 0.14.0): `implemented` and tested e
 
 ## Desired buyer-visible experience
 Owner is installing Store in front of a shop:
-1. The real app shows the customer's **registered shop/company name**, local device fingerprint and a **«اطلب تجربة ١٤ يوم»** action. Shop owner consent is explicit, and the page explains which minimal information leaves the PC.
+1. The real app shows the customer's **registered shop/company name**, local device fingerprint and a **«اطلب تجربة»** action. Shop owner consent is explicit, and the page explains which minimal information leaves the PC.
 2. A single click queues an authenticated, replay-safe request to a tiny HTTPS relay and displays **"طلبك وصل / منتظر موافقة الشركة"**. It must not block local POS thread or wrongly claim the app is active.
-3. The **private owner Telegram chat** gets shop/company display name, product, short install/device reference, request ID and requested trial (14 days), with two buttons **✅ موافق** / **❌ رفض**. Approval is not issuance.
-4. Only after a verified approval, a **trusted owner's Licence Studio on the owner's actual computer** retrieves the approved request, checks trial policy, prompts/unlocks the encrypted Ed25519 key if necessary, signs an exactly 14-day **device-bound** code. The bot/relay/hosting NEVER possesses the private signing key, key passphrase or a general-purpose signing endpoint.
+3. The **private owner Telegram chat** gets shop/company display name, product, short install/device reference, request ID and requested trial (its length is the product's own setting, 14 days unless the owner set another), with two buttons **✅ موافق** / **❌ رفض**. Approval is not issuance.
+4. Only after a verified approval, a **trusted owner's Licence Studio on the owner's actual computer** retrieves the approved request, checks trial policy, prompts/unlocks the encrypted Ed25519 key if necessary, signs a **device-bound** code of the product's trial length (14 days unless the owner set another). The bot/relay/hosting NEVER possesses the private signing key, key passphrase or a general-purpose signing endpoint.
 5. The signer sends the finished public signed code through the authenticated relay to the **originating installation only**. Store polls/backoffs over HTTPS, verifies the signed code locally using its existing public key and checks product/device/start/end, and calls its normal activation routine. The UI changes to «تم التفعيل» and Telegram displays result and **the code** to the owner (fallback for reading out by phone; confidential code sent to *verified owner chat only*).
 6. If the shop goes offline: issued code waits with bounded retention. The vendor owner can read the code from their Telegram and tell the shop owner by telephone; shop enters it in the usual code field and verifies **offline**. Online activation resumes safely; never apply a code blindly from the server or treat a server flag as a licence.
 
@@ -31,7 +31,7 @@ Offline/owner-PC-off/Studio-key-locked must be honest: state says queued/approve
 - **Abuse/cost:** bounded queue, rate limits per installation and source, replay protection, monitoring, quota alerts, estimated Worker+D1 load before signing up. No paid external service without owner confirmation.
 
 ## Acceptance matrix required for phase P1
-1. New install (approved) → owner gets one private notification with recognizable shop/product/device ID → approves; trusted local Studio unlocks → code signed → app polls, locally verifies, activates, shows 14 days; exactly one audit trail.
+1. New install (approved) → owner gets one private notification with recognizable shop/product/device ID → approves; trusted local Studio unlocks → code signed → app polls, locally verifies, activates, shows the trial's days (14 unless the owner set another); exactly one audit trail.
 2. Owner rejects: no code issued, no activation; clear UI explanation, no leaking rejection detail to arbitrary requesters.
 3. Owner chat spoof, bad webhook token, forged callback, old callback, unknown shop, wrong install token, malicious/malformed body, duplicate request, approval double-click: refused and logged (without secrets).
 4. Device B obtains device A's code: verifier rejects; perpetual/monthly never generated through trial workflow.

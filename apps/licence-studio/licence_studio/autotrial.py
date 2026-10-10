@@ -6,7 +6,7 @@ the vendor's public key and switches itself on. The signing key never leaves the
 
 The policy (the owner switches it on; it is OFF until then, and every default is the owner's recorded decision):
   trial   automatic when ALL hold: the key is unlocked, the device code and the PC's tag are well formed, this PC never had a
-          trial (permanent ledger), the day's cap is not reached, the sender is not flooding. 14 days at most, device-bound.
+          trial (permanent ledger), the day's cap is not reached, the sender is not flooding. The product's trial length (14 days until the owner sets another) but never more than the owner's saved cap for the policy (14 until raised), device-bound.
           A second request from the SAME device gets the SAME code again (a shop that lost it). Another device on the same PC is refused.
   monthly / permanent   never automatic. The request waits for the owner, who must tick that the payment arrived and write its
           reference. Then the code goes back the same way.
@@ -30,7 +30,6 @@ from html import escape as html_escape
 from .relay import DEVICE, KIND_AR, KIND_EDITION, MACHINE, REASON_AR, UUID, RelayError, telegram, telegram_configured
 from .service import MONTHLY_DAYS, StudioError, now_iso, utc_today
 
-TRIAL_DAYS = 14      # the trial a shop asks for, and the one an owner's button gives
 CLAIM_SECONDS = 300  # a copy to the owner being sent for longer than this is taken to have died
 COPY_WINDOW = 2 * 86400  # a copy is only sent while the code is this fresh: Telegram set up weeks later must not pour old codes onto the owner's phone
 CHECK_SECONDS = 5  # each network step of the one look at the relay before signing waits at most this long (a socket timeout, not a total deadline)
@@ -98,7 +97,7 @@ class AutoTrial:
             self.note_decision(known, item)
             return None
         kind = item['kind']
-        days = {'trial': 14, 'monthly': MONTHLY_DAYS, 'permanent': 1}[kind]
+        days = {'trial': s.trial_length(str(item.get('product') or '')), 'monthly': MONTHLY_DAYS, 'permanent': 1}[kind]  # (what the shop typed in `days`, if anything, is never read)
         row = {'id': str(uuid.uuid4()), 'product': str(item.get('product') or '')[:48], 'edition': KIND_EDITION[kind], 'device': str(item.get('device') or '')[:20],
                'customer': ' '.join(str(item.get('shop') or '').split())[:80] or '—', 'phone': '', 'days': days,
                'note': ('الدفع: ' + str(item.get('ref') or '')[:60]) if item.get('ref') else '', 'requested_by': 'shop', 'requested_at': now_iso(),
@@ -318,10 +317,11 @@ class AutoTrial:
             if kind == 'reissue':
                 serial = existing['serial']
             else:
-                # a button is the owner's decision on THIS request, which asked for (and the alert offered) the standard 14-day trial;
-                # the shorter term the owner may have set for the automatic policy applies to the policy only
-                pol = s.policy()  # read once: the length and the cap come from one snapshot
-                code = s.issue(r['product'], 'trial', r['device'], r['customer'], '', TRIAL_DAYS if approved else pol['auto_trial_days'],
+                # a button is the owner's decision on THIS request: it gets the product's saved trial length (14 until the owner sets another);
+                # the policy gives that length too, but never more than the term the owner set for the automatic policy (14 until raised)
+                pol = s.policy()  # read once: the cap and the daily limit come from one snapshot (the product's length is read as the code is signed)
+                code = s.issue(r['product'], 'trial', r['device'], r['customer'], '',
+                               s.trial_length(r['product']) if approved else s.trial_length(r['product'], cap=pol['auto_trial_days']),
                                note='تجربة بموافقتك على تليجرام' if approved else 'تجربة تلقائية بسياسة المالك',
                                actor=by, request_id=r['id'], machine=r['machine'], claim=token,
                                daily_cap=None if approved else pol['auto_trial_daily_cap'])  # (the owner's own «✅» is not held back by the cap)

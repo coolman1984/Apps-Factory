@@ -2,7 +2,7 @@
 
 Reference spec (not a living doc: rules are in [RULES.md](../RULES.md) LIC-01 and BIZ-03, parts in [PARTS.md](../PARTS.md)). Written for Al-Store; any product with a device-bound code can use it.
 
-**Owner decisions behind it** ([DECISIONS.md](../DECISIONS.md)): the three kinds of code (14-day trial, monthly, permanent); **Telegram is the owner's notification channel, not WhatsApp**; the private signing key lives only on the owner's trusted PC; automatic issuing follows a trial policy the owner switches on; subscriptions and permanent activation need confirmed payment and the owner's own approval.
+**Owner decisions behind it** ([DECISIONS.md](../DECISIONS.md)): the three kinds of code (trial, monthly, permanent; the trial is 14 days unless the owner sets another length for the product); **Telegram is the owner's notification channel, not WhatsApp**; the private signing key lives only on the owner's trusted PC; automatic issuing follows a trial policy the owner switches on; subscriptions and permanent activation need confirmed payment and the owner's own approval.
 
 **Status:** `implemented` and tested end to end over real HTTP (relay Worker + Licence Studio + codes), including the owner's **✅ موافق / ❌ رفض** buttons on Telegram (0.14.0, section 4b). **Not deployed.** Not field-verified. What the owner still has to do is in section 9.
 
@@ -11,7 +11,7 @@ Reference spec (not a living doc: rules are in [RULES.md](../RULES.md) LIC-01 an
 ```
  shop PC (Al-Store)                relay (Cloudflare Worker + D1)            owner's trusted PC
  ─────────────────                 ───────────────────────────               ──────────────────
- «اطلب تجربة 14 يوم»  ──POST /licence/request──►  row "pending"  ──Telegram──►  owner's phone: "طلب جديد" [✅ موافق] [❌ رفض]
+ «اطلب تجربة»        ──POST /licence/request──►  row "pending"  ──Telegram──►  owner's phone: "طلب جديد" [✅ موافق] [❌ رفض]
  (device code, machine tag,                        (no signing key)   ◄──POST /telegram (secret token + owner chat)
   nonce — no secret)                                     ▲   │
                                               GET /licence/pending │ POST /licence/decide
@@ -53,7 +53,7 @@ Duplicated on purpose: a 15-line Telegram sender in the Studio and the Worker (t
 
 ## 4. The trial policy (Licence Studio; OFF until the owner switches it on)
 
-Automatic only when **all** hold: the key is unlocked; the device code and machine tag are well formed; the product is known; **this PC never had a trial** (permanent ledger, one row per product and machine, primary key so even a race cannot issue two); today's cap is not reached (default 10); the sender is not flooding (more than 5 requests from one address in a day are held for the owner, never refused: shops share addresses). Terms: 14 days at most, bound to the device.
+Automatic only when **all** hold: the key is unlocked; the device code and machine tag are well formed; the product is known; **this PC never had a trial** (permanent ledger, one row per product and machine, primary key so even a race cannot issue two); today's cap is not reached (default 10); the sender is not flooding (more than 5 requests from one address in a day are held for the owner, never refused: shops share addresses). Terms: the product's trial length but never more than the cap the owner saved for the automatic policy (14 until raised), bound to the device.
 
 - A second request from the **same device** gets the **same code** again.
 - Another device on a PC that had its trial is refused (`already_used`): reinstalling does not give a second trial, because the machine tag does not change with the install.

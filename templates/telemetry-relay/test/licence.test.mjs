@@ -51,7 +51,8 @@ test('a request becomes pending, the owner is told on Telegram, and the poll tok
   assert.equal(telegram.length, 1);
   assert.match(telegram[0].url, /^https:\/\/api\.telegram\.org\/bot123456:BOT-SECRET\/sendMessage$/);
   assert.equal(telegram[0].body.chat_id, '42');
-  assert.match(telegram[0].body.text, /تجربة 14 يوم/);
+  assert.match(telegram[0].body.text, /تجربة/);
+  assert.doesNotMatch(telegram[0].body.text, /يوم/, 'the relay does not know the product\'s trial length, so the alert never states one');
   assert.ok(telegram[0].body.text.includes(DEVICE) && telegram[0].body.text.includes(a.id.slice(0, 8)));
   assert.ok(!telegram[0].body.text.includes('Test shop'), 'what the shop typed never goes into the alert');
   const stored = e.DB.raw.prepare('SELECT * FROM licence_requests').get();

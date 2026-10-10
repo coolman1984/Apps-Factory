@@ -104,6 +104,110 @@ class ServiceTests(unittest.TestCase):
         with self.assertRaises(StudioError):
             fresh.unlock(None)
 
+    def test_the_trial_length_is_a_per_product_setting_with_14_as_the_default(self):
+        self.s.create_key(PASS)
+        self.assertEqual(self.s.trial_length('al-store'), 14)
+        self.assertEqual({p['id']: p['trial_days'] for p in self.s.products()}['al-store'], 14)
+        created = self.s.one("SELECT created_at FROM products WHERE id = 'al-store'")['created_at']
+        first = self.s.issue('al-store', 'trial', DEVICE, 'Shop')
+        self.s.add_product('al-store', 'Al-Store', 30)
+        self.assertEqual(self.s.trial_length('al-store'), 30)
+        self.assertEqual(self.s.trial_length('al-store', cap=14), 14, 'a cap only ever shortens')
+        self.assertEqual(self.s.trial_length('al-store', cap=60), 30)
+        self.assertEqual(self.s.one("SELECT created_at FROM products WHERE id = 'al-store'")['created_at'], created, 'saving keeps the product\'s history')
+        saved = [r for r in self.s.audit_log() if r['action'] == 'product.save'][-1]
+        self.assertIn('"previous": 14', saved['detail'], 'the audit says what it was before')
+        second = self.s.issue('al-store', 'trial', codes.device_code('pc-2', 'i-2'), 'Shop 2')
+        self.assertEqual(second['days_left'], 30, 'the next code takes the new length')
+        self.assertEqual((self.s.code(first['serial'])['first_day'], self.s.code(first['serial'])['last_day']), (first['first_day'], first['last_day']), 'the one already signed keeps its own last day')
+        self.assertEqual(self.s.code(first['serial'])['days_left'], 14)
+
+    def test_a_trial_length_the_owner_types_must_be_a_whole_number_in_range(self):
+        for bad in (0, 61, -3, '0', '61', 'abc', '', '1.5', None, True, False, 14.5, [14], {'d': 1}):
+            with self.assertRaises(StudioError, msg=repr(bad)) as e:
+                self.s.add_product('al-store', 'Al-Store', bad)
+            self.assertEqual(e.exception.key, 'product.days', repr(bad))
+        self.assertEqual(self.s.trial_length('al-store'), 14, 'nothing was saved by the refused ones')
+        for good, expect in ((1, 1), ('21', 21), (60, 60)):
+            self.s.add_product('al-store', 'Al-Store', good)
+            self.assertEqual(self.s.trial_length('al-store'), expect)
+
+    def test_a_cap_never_means_no_cap_and_odd_digits_are_refused_cleanly(self):
+        self.s.add_product('al-store', 'Al-Store', 30)
+        self.assertEqual(self.s.trial_length('al-store', cap=0), 1, 'a cap of 0 is the shortest trial, not «no cap»')
+        self.assertEqual(self.s.trial_length('al-store', cap=-5), 1)
+        self.assertEqual(self.s.trial_length('al-store', cap=None), 30)
+        for bad in ('\u00b2', '\u2460', '\u0661\u0664', '9' * 5000, ' ', '1_0', '+5', '-5', '1e1'):
+            with self.assertRaises(StudioError, msg=repr(bad)) as e:
+                self.s.add_product('al-store', 'Al-Store', bad)
+            self.assertEqual(e.exception.key, 'product.days', repr(bad))
+        self.assertEqual(self.s.trial_length('al-store'), 30)
+
+    def test_the_request_list_shows_the_length_that_would_be_signed_now(self):
+        """A relay request stores its length when it arrives; the owner may change the product afterwards: the list must not show the old one."""
+        self.s.set_setting('auto_trial_days', 21)
+        item = {'id': '11111111-1111-4111-8111-111111111111', 'product': 'al-store', 'kind': 'trial', 'device': DEVICE, 'machine': 'a' * 64, 'shop': 'S'}
+        self.s.auto.ingest(item)
+        self.assertEqual(self.s.requests()[0]['days'], 14)
+        self.s.add_product('al-store', 'Al-Store', 45)
+        [r] = self.s.requests()
+        self.assertEqual((r['days'], r['policy']['days']), (45, 21), 'the button would give 45, the automatic policy at most its own 21')
+        self.assertEqual(self.s.one('SELECT days FROM requests')['days'], 14, 'the stored row is only what it was at pull time')
+
+    def test_what_an_agent_asks_for_is_held_to_one_ceiling_on_both_paths(self):
+        """The ceiling is the product's own trial length and never above 14, whether the agent may issue by itself or only ask the owner."""
+        self.s.create_key(PASS)
+        self.s.add_product('al-store', 'Al-Store', 45)
+        out = self.s.agent_issue_trial('al-store', DEVICE, 'Shop')                 # off by default: a request, signed later with the product's length
+        self.assertEqual((out['status'], out['request']['days']), ('requested', 45))
+        for days in (15, 3660, '30', 0, -1, 'x', True, 2.5):
+            with self.assertRaises(StudioError, msg=repr(days)) as e:
+                self.s.agent_issue_trial('al-store', DEVICE, 'Shop', days=days)
+            self.assertEqual(e.exception.key, 'agent.days', repr(days))
+        self.s.add_product('al-store', 'Al-Store', 3)                              # a short product trial is a ceiling for the agent too
+        with self.assertRaises(StudioError):
+            self.s.agent_issue_trial('al-store', DEVICE, 'Shop', days=5)
+        self.assertEqual(self.s.agent_issue_trial('al-store', codes.device_code('p3', 'i3'), 'Shop', days=3)['request']['days'], 3)
+        self.s.set_setting('agent_may_issue_trials', True)
+        with self.assertRaises(StudioError):
+            self.s.agent_issue_trial('al-store', codes.device_code('p4', 'i4'), 'Shop', days=14)
+        self.assertEqual(self.s.agent_issue_trial('al-store', codes.device_code('p5', 'i5'), 'Shop', days=3)['code']['days_left'], 3)
+
+    def test_the_policy_is_saved_all_or_nothing(self):
+        before = self.s.policy()
+        for bad in ({'auto_trials': True, 'auto_trial_days': 'abc'}, {'auto_trials': True, 'auto_trial_days': 0}, {'agent_may_issue_trials': True, 'auto_trial_days': 99},
+                    {'auto_trials': True, 'agent_daily_limit': 'many'}, {'auto_trials': True, 'auto_trial_daily_cap': None}):
+            with self.assertRaises(StudioError, msg=repr(bad)):
+                self.s.set_policy(bad)
+            self.assertEqual(self.s.policy(), before, f'{bad!r} saved something')
+        out = self.s.set_policy({'auto_trials': True, 'auto_trial_days': '21', 'agent_daily_limit': 5, 'auto_trial_daily_cap': 7})
+        self.assertEqual((out['auto_trials'], out['auto_trial_days'], out['agent_daily_limit'], out['auto_trial_daily_cap']), (True, 21, 5, 7))
+        self.assertEqual(self.s.set_policy({'agent_daily_limit': 500})['agent_daily_limit'], 100, 'a number above the limit is held to it, as before')
+
+    def test_a_reissue_is_not_shown_with_a_length_it_will_not_have(self):
+        self.s.create_key(PASS)
+        self.s.set_setting('auto_trials', True)
+        self.s.issue('al-store', 'trial', DEVICE, 'Shop')                          # the device already had its 14-day trial
+        self.s.add_product('al-store', 'Al-Store', 30)
+        item = {'id': '22222222-2222-4222-8222-222222222222', 'product': 'al-store', 'kind': 'trial', 'device': DEVICE, 'machine': 'b' * 64, 'shop': 'S'}
+        self.s.auto.ingest(item)
+        [r] = self.s.requests()
+        self.assertEqual(r['policy']['verdict'], 'reissue')
+        self.assertNotIn('days', r['policy'], 'it sends the old code with its own last day')
+
+    def test_the_agent_gets_the_products_length_but_never_more_than_its_own_limit_of_14(self):
+        self.s.create_key(PASS)
+        self.s.set_setting('agent_may_issue_trials', True)
+        self.s.add_product('al-store', 'Al-Store', 30)
+        out = self.s.agent_issue_trial('al-store', codes.device_code('pc-9', 'i-9'), 'Shop')
+        self.assertEqual(out['code']['days_left'], 14, 'a product set to 30 does not lift the agent past 14')
+        with self.assertRaises(StudioError) as e:
+            self.s.agent_issue_trial('al-store', codes.device_code('pc-8', 'i-8'), 'Shop', days=15)
+        self.assertEqual(e.exception.key, 'agent.days')
+        self.s.add_product('al-store', 'Al-Store', 7)
+        out = self.s.agent_issue_trial('al-store', codes.device_code('pc-7', 'i-7'), 'Shop')
+        self.assertEqual(out['code']['days_left'], 7, 'a shorter product trial is honoured')
+
     def test_agent_requests_and_limits(self):
         self.s.create_key(PASS)
         out = self.s.agent_issue_trial('al-store', DEVICE, 'Shop')
