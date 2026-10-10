@@ -9,6 +9,10 @@ One repeatable process for building and selling small commercial apps (desktop, 
 a catalogue of controls and a manifest schema (`factory/`), a CLI that checks them (`scripts/factory.py`), and tested shared parts that products copy in.
 A feature has one status: `planned` → `implemented` → `verified` → `field_accepted`. A written rule is not a working feature.
 
+## Pixel Plus one-person company operating system (research 2026-10-10)
+
+**New strategy:** [one-person company architecture, Council, agent roles, security and measured automation](docs/PIXEL_PLUS_ONE_PERSON_COMPANY_OS.md) and [practical workflow/30-day operating playbook](docs/PIXEL_PLUS_COMPANY_OS_PLAYBOOK.md). **Status: proposed operating architecture, not a running autonomous dispatcher.** A small separate offline Python/SQLite demonstration exists outside the repository; production agent connectors, Telegram approvals, spending, and publishing are NOT live through it. The founder remains the final authority for risky/external actions. No additional factory core controls or product dependencies are added.
+
 ## Pixel Plus company execution map (owner direction 2026-10-09)
 
 **Start with [the single prioritized execution roadmap](docs/PIXEL_PLUS_EXECUTION_ROADMAP_2026.md).** It connects the latest customer-sales strategy, Store's first paid-shop gate, Telegram owner-approved activation, guided Demo Mode / public product showroom, the four distinct infrastructure plans, **Rafaa** (included small radar vs optional paid finance/growth module) and the Pixel Plus × Sanad Business Advisory consented service model.

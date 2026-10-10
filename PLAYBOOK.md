@@ -44,6 +44,12 @@ Before tasking an agent with a new Store/Pixel Plus feature, read [the unified e
 - Site/demo/Sanad/referral implementations stay in separate narrow PRs with synthetic test data, explicit cross-company customer consent and no externally published promises until approved.
 - For every Windows product preserve PR and main-push installer workflow and restore-on-clean-PC field proof; no test skip used as a fake green signal.
 
+### Founder/agent operating model (planning, NOT production orchestration)
+- Use the [Pixel Plus one-person company source-linked architecture](docs/PIXEL_PLUS_ONE_PERSON_COMPANY_OS.md) and [day-to-day pilot playbook](docs/PIXEL_PLUS_COMPANY_OS_PLAYBOOK.md) before adding background agents, new subscription costs or cross-account automations.
+- The 90% aspiration applies **only** to measurable eligible repeatable steps. Record verified hours saved, errors, costs, approvals and true customer outcomes; do not infer autonomy from chat output.
+- Local ledger prototype, when introduced, is not an authenticated owner approval service. Any live action gate must independently authorize exact payload/action ID, expiry, scope and owner identity before doing external work.
+- Prefer existing Store/Factory GitHub CI + code reviews, local data store and one coordinator over agent swarms. Store/licence customer-data safeguards remain the primary shipping priority.
+
 ## 2. Check that vendored copies have not drifted
 Products hold byte-identical copies of af-access, af-license codes, af-guide, af-consent and af-telemetry. The drift tests look for the product repositories next to this one and **skip** when they are absent, so a green local run proves nothing without them. CI runs them for real against the public product repos (`.github/workflows/vendored-drift.yml`, on every factory change and daily).
 To run locally, clone the products into one folder and set `AF_STORE_REPO`, `AF_TEACHERS_REPO`, `AF_YOUSEF_TRANSPORTATION_REPO`, `AF_MR_AYMAN_HR_REPO`, then:
