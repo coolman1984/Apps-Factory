@@ -22,7 +22,29 @@ A design factory must deliver a visibly excellent, measurable, accessible produc
 - Content: responsive grid with 16–24px gutters, deliberate max width where appropriate, and compact transaction-specific layouts.
 - Contrast: WCAG 2.2 AA, normal text ≥4.5:1 and large text ≥3:1; do not rely on color alone.
 - Motion: functional 120–200ms, no obstructive effects on cashier/critical operations, honor reduced-motion.
-- Support RTL Arabic and LTR English, dark/light, 320px minimum, 200% zoom, keyboard navigation, offline operation, empty/loading/error/success/permission-denied states.
+- Support RTL Arabic and LTR English, dark/light, 320px minimum, 200% zoom, keyboard navigation, and the empty/loading/error/success/permission-denied states. What «no internet» means depends on the product's connectivity tier (next section): a product is never asked to work offline when its tier says it cannot, and never allowed to fail silently when it can.
+
+## What «no network» looks like, by connectivity tier
+The tier is `connectivity.tier` in the product manifest (see `docs/CONNECTIVITY_AND_SYNC.md`). The gate is the control **UX-04**: the states below are tried in a real browser with the failure injected, and the result is attached.
+
+| Tier | The product must show and test |
+|---|---|
+| `standalone` | Works fully with the network unplugged; nothing waits on the internet (updates, telemetry, licence relay fail quietly and retry later) |
+| `office_server` | On the main PC: everything works. On another PC: a plain «the main PC is off» state, reads that are cached are labelled as such, writes are refused with the way out (no half-saved screen) |
+| `office_mesh` | Every PC works alone; a visible «will merge when connected» state; no silent loss |
+| `cloud_sync` | Every device works alone and queues; the queue's size and age are visible; a rejected change is shown, never dropped |
+| `cloud_only` | Not asked to work offline. It shows an actionable disconnected state: what happened, that nothing was lost, what the person can do (retry, keep the form), and it keeps typed input |
+
+## Quality gates by class
+The class is the product's profile (`desktop`, `lan`, `saas`) and its tier. Every gate below is a **core** control, so `factory.py check --release` fails when its proof is missing; a screenshot is evidence only when it was taken from the running product and looked at by a person.
+
+| Gate | Control | Applies to | How it is enforced |
+|---|---|---|---|
+| Tokens only, contrast and base sizes | UX-09 | desktop, lan, saas | `design-factory/qa/token_gate.py` in the product's own tests |
+| No text outside its box, at 3 widths, in every language | UX-08 | desktop, lan, saas | the product's measured layout sweep, shown failing on a known overflow |
+| Speed on a slow CPU | PERF-01 | desktop, lan, saas | `tools/ui-lab` against `factory/ui-budgets.json` |
+| Accessibility | A11Y-01 | desktop, lan, saas | axe-core zero serious or critical, plus a manual keyboard journey |
+| The network-failure states above | UX-04 | desktop, lan, saas (by tier) | failure injected in a real browser |
 
 ## Quality gates
 - **Enforced by code:** `python design-factory/qa/token_gate.py <product>/tokens.css --pairs … --min fs=16 --min tap=44 --min icon=20`
@@ -41,5 +63,5 @@ Factory owns the canonical tokens and reusable components. Each app owns its bra
 ## Store launch direction
 **Implemented 2026-10-08** in Store (design system v2, see `Store/docs/DESIGN.md`): navy rail, ivory canvas, copper only for
 the one action that matters; 16px body, 14px data, 20px icons, 44px controls; 3D tilt/spotlight/blur removed; logo files and
-Windows icon from one mark geometry. Name still provisional.
-Working brand proposal: **MIZAN | ميزان**, subject to trademark/domain checks. Identity: balanced geometric storefront mark, deep midnight navy, warm ivory, restrained copper accent. Design for trusted multi-branch retail operations, not a playful consumer shop. Keep the cash register dense and fast, with restrained animation and unmistakable payment hierarchy. Brand is provisional until legal clearance.
+Windows icon from one mark geometry. **Name (decision 2026-10-10):** the product is **Al-Store · الستور**. The working name «Mizan | ميزان» proposed here is **withdrawn**: `Accounting-sys` is the owner's accounting product and is already called Mizan, so one name for two products would confuse customers, licences and support. Any new brand name is the owner's decision after a trademark and domain check (EG, SA, AE); until then nothing is renamed beyond الستور.
+Identity (kept, independent of any name): balanced geometric storefront mark, deep midnight navy, warm ivory, restrained copper accent. Design for trusted multi-branch retail operations, not a playful consumer shop. Keep the cash register dense and fast, with restrained animation and unmistakable payment hierarchy.

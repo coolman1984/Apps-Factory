@@ -52,6 +52,10 @@ Dated owner decisions, newest first. Only decisions recorded in the repository a
 - Every Al-Store shop, new or updated, takes **cash only**. Card, mobile wallet, InstaPay, finance companies, on account and shop instalments stay built and tested, hidden and refused by the server until the shop owner ticks them in Settings. They are shown only when a customer asks for them. Store 1.3.0.
 - The road to the first paying shop is `docs/03-ready-to-sell.md` in coolman1984/Store; the per-control status is `control_evidence` in `examples/al-store-product.json`.
 
+### 2026-10-10 (factory 0.15.0, design gates and the Store's name)
+- **Owner instruction (task message of 2026-10-10): visual quality tests are mandatory and fit each class of program.** UX-04 (states, and the no-network behaviour of the product's connectivity tier) and UX-09 (design tokens and the token gate) became **core**, next to UX-08, PERF-01 and A11Y-01: 34 core controls. «Offline operation» is no longer asked of every product: `cloud_only` shows an actionable disconnected state instead. `design-factory/DESIGN.md` is the first file in every UI agent's read list.
+- **The name «Mizan | ميزان» is withdrawn for the Store** (it is the owner's accounting product, `Accounting-sys`). The Store's visible name is الستور / Al-Store, the name its installer, folder and repository already use. This is a working resolution, not a brand decision: the owner chooses any new brand name after a trademark and domain check (EG, SA, AE). The visual identity (mark, navy, ivory, copper) stays.
+
 ### 2026-10-09 (factory 0.11.0)
 - **Docs diet.** Five living docs: `README.md`, `RULES.md`, `PARTS.md`, `PLAYBOOK.md`, `DECISIONS.md`. Agents read three: README → RULES → PARTS. Research and old plans moved to `docs/archive/`. Detailed specs that code, tests or products link to stay in `docs/` as reference specs. (Review item A12.)
 

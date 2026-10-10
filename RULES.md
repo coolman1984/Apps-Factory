@@ -1,11 +1,11 @@
 # Rules
 
 The only rules that block a release, plus the limits and the agent workflow that never change.
-Source of truth for the controls: `factory/controls.json` (catalogue 1.10.1). `python3 scripts/factory.py check <manifest> --release` fails when an **applicable core control** has no verified proof, or when one of the two evidence items is missing: `clean_device_restore` (restore on a clean device) and `core_user_acceptance` (first customer accepts the core journey). All other controls are `reference` advice and never block.
+Source of truth for the controls: `factory/controls.json` (catalogue 1.11.0). `python3 scripts/factory.py check <manifest> --release` fails when an **applicable core control** has no verified proof, or when one of the two evidence items is missing: `clean_device_restore` (restore on a clean device) and `core_user_acceptance` (first customer accepts the core journey). All other controls are `reference` advice and never block.
 
 **Owner decision (2026-10-09):** Windows-targeted products must run their actual installer acceptance on a Windows GitHub Actions runner for every PR and main push. Require the job in GitHub's branch protection. Commercial packages Solo / Connected / Mobile Operations / Cloud Business are separate from technical connectivity modes and have sale-blocking cloud-backup/mobile evidence. See [SMB commercial tiers](docs/SMB_COMMERCIAL_TIERS.md). No remote backup, phone, zero-loss or server mode is claimed from a plan name alone.
 
-## 1. The 32 core controls
+## 1. The 34 core controls
 "Checked by" is the acceptance evidence written in the catalogue.
 
 ### Identity and access
@@ -53,7 +53,9 @@ Source of truth for the controls: `factory/controls.json` (catalogue 1.10.1). `p
 ### Experience
 | Control | Rule | Checked by |
 |---|---|---|
+| UX-04 | Loading, empty, saving, error, denied and retry states, and the no-network behaviour of the product's connectivity tier (standalone works offline; cloud_only shows an actionable disconnected state; see `design-factory/DESIGN.md`) | real-browser journey with the failure injected for that tier, screenshots looked at by a person |
 | UX-08 | A browser sweep opens every page with large realistic data at phone, laptop and desktop widths in every language and fails on overflowing text | sweep run on the release commit, and proof it fails on a known overflow |
+| UX-09 | Tokens only: contrast of every token pair in every theme and the base sizes pass the design gate; no inline styles, no left/right CSS, no hex colours in views | `design-factory/qa/token_gate.py` in the product's own tests, static page checks, screenshots in light/dark/RTL/LTR |
 | PERF-01 | Every main page stays within `factory/ui-budgets.json` on a throttled CPU | `tools/ui-lab` REPORT.md with "All pages within budget" |
 | A11Y-01 | Zero serious or critical axe findings in both languages; contrast 4.5:1; keyboard reachable | ui-lab accessibility column = 0, plus a manual keyboard journey |
 
