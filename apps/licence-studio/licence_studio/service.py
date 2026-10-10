@@ -5,7 +5,7 @@ Security model (vendor machine only, loopback only):
   It is decrypted only into the memory of the running studio after the owner unlocks it, and locks itself after idle time.
 - The owner works in the local web page. An AI agent works through MCP, which calls this studio's API with an *agent token*:
   the agent can read, check codes and *request* codes. It may issue trial codes directly only when the owner switched that
-  on, only device-bound, at most 14 days, and at most N per day. Paid editions always wait for the owner's approval.
+  on, only device-bound, at most 14 days (and never more than the product's own trial length), and at most N per day. Paid editions always wait for the owner's approval.
 - Every issued code is an append-only row; every action is in the audit with who did it (owner / agent).
 """
 from __future__ import annotations
@@ -84,7 +84,7 @@ MAX_KEEP_UNLOCKED_HOURS = 12
 DEFAULT_PRODUCTS = [('al-store', 'Al-Store · الستور', 14), ('hessa-centre', 'Hessa · حصّة', 14)]
 
 
-def _whole_days(value, key, message, low=1, high=None):
+def whole_days(value, key, message, low=1, high=None):
     """A number of days typed by a person: a whole number in range, else a clear refusal (never a bare ValueError or TypeError).
     Accepts an int or a string of ASCII digits; refuses booleans, floats, empty text, other digit scripts and anything out of range."""
     high = PRODUCT_TRIAL_MAX if high is None else high
@@ -210,6 +210,27 @@ class Studio:
                             (key, json.dumps(value)))
         self.audit(actor, 'setting', {key: value})
 
+    def set_policy(self, d, actor='owner'):
+        """Save the owner's policy fields from one request, all or nothing: every field is checked first, so a bad one saves none of the others
+        (a half-saved policy could switch the automatic trials on while the call reports an error)."""
+        todo = {}
+        if 'agent_may_issue_trials' in d:
+            todo['agent_may_issue_trials'] = bool(d['agent_may_issue_trials'])
+        if 'auto_trials' in d:
+            todo['auto_trials'] = d['auto_trials'] is True
+        for key in ('agent_daily_limit', 'auto_trial_daily_cap'):
+            if key in d:
+                v = d[key]
+                if isinstance(v, (int, float)) and not isinstance(v, bool):
+                    todo[key] = max(0, min(100, int(v)))   # a number above the limit is held to it, as it always was
+                else:
+                    todo[key] = whole_days(v, 'policy.limit', 'A daily limit must be a whole number from 0 to 100.', low=0, high=100)
+        if 'auto_trial_days' in d:
+            todo['auto_trial_days'] = whole_days(d['auto_trial_days'], 'policy.days', f'The automatic trial cap must be a whole number from 1 to {PRODUCT_TRIAL_MAX}.')
+        for key, value in todo.items():
+            self.set_setting(key, value, actor)
+        return self.policy()
+
     def policy(self):
         keep = self._keep_until if self._key and time.time() < self._keep_until else 0
         return {'agent_may_issue_trials': bool(self.setting('agent_may_issue_trials', False)),
@@ -310,7 +331,7 @@ class Studio:
         pid = (pid or '').strip().lower()
         if not (3 <= len(pid) <= 48) or not all(ch.isalnum() or ch == '-' for ch in pid) or not pid[0].isalpha():
             raise StudioError('product.id', 'Product id: 3–48 letters, digits or dashes, starting with a letter (e.g. al-store).')
-        trial_days = _whole_days(trial_days, 'product.days', f'Trial days must be a whole number from 1 to {PRODUCT_TRIAL_MAX}.')
+        trial_days = whole_days(trial_days, 'product.days', f'Trial days must be a whole number from 1 to {PRODUCT_TRIAL_MAX}.')
         with self.lock:
             before = self.one('SELECT trial_days FROM products WHERE id = ?', pid)  # (read under the same lock as the write: the audit's «previous» is the one really replaced)
             self.db.execute('INSERT OR REPLACE INTO products(id, name, trial_days, created_at) VALUES (?, ?, ?, COALESCE((SELECT created_at '
@@ -465,6 +486,7 @@ class Studio:
         return self.one('SELECT * FROM requests WHERE id = ?', rid)
 
     def requests(self, status='pending'):
+        auto_cap = self.policy()['auto_trial_days']
         rows = self.rows("SELECT * FROM requests WHERE (? = '' OR status = ?) ORDER BY requested_at DESC LIMIT 200", status, status)
         for r in rows:
             if r['source'] == 'relay' and r['status'] == 'pending':  # what the owner-approved policy would do with it (a hint, nothing is changed)
@@ -473,7 +495,8 @@ class Studio:
                 if r['kind'] == 'trial':  # the length that would be signed if it were decided now: the product's, and for the policy also its cap (what was stored at pull time may be older)
                     full = self.trial_length(r['product'])
                     r['days'] = full
-                    r['policy']['days'] = full if r['tg_decision'] == 'approved' else self.trial_length(r['product'], cap=self.policy()['auto_trial_days'])
+                    if r['policy']['verdict'] == 'issue':  # (a reissue sends the old code with its own last day: no length is promised for it)
+                        r['policy']['days'] = full if r['tg_decision'] == 'approved' else self.trial_length(r['product'], cap=auto_cap)
         return rows
 
     def decide(self, rid, approve, actor='owner', payment_confirmed=False, payment_ref='', defer=False):
@@ -548,13 +571,15 @@ class Studio:
         return serial
 
     def agent_issue_trial(self, product, device, customer, phone='', days=None, note=''):
-        """The agent's only direct way to make a code: trial, device-bound, ≤ 14 days, daily limit, owner switched it on."""
+        """The agent's only direct way to make a code: trial, device-bound, never more than 14 days and never more than the product's own trial
+        length, daily limit, owner switched it on. When it is not switched on the agent only makes a request for the owner to decide."""
         pol = self.policy()
-        days = int(days or self.trial_length(product, cap=AGENT_MAX_TRIAL_DAYS))  # the product's length, but an agent's own default is never above its limit of 14
+        ceiling = self.trial_length(product, cap=AGENT_MAX_TRIAL_DAYS)
+        if days is not None:  # what an agent asks for is held to the same ceiling on both paths: the owner never has to read a 10-year «trial»
+            days = whole_days(days, 'agent.days', f'An agent may ask for a trial of 1 to {ceiling} days (the product\'s trial length, at most {AGENT_MAX_TRIAL_DAYS}).', high=ceiling)
         if not pol['agent_may_issue_trials']:
-            return {'status': 'requested', 'request': self.request(product, 'trial', device, customer, phone, days, note)}
-        if days > AGENT_MAX_TRIAL_DAYS:
-            raise StudioError('agent.days', f'An agent may issue at most {AGENT_MAX_TRIAL_DAYS} trial days.')
+            return {'status': 'requested', 'request': self.request(product, 'trial', device, customer, phone, days, note)}  # (no length: the owner's decision signs the product's)
+        days = days or ceiling
         if not device:
             raise StudioError('device.required', 'A trial code must be tied to a device code.')
         # (the looks below only fail fast with the clear message; the same two rules are enforced again under the write lock in issue(), which is the authority)

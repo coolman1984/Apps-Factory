@@ -7,6 +7,7 @@ const html = (str, ...vals) => raw(str.reduce((a, s, i) => a + s + (i < vals.len
 const put = (el, c) => { el.innerHTML = enc(c); return el; };
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+const latin = (s) => String(s).replace(/[٠-٩]/g, (d) => d.charCodeAt(0) - 0x0660).replace(/[۰-۹]/g, (d) => d.charCodeAt(0) - 0x06f0).trim();   // digits typed on an Arabic keyboard
 const productTrialDays = (id) => (PRODUCTS.find((x) => x.id === id) || {}).trial_days || 14;   // the product's own trial length (14 until the owner sets another)
 const icon = (n) => raw(`<svg class="i" aria-hidden="true"><use href="/af-ui/img/icons.svg#${n}"/></svg>`);
 const CUR = raw('aria-current="page"');
@@ -155,7 +156,7 @@ async function issue(page, p) {
     put($('#pv'), html`${icon('calendar')}<span>${EDITION[edition]} · <b>${d}</b> يوم · من <span class="mono">${fmt($('#fd').value)}</span> لحد <span class="mono">${fmt(addDays($('#fd').value, d - 1))}</span>
       ${$('#dv').value ? html` · مربوط بجهاز <span class="mono">${$('#dv').value.toUpperCase()}</span>` : html` · <b>مش مربوط بجهاز</b>`}</span>`);
   };
-  $$('#ed button').forEach((b) => b.addEventListener('click', () => { setEdition(b.dataset.v); if (edition !== 'trial' && +$('#days').value === productTrialDays($('#pr').value)) $('#days').value = 365; else if (edition === 'trial' && +$('#days').value === 365) $('#days').value = productTrialDays($('#pr').value); pv(); }));
+  $$('#ed button').forEach((b) => b.addEventListener('click', () => { setEdition(b.dataset.v); if (!$('#days').dataset.touched) $('#days').value = edition === 'trial' ? productTrialDays($('#pr').value) : 365; pv(); }));
   $$('[data-preset]').forEach((b) => b.addEventListener('click', () => {
     const [, ed, days, grace] = PRESETS[+b.dataset.preset];
     setEdition(ed);
@@ -164,8 +165,9 @@ async function issue(page, p) {
     $('#gr').value = grace;
     pv();
   }));
-  $$('[data-d]').forEach((b) => b.addEventListener('click', () => { $('#days').value = b.dataset.d; pv(); }));
+  $$('[data-d]').forEach((b) => b.addEventListener('click', () => { $('#days').value = b.dataset.d; $('#days').dataset.touched = '1'; pv(); }));
   ['#days', '#fd', '#dv'].forEach((s) => $(s).addEventListener('input', pv));
+  $('#days').addEventListener('input', () => { $('#days').dataset.touched = '1'; });   // typed by the owner: switching the kind of code never overwrites it
   $('#dv').addEventListener('input', (e) => { const v = e.target.value.toUpperCase().replace(/[^0-9A-Z]/g, '').slice(0, 10); e.target.value = v.length > 5 ? v.slice(0, 5) + '-' + v.slice(5) : v; pv(); });
   $('#pr').addEventListener('change', (e) => { const x = PRODUCTS.find((y) => y.id === e.target.value); if (edition === 'trial') $('#days').value = productTrialDays(e.target.value); pv(); });
   setEdition(edition);
@@ -273,7 +275,7 @@ async function relayPanel(page) {
   $('#au').addEventListener('change', async (e) => { await post('/api/policy', { auto_trials: e.target.checked }); toast('اتحفظ'); });
   $('#cap').addEventListener('change', async (e) => { await post('/api/policy', { auto_trial_daily_cap: +e.target.value }); toast('اتحفظ'); });
   $('#ad').addEventListener('change', async (e) => {
-    const v = /^\d{1,3}$/.test(e.target.value.trim()) ? parseInt(e.target.value, 10) : 0;
+    const v = /^\d{1,3}$/.test(latin(e.target.value)) ? parseInt(latin(e.target.value), 10) : 0;
     if (v < 1 || v > 60) { e.target.value = pol.auto_trial_days; toast('اكتب رقم من 1 لـ 60.', true); return; }   // an empty or odd box is never saved as «1 day»
     try { const r = await post('/api/policy', { auto_trial_days: v }); pol.auto_trial_days = r.auto_trial_days; e.target.value = r.auto_trial_days; toast('اتحفظ'); } catch (err) { e.target.value = pol.auto_trial_days; toast(err.message, true); }
   });
@@ -339,7 +341,7 @@ async function products(page) {
     <form class="card form" id="f"><h2>منتج جديد</h2><div class="field"><label for="pid">الرقم (زي al-store)</label><input id="pid" class="input mono"></div>
     <div class="field"><label for="pn">الاسم</label><input id="pn" class="input"></div><div class="field"><label for="pd">أيام التجربة</label><input id="pd" class="input mono" value="14"></div>
     <button class="btn primary">${icon('plus')}ضيف</button></form></div>`);
-  $('#f').addEventListener('submit', async (e) => { e.preventDefault(); try { await post('/api/product/save', { id: $('#pid').value, name: $('#pn').value, trial_days: +$('#pd').value }); toast('اتضاف'); products(page); } catch (err) { toast(err.message, true); } });
+  $('#f').addEventListener('submit', async (e) => { e.preventDefault(); try { await post('/api/product/save', { id: $('#pid').value, name: $('#pn').value, trial_days: latin($('#pd').value) }); toast('اتضاف'); products(page); } catch (err) { toast(err.message, true); } });
 }
 
 async function keys(page) {

@@ -3,7 +3,7 @@ Owner request: 2026-10-09. **Status (Factory 0.14.0): `implemented` and tested e
 
 ## Desired buyer-visible experience
 Owner is installing Store in front of a shop:
-1. The real app shows the customer's **registered shop/company name**, local device fingerprint and a **«اطلب تجربة ١٤ يوم»** action. Shop owner consent is explicit, and the page explains which minimal information leaves the PC.
+1. The real app shows the customer's **registered shop/company name**, local device fingerprint and a **«اطلب تجربة»** action. Shop owner consent is explicit, and the page explains which minimal information leaves the PC.
 2. A single click queues an authenticated, replay-safe request to a tiny HTTPS relay and displays **"طلبك وصل / منتظر موافقة الشركة"**. It must not block local POS thread or wrongly claim the app is active.
 3. The **private owner Telegram chat** gets shop/company display name, product, short install/device reference, request ID and requested trial (its length is the product's own setting, 14 days unless the owner set another), with two buttons **✅ موافق** / **❌ رفض**. Approval is not issuance.
 4. Only after a verified approval, a **trusted owner's Licence Studio on the owner's actual computer** retrieves the approved request, checks trial policy, prompts/unlocks the encrypted Ed25519 key if necessary, signs a **device-bound** code of the product's trial length (14 days unless the owner set another). The bot/relay/hosting NEVER possesses the private signing key, key passphrase or a general-purpose signing endpoint.

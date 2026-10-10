@@ -6,7 +6,7 @@ the vendor's public key and switches itself on. The signing key never leaves the
 
 The policy (the owner switches it on; it is OFF until then, and every default is the owner's recorded decision):
   trial   automatic when ALL hold: the key is unlocked, the device code and the PC's tag are well formed, this PC never had a
-          trial (permanent ledger), the day's cap is not reached, the sender is not flooding. 14 days at most, device-bound.
+          trial (permanent ledger), the day's cap is not reached, the sender is not flooding. The product's trial length (14 days until the owner sets another) but never more than the owner's saved cap for the policy (14 until raised), device-bound.
           A second request from the SAME device gets the SAME code again (a shop that lost it). Another device on the same PC is refused.
   monthly / permanent   never automatic. The request waits for the owner, who must tick that the payment arrived and write its
           reference. Then the code goes back the same way.

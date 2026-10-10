@@ -19,7 +19,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
 from .relay import RelayError
-from .service import PRODUCT_TRIAL_MAX, Studio, StudioError, _whole_days
+from .service import Studio, StudioError
 
 STATIC = Path(__file__).parent / 'static'
 AF_UI = Path(__file__).resolve().parents[3] / 'packages' / 'af-ui'  # the factory's shared design system
@@ -194,17 +194,7 @@ def make_handler(app: App):
                     return self.send(200, S.decide(d.get('id'), bool(d.get('approve')), payment_confirmed=d.get('payment_confirmed') is True,
                                                    payment_ref=str(d.get('payment_ref') or ''), defer=True))
                 if path == '/api/policy':
-                    if 'agent_may_issue_trials' in d:
-                        S.set_setting('agent_may_issue_trials', bool(d['agent_may_issue_trials']))
-                    if 'agent_daily_limit' in d:
-                        S.set_setting('agent_daily_limit', max(0, min(100, int(d['agent_daily_limit']))))
-                    if 'auto_trials' in d:
-                        S.set_setting('auto_trials', d['auto_trials'] is True)
-                    if 'auto_trial_days' in d:
-                        S.set_setting('auto_trial_days', _whole_days(d['auto_trial_days'], 'policy.days', f'The automatic trial cap must be a whole number from 1 to {PRODUCT_TRIAL_MAX}.'))
-                    if 'auto_trial_daily_cap' in d:
-                        S.set_setting('auto_trial_daily_cap', max(0, min(100, int(d['auto_trial_daily_cap']))))
-                    return self.send(200, S.policy())
+                    return self.send(200, S.set_policy(d))
                 if path == '/api/relay/save':
                     S.relay.save(d.get('url'), d.get('token') or None)
                     S.audit('owner', 'relay.save', {'host': S.relay.public()['host']})
