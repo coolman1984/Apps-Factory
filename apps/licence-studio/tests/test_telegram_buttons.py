@@ -372,6 +372,37 @@ class Buttons(Harness):
         with self.assertRaises(StudioError):
             self.s.decide(row['id'], False)
 
+    def test_a_paid_request_left_by_the_old_version_with_a_code_and_no_saved_payment_waits_for_the_owner(self):
+        """Review of PR #40: a studio upgraded with such a request in `deciding` (the old version saved the owner's payment only after signing) would
+        have approved and delivered the paid code with the record saying the payment was never confirmed, and his reference is lost."""
+        from licence_studio.service import Studio
+        self.ask(kind='monthly')
+        self.s.auto.cycle()
+        [req] = self.s.requests()
+        self.assertTrue(self.s.claim(req['id']))                      # the old version: taken without saving the payment ...
+        code = self.s.issue('al-store', req['edition'], req['device'], req['customer'], '', 30, grace_days=3, actor='owner', request_id=req['id'])
+        self.s.db.execute('UPDATE requests SET decide_claim = NULL')  # ... signed ... and switched off (an old row has no claim time)
+        self.s.db.close()
+        again = Studio(self.dir)                                       # the upgraded studio starts
+        try:
+            row = again.one('SELECT status, serial, payment_confirmed FROM requests')
+            self.assertEqual((row['status'], row['payment_confirmed']), ('pending', 0), 'not approved on its own')
+            self.assertEqual(again.one('SELECT COUNT(*) AS n FROM codes')['n'], 1)
+            [seen] = [a for a in again.audit_log() if a['action'] == 'request.recovered']
+            self.assertIn('confirm again', seen['detail'])
+            again.relay.save(self.base, ADMIN)
+            self.assertEqual(again.auto.cycle()['delivered'], 0, 'nothing is delivered before the owner confirms the payment')
+            with self.assertRaises(StudioError) as e:
+                again.decide(req['id'], True)
+            self.assertEqual(e.exception.key, 'payment.required')
+            again.decide(req['id'], True, payment_confirmed=True, payment_ref='InstaPay 5521 / 350 EGP')   # the owner confirms again
+            row = again.one('SELECT status, serial, payment_confirmed, payment_ref FROM requests')
+            self.assertEqual((row['status'], row['serial'], row['payment_confirmed'], row['payment_ref']), ('approved', code['serial'], 1, 'InstaPay 5521 / 350 EGP'))
+            self.assertEqual(again.one('SELECT COUNT(*) AS n FROM codes')['n'], 1, 'the same code goes out, no second one')
+        finally:
+            again.db.close()
+            self.s = Studio(self.dir)
+
     def test_two_windows_signing_the_same_request_make_one_code(self):
         """Review of PR #40: the check «is there a code for this request» ran before the write transaction, and `codes.request_id` is not unique, so two
         windows that passed it together signed two append-only codes for one request."""

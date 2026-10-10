@@ -134,12 +134,18 @@ class Studio:
         right (a younger one belongs to a studio that is alive, maybe another window on the same folder, and is left alone): with a code already
         signed for it (codes are append-only and tied to the request) it is approved with that code, by whoever signed it, with the payment
         the owner had confirmed (saved when the decision was taken, before signing), and delivered by the next round; without one it waits again
-        and the payment must be confirmed again."""
+        and the payment must be confirmed again. A paid request found with a code but no saved payment was left by a version that saved the
+        confirmation only after signing: its code is kept (never a second one) but it is not approved on its own, it waits for the owner to confirm
+        the payment again (his reference was never saved and cannot be guessed), and the same code then goes out."""
         stale = time.time_ns() - DECIDE_LEASE * 10**9
-        for r in self.rows("SELECT id, payment_ref FROM requests WHERE status = 'deciding' AND COALESCE(decide_claim, 0) < ?", stale):
+        for r in self.rows("SELECT id, payment_ref, payment_confirmed, source, kind FROM requests WHERE status = 'deciding' AND COALESCE(decide_claim, 0) < ?", stale):
             code = self.one('SELECT serial, issued_by FROM codes WHERE request_id = ?', r['id'])
+            legacy_paid = bool(code) and r['source'] == 'relay' and r['kind'] in ('monthly', 'permanent') and not r['payment_confirmed']
             with self.lock:
-                if code:
+                if legacy_paid:
+                    moved = self.db.execute("UPDATE requests SET status = 'pending', decide_claim = NULL WHERE id = ? AND status = 'deciding' "
+                                            "AND COALESCE(decide_claim, 0) < ? AND payment_confirmed = 0", (r['id'], stale)).rowcount
+                elif code:
                     moved = self.db.execute("UPDATE requests SET status = 'approved', decided_at = COALESCE(decided_at, ?), decided_by = COALESCE(NULLIF(decided_by, ''), ?), "
                                             "serial = ?, held = '', decide_claim = NULL WHERE id = ? AND status = 'deciding' AND COALESCE(decide_claim, 0) < ?",
                                             (now_iso(), code['issued_by'], code['serial'], r['id'], stale)).rowcount
@@ -150,7 +156,8 @@ class Studio:
                                             (r['id'], stale, r['id'])).rowcount
             if moved:
                 self.audit('studio', 'request.recovered', {'id': r['id'], 'serial': code['serial'] if code else None,
-                                                           **({'payment_ref': r['payment_ref']} if code and r['payment_ref'] else {})})
+                                                           **({'payment': 'confirm again'} if legacy_paid else {}),
+                                                           **({'payment_ref': r['payment_ref']} if code and r['payment_ref'] and not legacy_paid else {})})
 
     # ------------------------------------------------------------------ helpers
     def rows(self, sql, *args):
