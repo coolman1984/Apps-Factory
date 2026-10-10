@@ -413,5 +413,131 @@ class CompanyOSContractTests(unittest.TestCase):
             self.assertIn("duplicate task identifier", result.stdout)
 
 
+
+class CompanyOSSafetyTests(unittest.TestCase):
+    """What the offline validator now enforces beyond the shape: no pre-granted sensitive action, no «done» over failed or skipped tests, no
+    work done twice, and a way to see interrupted work. All of it is metadata: nothing here runs an agent or authorizes anything."""
+
+    @classmethod
+    def setUpClass(cls):
+        mod = runpy.run_path(str(VALIDATOR))
+        cls.validate, cls.conflicts, cls.stale = (staticmethod(mod[n]) for n in ("validate_task", "batch_conflicts", "stale_tasks"))
+        cls.examples = json.loads((CONTRACT / "examples.json").read_text(encoding="utf-8"))
+
+    def sample(self, **fields):
+        task = copy.deepcopy(self.examples[0])
+        task.update(fields)
+        return task
+
+    def done(self, **fields):
+        base = dict(status="done", current_commit="a" * 40, branch="fix/x-1", tests_run=["python -m unittest discover -s tests: 113 passed"],
+                    evidence=[{"type": "ci", "reference": "https://github.com/coolman1984/Store/actions/runs/1", "verified_at": "2026-10-10T06:00:00Z"}])
+        base.update(fields)
+        return self.sample(**base)
+
+    def test_a_handoff_cannot_pre_grant_money_customers_production_or_secrets(self):
+        for action in ("send_payment", "refund_customer", "deploy_to_production", "publish_release", "merge_main", "force_push", "delete_customer_data",
+                       "send_whatsapp", "post_announcement", "rotate_signing_key", "read_secrets", "push_main", "Spend-Budget", "drop table",
+                       "read_customer_data", "export_customer_records", "contact_customer", "call_client", "upload_backup", "read_real_database",
+                       "issue_paid_license", "grant_licence", "activate_trial_license", "revoke_code"):
+            problems = self.validate(self.sample(allowed_actions=["read_repo", action]))
+            self.assertTrue(any("not on the allowlist" in p and action in p for p in problems), (action, problems))
+
+    def test_only_actions_on_the_allowlist_are_granted_and_anything_else_is_refused(self):
+        for action in ("read_repo", "run_synthetic_tests", "draft_report", "comment_on_pr", "push_branch", "write_tests", "  Read_Repo  ",
+                       "edit_files", "commit_changes", "run_linter", "write_code", "create_branch"):   # ordinary coding work needs no owner approval
+            self.assertEqual([p for p in self.validate(self.sample(allowed_actions=[action])) if "allowed_actions" in p], [], action)
+        for action in ("inspect_payload", "frobnicate", "read_synthetic_data", "do_anything", "shell"):   # unknown is refused too: a word list is never complete
+            self.assertTrue(any("not on the allowlist" in p for p in self.validate(self.sample(allowed_actions=[action]))), action)
+
+    def test_the_same_sensitive_action_is_fine_as_a_request_for_approval(self):
+        task = self.sample(allowed_actions=["read_repo"], requires_owner_approval=["merge_main", "production_deploy", "send_payment"])
+        self.assertEqual(self.validate(task), [])
+
+    def test_done_needs_clean_tests_and_no_known_errors(self):
+        self.assertEqual(self.validate(self.done()), [])
+        self.assertTrue(any("known errors" in p for p in self.validate(self.done(known_errors=["one test still red"]))))
+        self.assertTrue(any("skipped tests are not green" in p for p in self.validate(self.done(tests_skipped=["browser tests: no Chromium"]))))
+        self.assertTrue(any("must list the tests" in p for p in self.validate(self.done(tests_run=[]))))
+        self.assertEqual(self.validate(self.done(current_commit=None, branch=None, tests_run=[])), [], "a task with no code needs no test list")
+
+    def test_a_recorded_failure_or_skip_in_the_test_list_is_never_green(self):
+        for line in ("pytest: 3 failed", "113 passed, 2 failed", "FAILED test_x", "5 skipped", "2 errors in 4s", "browser tests: not green", "suite is red"):
+            self.assertTrue(any("records a failure or a skip" in p for p in self.validate(self.done(tests_run=[line]))), line)
+        for line in ("1 failing", "pytest: failed", "npm test exited with code 1", "tests aborted", "browser run timed out", "FAIL tests/x.py", "2 errors"):
+            self.assertTrue(any("records a failure" in p for p in self.validate(self.done(tests_run=[line]))), line)
+        for line in ("164 passed, 12 skips", "50 passed, 3 skip", "12 passed, 1 errored", "5 failed 0 passed", "2 failed 0 warnings", "0 passed", "pass 0\nfail 3",
+                     "suite timed out", "exit 1", "# fail 2", "fails", "error", "tests fail", "12 passed, skipped"):   # review of PR #42: holes found by trying real summaries
+            self.assertTrue(self.validate(self.done(tests_run=[line])), line)
+        for line in ("error handling suite: 12 passed", "tests/test-errors.py: 12 passed"):   # a word inside a name is not a failure
+            self.assertEqual(self.validate(self.done(tests_run=[line])), [], line)
+        for line in ("ran the tests", "tests were run on the branch"):                       # no stated result is not a pass
+            self.assertTrue(any("does not say the tests passed" in p for p in self.validate(self.done(tests_run=[line]))), line)
+        for line in ("python -m unittest discover -s tests: 113 passed, 0 failed, 0 skipped", "node --test: 34 passed", "Ran 304 tests OK", "all green, no failures",
+                     "# pass 34\n# fail 0\n# skipped 0", "unittest OK (failures=0)", "Failed: 0, Passed: 12", "47 pass, 0 fail", "47 pass"):   # the zero may come after the word as well as before
+            self.assertEqual(self.validate(self.done(tests_run=[line])), [], line)
+
+    def test_the_same_work_cannot_be_carried_twice(self):
+        a = self.sample(task_id="PX-101", status="working", branch="fix/shared-1")
+        b = self.sample(task_id="PX-102", status="ready", branch="fix/shared-1")
+        self.assertTrue(any("already being worked on by PX-101" in p for p in self.conflicts([a, b])))
+        pr = "https://github.com/coolman1984/Store/pull/20"
+        c, d = self.sample(task_id="PX-103", status="review", open_prs=[pr]), self.sample(task_id="PX-104", status="owner_gate", open_prs=[pr])
+        self.assertTrue(any("already carried by PX-103" in p for p in self.conflicts([c, d])))
+        e = self.sample(task_id="PX-101")
+        self.assertTrue(any("duplicate task identifier" in p for p in self.conflicts([a, e])))
+        finished = self.sample(task_id="PX-105", status="done", branch="fix/shared-1")
+        self.assertEqual(self.conflicts([a, finished]), [], "a finished task does not hold its branch")
+        self.assertEqual(self.conflicts([self.sample(task_id="PX-106", branch=None), self.sample(task_id="PX-107", branch=None)]), [])
+        other = self.sample(task_id="PX-108", status="working", branch="fix/shared-1", project="Factory")
+        self.assertEqual(self.conflicts([a, other]), [], "the same branch name in another project is not the same work")
+        again = self.sample(task_id="PX-109", status="working", branch="fix/shared-1", project=a["project"])
+        self.assertTrue(self.conflicts([a, again]))
+
+    def test_the_command_line_checks_several_files_together(self):
+        a = self.sample(task_id="PX-201", status="working", branch="fix/cli-1")
+        b = self.sample(task_id="PX-202", status="ready", branch="fix/cli-1")
+        with tempfile.TemporaryDirectory() as d:
+            fa, fb = Path(d, "a.json"), Path(d, "b.json")
+            fa.write_text(json.dumps(a), encoding="utf-8")
+            fb.write_text(json.dumps(b), encoding="utf-8")
+            both = subprocess.run([sys.executable, str(VALIDATOR), str(fa), str(fb)], capture_output=True, text=True)
+            self.assertEqual(both.returncode, 1, both.stdout)
+            self.assertIn("CONFLICT", both.stdout)
+            alone = subprocess.run([sys.executable, str(VALIDATOR), str(fa)], capture_output=True, text=True)
+            self.assertEqual(alone.returncode, 0, alone.stdout + alone.stderr)
+
+    def test_interrupted_work_is_seen_and_can_be_taken_over(self):
+        from datetime import datetime, timezone
+        now = datetime(2026, 10, 10, 12, 0, tzinfo=timezone.utc)
+        fresh = self.sample(task_id="PX-301", status="working", updated_at="2026-10-10T11:00:00Z")
+        old = self.sample(task_id="PX-302", status="working", updated_at="2026-10-09T09:00:00Z")
+        never = self.sample(task_id="PX-303", status="working")
+        waiting = self.sample(task_id="PX-304", status="ready", updated_at="2025-01-01T00:00:00Z")
+        self.assertEqual(self.stale([fresh, old, never, waiting], now, 24), ["PX-302", "PX-303"])
+        self.assertEqual(self.validate(fresh), [])
+        self.assertTrue(self.validate(self.sample(updated_at="yesterday")), "the stamp is as strict as every other date")
+        future = self.sample(task_id="PX-305", status="working", updated_at="2099-01-01T00:00:00Z")
+        self.assertEqual(self.stale([future], now, 24), ["PX-305"], "a stamp in the future never makes work look fresh")
+        odd = self.sample(task_id="PX-306", status="working", updated_at="2026-10-10T11:30:00.5Z")   # a one-digit fraction parses on every Python
+        self.assertEqual(self.validate(odd), [])
+        self.assertEqual(self.stale([odd], now, 24), [])
+        with tempfile.TemporaryDirectory() as d:
+            f = Path(d, "t.json")
+            f.write_text(json.dumps([fresh, old]), encoding="utf-8")
+            run = subprocess.run([sys.executable, str(VALIDATOR), str(f), "--stale-hours", "24", "--now", "2026-10-10T12:00:00Z"], capture_output=True, text=True)
+            self.assertEqual(run.returncode, 3, run.stdout)
+            self.assertIn("STALE: PX-302", run.stdout)
+            self.assertNotIn("STALE: PX-301", run.stdout)
+            messy = Path(d, "m.json")        # one invalid task must not hide the takeover signal of another
+            messy.write_text(json.dumps([old, self.sample(task_id="PX-307", goal="x")]), encoding="utf-8")
+            both = subprocess.run([sys.executable, str(VALIDATOR), str(messy), "--stale-hours", "24", "--now", "2026-10-10T12:00:00Z"], capture_output=True, text=True)
+            self.assertEqual(both.returncode, 1, both.stdout)
+            self.assertIn("STALE: PX-302", both.stdout)
+            naive = subprocess.run([sys.executable, str(VALIDATOR), str(f), "--stale-hours", "24", "--now", "2026-10-10T12:00:00"], capture_output=True, text=True)
+            self.assertEqual(naive.returncode, 2, naive.stdout + naive.stderr)
+            self.assertIn("timezone", naive.stderr)
+
+
 if __name__ == "__main__":
     unittest.main()

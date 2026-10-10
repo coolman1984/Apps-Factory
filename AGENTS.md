@@ -2,7 +2,7 @@
 
 ## Read order
 1. [README.md](README.md): what the factory is and the commands.
-2. [RULES.md](RULES.md): the 32 core controls, the firm privacy limits, the agent workflow.
+2. [RULES.md](RULES.md): the 34 core controls, the firm privacy limits, the agent workflow.
 3. [PARTS.md](PARTS.md): the shared parts, their versions and how products take them.
 
 For cross-product Pixel Plus/Store work, begin with [the unified owner execution roadmap](docs/PIXEL_PLUS_EXECUTION_ROADMAP_2026.md); do not mistake its planned features for shipped code. For Telegram owner approvals, Rafaa or Sanad use only the linked scope specs, and preserve privacy/payment approval boundaries.
@@ -13,7 +13,7 @@ Then read only the spec for the part you touch (linked from PARTS.md). Read [DEC
 For CEO/marketing/research/council/portfolio tasks, consult [Pixel Plus's one-person company strategy](docs/PIXEL_PLUS_ONE_PERSON_COMPANY_OS.md) and [operations playbook](docs/PIXEL_PLUS_COMPANY_OS_PLAYBOOK.md). The coordinator must assign a bounded task with source references, spend cap, allowed tools, exact definition of done, independent reviewer and owner decision gates. A new chat session must reconstruct state from main, current PRs and the approved roadmap, not stale chat claims. Do not infer permission for spending, customer outreach, data-sharing, licensing or deploys.
 
 ## Visual/UI work
-Any UI, UX, page, dashboard, RTL, accessibility or CSS task: read `design-factory/AGENTS.md` first and follow it.
+Any UI, UX, page, dashboard, RTL, accessibility or CSS task: read `design-factory/AGENTS.md` first and follow it; its first stop is `design-factory/DESIGN.md`, the global standard with the gates each product class must pass.
 
 ## Creative motion, icons, layers, video
 Read `design-factory/CREATIVE_AGENT_PLAYBOOK.md` and pick a `design-factory/creative-recipes/*.json` profile before writing code.

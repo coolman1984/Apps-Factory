@@ -2,7 +2,7 @@
 
 Supports precisely the JSON Schema keywords used by task.schema.json. This is
 not a full JSON Schema library, and task metadata never authenticates actions.
-Run: python3 company-os/validate_task.py company-os/examples.json
+Run: python3 company-os/validate_task.py company-os/examples.json [more.json ...] [--stale-hours 24]
 """
 import argparse
 from datetime import datetime
@@ -14,6 +14,42 @@ import sys
 
 HERE = Path(__file__).resolve().parent
 DEFAULT_SCHEMA = HERE / "task.schema.json"
+
+# What a handoff MAY grant by itself: a short allowlist of actions that touch nothing real. Anything else is refused (fail closed): a word
+# list can never be complete (the review of PR #42 found customer, licence, export... in turn). An action that touches money, customers,
+# licences, production, real data or secrets is never on this list: it goes in requires_owner_approval. To grant a new kind of harmless
+# action, add it here in a reviewed change.
+SAFE_ACTIONS = {
+    "read_repo", "read_docs", "read_ci_logs", "research_public",
+    "run_synthetic_tests", "run_unit_tests", "run_tests", "run_linter", "write_tests", "review_diff",
+    "edit_files", "write_code", "create_branch", "commit_changes", "push_branch", "open_pr", "comment_on_pr",
+    "draft_report", "draft_copy", "draft_docs",
+}
+# tests_run is free text, so «green» is read from what the line says: a pass with a count above zero, and no failure, error, skip, abort,
+# timeout or non-zero exit once zero counts («0 failed», «failed: 0», TAP «# fail 0») are set aside.
+_LABEL = r"(?:fail(?:ed|ing|ures?)?|errors?|errored|skipp?(?:ed|s|ing)?|xfail\w*)"
+ZERO_COUNT = re.compile(rf"\b(?:0|no|zero)\s+{_LABEL}\b|\b{_LABEL}\s*[:=]\s*0\b|(?m:^\s*#\s*{_LABEL}\s+0\b)", re.I)
+FAILURE_FORMS = re.compile(rf"(?<![\d.])[1-9]\d*\s*{_LABEL}\b|\b{_LABEL}\s*[:=#]?\s*[1-9]\d*\b|\b(?:failed|failing|failures?|errored|aborted|crash\w*|timed?[\s-]*out|timeout)\b"
+                           r"|(?<![-/_.\w])(?:fails?|errors?|skipp?(?:ed|s|ing)?)\b(?![-/_.]\w)(?!\s+[a-z])|(?-i:\b(?:FAIL|FAILED|ERROR)\b)|\bred\b|\bnot\s+(?:green|passing|passed)\b|\bexit(?:ed)?(?:\s+with)?(?:\s+(?:code|status))?\s+[1-9]", re.I)
+PASS_EVIDENCE = re.compile(r"(?<![\d.])[1-9]\d*\s*(?:tests?\s+)?pass(?:ed|es|ing)?\b|\bpass(?:ed|es|ing)?\s*[:=#]?\s*[1-9]\d*|\b(?:green|succeeded|success|all\s+(?:tests\s+)?pass(?:ed|ing)?)\b|(?-i:\bOK\b)", re.I)
+ACTIVE = {"ready", "working", "review", "owner_gate"}  # statuses in which a person or agent is expected to be doing the task
+
+
+def _parse_time(stamp):
+    """An RFC 3339 time with a zone, or None. Fractions of any length and «Z» are read the same on every Python (before 3.11 only 3 or 6 digits parsed)."""
+    if not isinstance(stamp, str):
+        return None
+    text = re.sub(r"\.(\d+)", lambda m: "." + (m.group(1) + "000000")[:6], stamp.replace("Z", "+00:00"), count=1)
+    try:
+        at = datetime.fromisoformat(text)
+    except (ValueError, OverflowError):
+        return None
+    return at if at.tzinfo is not None and at.utcoffset() is not None else None
+
+
+def unlisted_actions(allowed):
+    """The entries of allowed_actions that are not on SAFE_ACTIONS (spaces and case are ignored, like for approvals)."""
+    return [a for a in allowed if isinstance(a, str) and " ".join(a.split()).casefold() not in SAFE_ACTIONS]
 
 
 def _matches_type(value, kind):
@@ -73,8 +109,7 @@ def _check(value, rule, where="$"):
                 problems.append(f"{where}: invalid format")
         if rule.get("format") == "date-time":
             try:
-                parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
-                if parsed.tzinfo is None or parsed.utcoffset() is None:
+                if _parse_time(value) is None:
                     raise ValueError("timezone required")
             except (ValueError, OverflowError):
                 problems.append(f"{where}: invalid timezone-aware date-time")
@@ -132,6 +167,11 @@ def validate_task(task, schema=None):
             if overlap:
                 errors.append("$.allowed_actions: must not overlap requires_owner_approval: " + ", ".join(sorted(overlap)))
 
+        if isinstance(allowed, list):
+            for action in unlisted_actions(allowed):
+                errors.append(f"$.allowed_actions: {action!r} is not on the allowlist ({', '.join(sorted(SAFE_ACTIONS))}): anything that touches money, customers, "
+                              "licences, production, real data or secrets goes in requires_owner_approval; a harmless new kind of action is added to SAFE_ACTIONS in a reviewed change")
+
         # A syntactically valid local path that does not exist cannot restore context.
         # Keep the whole validator offline; HTTPS references must be checked separately.
         ref = task.get("decision_ref")
@@ -165,32 +205,87 @@ def validate_task(task, schema=None):
             for e in evidence
         ):
             errors.append("$.evidence: completed tasks need dated verification")
+        if task.get("status") == "done":
+            # A task whose tests failed or were skipped, or that still lists an error, is not done: the merge it leads to must wait.
+            if isinstance(task.get("known_errors"), list) and task["known_errors"]:
+                errors.append("$.known_errors: a completed task cannot still list known errors")
+            if isinstance(task.get("tests_skipped"), list) and task["tests_skipped"]:
+                errors.append("$.tests_skipped: skipped tests are not green, a completed task cannot list any")
+            if task.get("current_commit") and isinstance(task.get("tests_run"), list) and not task["tests_run"]:
+                errors.append("$.tests_run: a completed task with code (current_commit) must list the tests that were run on it")
+            for line in task.get("tests_run") if isinstance(task.get("tests_run"), list) else []:
+                if isinstance(line, str):  # free text: green needs a stated pass and no failure, error, skip or non-zero exit in any form
+                    rest = ZERO_COUNT.sub("", line)
+                    if FAILURE_FORMS.search(rest):
+                        errors.append(f"$.tests_run: {line!r} records a failure or a skip; a completed task needs a clean run")
+                    elif not PASS_EVIDENCE.search(line):
+                        errors.append(f"$.tests_run: {line!r} does not say the tests passed (write the result, for example '113 passed, 0 failed')")
     return errors
 
 
+def batch_conflicts(tasks):
+    """Work that would be done twice: the same id in two handoffs, or two ACTIVE tasks on the same branch or the same open PR."""
+    problems, ids, branches, prs = [], {}, {}, {}  # a branch name is only unique inside its project (Factory and Store may both have fix/x)
+    for index, task in enumerate(tasks):
+        if not isinstance(task, dict):
+            continue
+        name = task.get("task_id") if isinstance(task.get("task_id"), str) else f"#{index + 1}"
+        key = name.strip()
+        if key in ids:
+            problems.append(f"{name}: duplicate task identifier (also {ids[key]})")
+        ids.setdefault(key, name)
+        if task.get("status") not in ACTIVE:
+            continue
+        branch = task.get("branch")
+        if isinstance(branch, str) and branch.strip():
+            bkey = (str(task.get("project", "")).strip().casefold(), branch.strip())
+            if bkey in branches:
+                problems.append(f"{name}: branch {branch!r} of {task.get('project')} is already being worked on by {branches[bkey]}")
+            branches.setdefault(bkey, name)
+        for url in task.get("open_prs") or []:
+            if isinstance(url, str):
+                if url.strip() in prs:
+                    problems.append(f"{name}: pull request {url} is already carried by {prs[url.strip()]}")
+                prs.setdefault(url.strip(), name)
+    return problems
+
+
+def stale_tasks(tasks, now, hours):
+    """`working` tasks nobody has touched for `hours`, or that never said when, or whose stamp lies in the future (a typo or a wrong clock
+    cannot make work look fresh for ever): the work was interrupted, someone else takes over from next_action, current_commit and the open PRs."""
+    stale = []
+    for task in tasks:
+        if not isinstance(task, dict) or task.get("status") != "working":
+            continue
+        at = _parse_time(task.get("updated_at"))
+        age = (now - at).total_seconds() if at is not None else None
+        if age is None or age < -300 or age > hours * 3600:
+            stale.append(task.get("task_id") or "?")
+    return stale
+
+
 def main(argv=None):
-    parser = argparse.ArgumentParser(description="Validate a Pixel Plus AI task handoff locally, without network access")
-    parser.add_argument("file", type=Path, help="single JSON task or JSON array of tasks")
+    parser = argparse.ArgumentParser(description="Validate Pixel Plus AI task handoffs locally, without network access")
+    parser.add_argument("file", type=Path, nargs="+", help="JSON task or JSON array of tasks; several files are checked together for duplicated work")
+    parser.add_argument("--stale-hours", type=float, default=None, help="report `working` tasks not updated for this long (interrupted work); exit 3 if any")
+    parser.add_argument("--now", default=None, help="RFC 3339 time to measure staleness from (default: the clock)")
     args = parser.parse_args(argv)
+    tasks = []
     try:
-        data = json.loads(args.file.read_text(encoding="utf-8"))
         schema = json.loads(DEFAULT_SCHEMA.read_text(encoding="utf-8"))
+        for path in args.file:
+            data = json.loads(path.read_text(encoding="utf-8"))
+            for task in data if isinstance(data, list) else [data]:
+                tasks.append(task)
     except (OSError, UnicodeError, json.JSONDecodeError) as ex:
         print(f"Cannot read task/schema JSON: {ex}", file=sys.stderr)
         return 2
-    tasks = data if isinstance(data, list) else [data]
     if not tasks:
         print("No tasks supplied", file=sys.stderr)
         return 1
     failed = False
-    seen_ids = set()
     for idx, task in enumerate(tasks):
         issues = validate_task(task, schema)
-        if isinstance(task, dict) and isinstance(task.get("task_id"), str):
-            task_id = task["task_id"].strip()  # compare canonical IDs, even when invalid input has trailing whitespace
-            if task_id in seen_ids:
-                issues.append("$.task_id: duplicate task identifier in the handoff batch")
-            seen_ids.add(task_id)
         if issues:
             failed = True
             print(f"Task {idx + 1}: INVALID")
@@ -198,7 +293,21 @@ def main(argv=None):
                 print("  " + issue)
         else:
             print(f"Task {idx + 1}: valid handoff metadata (NOT an authorization)")
-    return 1 if failed else 0
+    for problem in batch_conflicts(tasks):  # the one place that knows «the same work twice»: an id, a branch or a pull request
+        failed = True
+        print("CONFLICT: " + problem)
+    stale = []
+    if args.stale_hours is not None:  # reported even when something else is wrong: a messy batch is when the takeover signal is needed most
+        now = _parse_time(args.now) if args.now else datetime.now().astimezone()
+        if now is None:
+            print("--now must be an RFC 3339 time with a timezone", file=sys.stderr)
+            return 2
+        stale = stale_tasks(tasks, now, args.stale_hours)
+        for task_id in stale:
+            print(f"STALE: {task_id} is `working` but was not updated for {args.stale_hours:g} hours: take it over from its next_action and current_commit")
+    if failed:
+        return 1
+    return 3 if stale else 0
 
 
 if __name__ == "__main__":

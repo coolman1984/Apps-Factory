@@ -27,7 +27,7 @@ import uuid
 from html import escape as html_escape
 
 from .relay import DEVICE, KIND_AR, KIND_EDITION, MACHINE, REASON_AR, UUID, RelayError, telegram, telegram_configured
-from .service import MONTHLY_DAYS, UNATTENDED, StudioError, now_iso
+from .service import MONTHLY_DAYS, StudioError, now_iso, utc_today
 
 TRIAL_DAYS = 14      # the trial a shop asks for, and the one an owner's button gives
 CLAIM_SECONDS = 300  # a copy to the owner being sent for longer than this is taken to have died
@@ -70,7 +70,7 @@ class AutoTrial:
             return 'issue', '', None
         pol = s.policy()
         # issued_at is stored in UTC, so the day is counted in UTC too: one reset a day, never two (review of PR #34)
-        done = s.one("SELECT COUNT(*) AS n FROM codes WHERE issued_by = 'auto-trial' AND substr(issued_at, 1, 10) = ?", time.strftime('%Y-%m-%d', time.gmtime()))['n']
+        done = s.one("SELECT COUNT(*) AS n FROM codes WHERE issued_by = 'auto-trial' AND substr(issued_at, 1, 10) = ?", utc_today())['n']
         if done >= pol['auto_trial_daily_cap']:
             return 'hold', 'daily_cap', None
         if r.get('src') and s.one("SELECT COUNT(*) AS n FROM requests WHERE source = 'relay' AND src = ? AND requested_at >= ?", r['src'],
@@ -270,13 +270,18 @@ class AutoTrial:
             else:
                 # a button is the owner's decision on THIS request, which asked for (and the alert offered) the standard 14-day trial;
                 # the shorter term the owner may have set for the automatic policy applies to the policy only
-                code = s.issue(r['product'], 'trial', r['device'], r['customer'], '', TRIAL_DAYS if approved else s.policy()['auto_trial_days'],
+                pol = s.policy()  # read once: the length and the cap come from one snapshot
+                code = s.issue(r['product'], 'trial', r['device'], r['customer'], '', TRIAL_DAYS if approved else pol['auto_trial_days'],
                                note='تجربة بموافقتك على تليجرام' if approved else 'تجربة تلقائية بسياسة المالك',
-                               actor=by, request_id=r['id'], machine=r['machine'], claim=token)
+                               actor=by, request_id=r['id'], machine=r['machine'], claim=token,
+                               daily_cap=None if approved else pol['auto_trial_daily_cap'])  # (the owner's own «✅» is not held back by the cap)
                 serial = code['serial']
         except StudioError as e:
             s.release(r['id'], token)
             if e.key in ('key.locked', 'request.closed'):  # (closed: this decision was taken over by another window: that one stands)
+                return
+            if e.key == 'daily_cap':  # two rounds or windows passed the first look together: the one that lost waits for tomorrow, it is not refused
+                self.last['held'] += 1
                 return
             self._close(r, 'refused', 'already_used' if e.key == 'trial.repeat' else 'bad_device', by)
             self.last['refused'] += 1
@@ -308,9 +313,8 @@ class AutoTrial:
                                        (int(time.time()), r['id'], stale)).rowcount == 1
             if not claimed:
                 continue
-            esc = html_escape
-            ok = telegram(f'✅ اتصدّر {esc(KIND_AR[r["kind"]])}\nالجهاز: {esc(r["device"] or "")}\nرقم الكود: {esc(row["serial"])}\n'
-                          f'لو المحل معاه نت هيتفعّل لوحده. لو لأ، ابعت له الكود ده يكتبه في شاشة التفعيل:\n<code>{esc(row["code"])}</code>', html=True)
+            ok = telegram(f'✅ اتصدّر {html_escape(KIND_AR[r["kind"]])}\nالجهاز: {html_escape(r["device"] or "")}\nرقم الكود: {html_escape(row["serial"])}\n'
+                          f'لو المحل معاه نت هيتفعّل لوحده. لو لأ، ابعت له الكود ده يكتبه في شاشة التفعيل:\n<code>{html_escape(row["code"])}</code>', html=True)
             with s.lock:
                 s.db.execute('UPDATE requests SET code_sent = ? WHERE id = ?', (1 if ok else 0, r['id']))
             if ok:

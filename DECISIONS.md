@@ -52,6 +52,10 @@ Dated owner decisions, newest first. Only decisions recorded in the repository a
 - Every Al-Store shop, new or updated, takes **cash only**. Card, mobile wallet, InstaPay, finance companies, on account and shop instalments stay built and tested, hidden and refused by the server until the shop owner ticks them in Settings. They are shown only when a customer asks for them. Store 1.3.0.
 - The road to the first paying shop is `docs/03-ready-to-sell.md` in coolman1984/Store; the per-control status is `control_evidence` in `examples/al-store-product.json`.
 
+### 2026-10-10 (factory 0.15.0, design gates and the Store's name)
+- **Owner instruction (task message of 2026-10-10): visual quality tests are mandatory and fit each class of program.** UX-04 (states, and the no-network behaviour of the product's connectivity tier) and UX-09 (design tokens and the token gate) became **core**, next to UX-08, PERF-01 and A11Y-01: 34 core controls. «Offline operation» is no longer asked of every product: `cloud_only` shows an actionable disconnected state instead. `design-factory/DESIGN.md` is the first file in every UI agent's read list.
+- **The name «Mizan | ميزان» is withdrawn for the Store** (it is the owner's accounting product, `Accounting-sys`). The Store's visible name is الستور / Al-Store, the name its installer, folder and repository already use. This is a working resolution, not a brand decision: the owner chooses any new brand name after a trademark and domain check (EG, SA, AE). The visual identity (mark, navy, ivory, copper) stays.
+
 ### 2026-10-09 (factory 0.11.0)
 - **Docs diet.** Five living docs: `README.md`, `RULES.md`, `PARTS.md`, `PLAYBOOK.md`, `DECISIONS.md`. Agents read three: README → RULES → PARTS. Research and old plans moved to `docs/archive/`. Detailed specs that code, tests or products link to stay in `docs/` as reference specs. (Review item A12.)
 
@@ -59,7 +63,7 @@ Dated owner decisions, newest first. Only decisions recorded in the repository a
 - **Help is written in simple formal Arabic** («العربية الميسّرة»), with a learning path per role; HELP-08 is folded into HELP-07. See ADR-0006.
 
 ### 2026-10-09 (factory 0.10.0, "rules cleanup")
-- **Only 32 core controls block a release.** The other 75 are `reference` advice. 24 ids were merged into survivors and 7 were retired; old ids still resolve with `factory.py controls <ID>`.
+- **Only 32 core controls blocked a release at the time (34 since catalogue 1.11.0, see 2026-10-10).** The other 75 were `reference` advice. 24 ids were merged into survivors and 7 were retired; old ids still resolve with `factory.py controls <ID>`.
 - **Release evidence is two items:** `clean_device_restore` and `core_user_acceptance`. The market, privacy and security review items left the gate.
 - **Competitor count is advice.** Fewer than 5 competitor rows prints a note and no longer fails `--release`.
 - **No outside-review framing.** The gate has no outside-review step and controls state practical outcomes only. What is enforced is consent (PRIV-01) and the never-collect limits (PRIV-03). REG-01 and REG-02 were retired for this reason.

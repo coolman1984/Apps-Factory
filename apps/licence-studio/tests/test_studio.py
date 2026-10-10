@@ -129,6 +129,120 @@ class ServiceTests(unittest.TestCase):
         self.assertEqual(actors, {'owner', 'agent'})
 
 
+    def _two_windows_at_once(self, jobs):
+        """Each job is a call on its own Studio window (same folder). Both are past their first look and have signed when either starts to write."""
+        gate = threading.Barrier(len(jobs))
+        real = codes.issue_code
+
+        def slow(*a, **k):
+            out = real(*a, **k)
+            gate.wait(10)
+            return out
+        got, bad = [], []
+
+        def run(job):
+            try:
+                got.append(job())
+            except StudioError as e:
+                bad.append(e.status)
+        codes.issue_code = slow
+        try:
+            threads = [threading.Thread(target=run, args=(j,)) for j in jobs]
+            [t.start() for t in threads]
+            [t.join(30) for t in threads]
+        finally:
+            codes.issue_code = real
+        return got, bad
+
+    @unittest.skipUnless(hasattr(__import__('time'), 'tzset'), 'changing the time zone of the process needs tzset (not on Windows)')
+    def test_the_agents_daily_limit_counts_the_day_the_code_is_stamped_with(self):
+        """Review of PR #42: codes are stamped with the UTC day but the limit looked for the PC's local day, so on a PC whose date differs from
+        UTC's (most of every day somewhere) the codes made today were never counted and the limit never held."""
+        import time
+        from datetime import datetime, timezone
+        utc_day = lambda: datetime.now(timezone.utc).date().isoformat()  # noqa: E731
+        self.s.create_key(PASS)
+        self.s.set_setting('agent_may_issue_trials', True)
+        self.s.set_setting('agent_daily_limit', 1)
+        before = os.environ.get('TZ')
+        d1, d2 = codes.device_code('pc-2', 'i-2'), codes.device_code('pc-3', 'i-3')
+        try:
+            for zone in ('Pacific/Kiritimati', 'Etc/GMT+12'):          # UTC+14 and UTC-12: one of them is on another date than UTC right now
+                os.environ['TZ'] = zone
+                time.tzset()
+                if date.today().isoformat() != utc_day():
+                    break
+            self.assertNotEqual(date.today().isoformat(), utc_day())
+            self.assertEqual(self.s.agent_issue_trial('al-store', d1, 'Shop')['status'], 'issued')
+            with self.assertRaises(StudioError) as e:
+                self.s.agent_issue_trial('al-store', d2, 'Shop')
+            self.assertEqual(e.exception.status, 429)
+        finally:
+            if before is None:
+                os.environ.pop('TZ', None)
+            else:
+                os.environ['TZ'] = before
+            time.tzset()
+
+    def test_the_automatic_trial_cap_holds_when_requests_arrive_together(self):
+        """Review of PR #42: the owner's daily cap for automatic trials was a look followed by a write, like the agent's was."""
+        self.s.create_key(PASS)
+        self.s.keep_unlocked(1)
+        other = Studio(self.dir)
+        other.unlock(PASS)
+        other.keep_unlocked(1)
+        d1, d2 = codes.device_code('pc-2', 'i-2'), codes.device_code('pc-3', 'i-3')
+        try:
+            got, bad = self._two_windows_at_once([lambda: self.s.issue('al-store', 'trial', d1, 'Shop', actor='auto-trial', daily_cap=1)['serial'],
+                                                  lambda: other.issue('al-store', 'trial', d2, 'Shop', actor='auto-trial', daily_cap=1)['serial']])
+        finally:
+            other.db.close()
+        self.assertEqual((len(got), bad), (1, [429]))
+        self.assertEqual(self.s.one("SELECT COUNT(*) AS n FROM codes WHERE issued_by = 'auto-trial'")['n'], 1)
+
+    def test_a_request_another_window_already_signed_gets_its_code_not_a_cap_error(self):
+        """Review of PR #42: the cap was checked before the «already signed for this request» re-check, so the window that lost the race to sign
+        the same request was told the cap was reached instead of being given the existing code."""
+        self.s.create_key(PASS)
+        self.s.keep_unlocked(1)
+        first = self.s.issue('al-store', 'trial', DEVICE, 'Shop', actor='auto-trial', request_id='req-1', daily_cap=1)
+        again = self.s.issue('al-store', 'trial', codes.device_code('pc-9', 'i-9'), 'Shop', actor='auto-trial', request_id='req-1', daily_cap=1)
+        self.assertEqual(first['serial'], again['serial'])
+        with self.assertRaises(StudioError) as e:
+            self.s.issue('al-store', 'trial', codes.device_code('pc-8', 'i-8'), 'Shop', actor='auto-trial', request_id='req-2', daily_cap=1)
+        self.assertEqual(e.exception.key, 'daily_cap')
+
+    def test_two_agent_requests_for_one_device_at_once_make_one_trial(self):
+        """Review of PR #26: «one trial per device» was a look followed by a write, so two requests arriving together (a double click, two windows)
+        both passed the look and both trials were signed."""
+        self.s.create_key(PASS)
+        self.s.set_setting('agent_may_issue_trials', True)
+        other = Studio(self.dir)
+        other.unlock(PASS)
+        try:
+            got, bad = self._two_windows_at_once([lambda: self.s.agent_issue_trial('al-store', DEVICE, 'Shop'),
+                                                  lambda: other.agent_issue_trial('al-store', DEVICE, 'Shop')])
+        finally:
+            other.db.close()
+        self.assertEqual((len(got), bad), (1, [409]))
+        self.assertEqual(self.s.one('SELECT COUNT(*) AS n FROM codes WHERE device = ?', DEVICE)['n'], 1)
+
+    def test_the_agents_daily_limit_holds_when_requests_arrive_together(self):
+        self.s.create_key(PASS)
+        self.s.set_setting('agent_may_issue_trials', True)
+        self.s.set_setting('agent_daily_limit', 1)
+        other = Studio(self.dir)
+        other.unlock(PASS)
+        d1, d2 = codes.device_code('pc-2', 'i-2'), codes.device_code('pc-3', 'i-3')
+        try:
+            got, bad = self._two_windows_at_once([lambda: self.s.agent_issue_trial('al-store', d1, 'Shop'),
+                                                  lambda: other.agent_issue_trial('al-store', d2, 'Shop')])
+        finally:
+            other.db.close()
+        self.assertEqual((len(got), bad), (1, [429]))
+        self.assertEqual(self.s.one("SELECT COUNT(*) AS n FROM codes WHERE issued_by = 'agent'")['n'], 1)
+
+
 class WebAndMcpTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
