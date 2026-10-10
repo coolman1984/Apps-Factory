@@ -14,4 +14,16 @@ The offline validator also checks that repository-local decision files exist, re
 
 An independently developed **local-only Python/SQLite prototype** has been run separately with seven tests, and can be used for a dry run. It is **not committed here**, not connected to outside services and not suitable as production owner authentication. The next narrowly scoped engineering PR should vendor it, test on Windows, and add **read-only GitHub status** before discussing cloud hosting or agent auto-dispatch.
 
+## What is only written, what the validator enforces, and what is switched on
+| Rule | Only written (docs, owner policy) | Enforced offline by `validate_task.py` and tested | Running autonomously today |
+|---|---|---|---|
+| Hand a task to another session or account | the playbook | every field of the handoff, strictly typed; `decision_ref` must exist | **No.** A person pastes the file |
+| Independent review | the playbook | reviewer is not the assignee (case and spaces ignored); a done task needs dated evidence | **No** reviewer agent runs; the name is metadata, not an identity |
+| Do not repeat work | the playbook | the same id twice, two active tasks on one branch or one open PR, over **several files at once** (`validate_task.py a.json b.json`) | **No** registry or dispatcher |
+| Do not call it done when tests are not green | the playbook | a `done` task cannot list known errors or skipped tests, and one with code must list the tests run on its commit | **No.** The merge itself is held back only by GitHub branch protection and the required checks (see the repository settings) |
+| Recover after an interruption | `next_action`, `current_commit`, `open_prs` in the handoff | `--stale-hours 24` lists `working` tasks that were not touched (optional `updated_at`) and exits 3, so another session can take over | **No** watcher |
+| No money, customers, production, real data or secrets without the owner | `requires_owner_approval` | a handoff can never pre-grant such an action in `allowed_actions` (words like pay, send, deploy, merge, delete, secret, production; push to main); `owner_gate` needs a named pending approval | **No agent can act**, so there is nothing to block yet; the real enforcement must sit in the future integration (authenticated owner approval) |
+
+Exit codes: 0 valid, 1 invalid or in conflict, 2 unreadable, 3 valid but interrupted work was found.
+
 No new product factory release claims follow from this directory. All sensitive actions require owner approval *and* separate authenticated enforcement in the eventual integration.

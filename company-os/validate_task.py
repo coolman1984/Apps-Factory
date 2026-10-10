@@ -2,7 +2,7 @@
 
 Supports precisely the JSON Schema keywords used by task.schema.json. This is
 not a full JSON Schema library, and task metadata never authenticates actions.
-Run: python3 company-os/validate_task.py company-os/examples.json
+Run: python3 company-os/validate_task.py company-os/examples.json [more.json ...] [--stale-hours 24]
 """
 import argparse
 from datetime import datetime
@@ -14,6 +14,34 @@ import sys
 
 HERE = Path(__file__).resolve().parent
 DEFAULT_SCHEMA = HERE / "task.schema.json"
+
+# A handoff may never PRE-GRANT an action that spends money, reaches customers, touches production or real data, or handles secrets:
+# such an action belongs in requires_owner_approval (fail closed). Words, not substrings: «payload» is not «pay».
+SENSITIVE_WORDS = {
+    "pay", "payment", "payments", "charge", "refund", "invoice", "spend", "purchase", "transfer", "wire",
+    "send", "message", "broadcast", "email", "sms", "whatsapp", "telegram", "post", "tweet", "announce",
+    "deploy", "publish", "release", "merge", "force", "production", "prod", "live",
+    "delete", "drop", "wipe", "purge", "truncate", "destroy",
+    "secret", "secrets", "credential", "credentials", "password", "passwords", "token", "tokens", "signing", "private",
+}
+WRITE_WORDS = {"push", "write", "commit", "edit", "update", "change", "modify"}
+ACTIVE = {"ready", "working", "review", "owner_gate"}  # statuses in which a person or agent is expected to be doing the task
+
+
+def _words(action):
+    return set(re.findall(r"[a-z0-9]+", action.casefold()))
+
+
+def sensitive_actions(allowed):
+    """The entries of allowed_actions that a handoff is not allowed to grant by itself."""
+    found = []
+    for action in allowed:
+        if not isinstance(action, str):
+            continue
+        words = _words(action)
+        if words & SENSITIVE_WORDS or ("main" in words and words & WRITE_WORDS):
+            found.append(action)
+    return found
 
 
 def _matches_type(value, kind):
@@ -132,6 +160,11 @@ def validate_task(task, schema=None):
             if overlap:
                 errors.append("$.allowed_actions: must not overlap requires_owner_approval: " + ", ".join(sorted(overlap)))
 
+        if isinstance(allowed, list):
+            for action in sensitive_actions(allowed):
+                errors.append(f"$.allowed_actions: {action!r} is sensitive (money, customers, production, real data, secrets, main): "
+                              "list it in requires_owner_approval, a handoff cannot grant it")
+
         # A syntactically valid local path that does not exist cannot restore context.
         # Keep the whole validator offline; HTTPS references must be checked separately.
         ref = task.get("decision_ref")
@@ -165,20 +198,77 @@ def validate_task(task, schema=None):
             for e in evidence
         ):
             errors.append("$.evidence: completed tasks need dated verification")
+        if task.get("status") == "done":
+            # A task whose tests failed or were skipped, or that still lists an error, is not done: the merge it leads to must wait.
+            if isinstance(task.get("known_errors"), list) and task["known_errors"]:
+                errors.append("$.known_errors: a completed task cannot still list known errors")
+            if isinstance(task.get("tests_skipped"), list) and task["tests_skipped"]:
+                errors.append("$.tests_skipped: skipped tests are not green, a completed task cannot list any")
+            if task.get("current_commit") and isinstance(task.get("tests_run"), list) and not task["tests_run"]:
+                errors.append("$.tests_run: a completed task with code (current_commit) must list the tests that were run on it")
     return errors
 
 
+def batch_conflicts(tasks):
+    """Work that would be done twice: the same id in two handoffs, or two ACTIVE tasks on the same branch or the same open PR."""
+    problems, ids, branches, prs = [], {}, {}, {}
+    for index, task in enumerate(tasks):
+        if not isinstance(task, dict):
+            continue
+        name = task.get("task_id") if isinstance(task.get("task_id"), str) else f"#{index + 1}"
+        key = name.strip()
+        if key in ids:
+            problems.append(f"{name}: duplicate task identifier (also {ids[key]})")
+        ids.setdefault(key, name)
+        if task.get("status") not in ACTIVE:
+            continue
+        branch = task.get("branch")
+        if isinstance(branch, str) and branch.strip():
+            if branch.strip() in branches:
+                problems.append(f"{name}: branch {branch!r} is already being worked on by {branches[branch.strip()]}")
+            branches.setdefault(branch.strip(), name)
+        for url in task.get("open_prs") or []:
+            if isinstance(url, str):
+                if url.strip() in prs:
+                    problems.append(f"{name}: pull request {url} is already carried by {prs[url.strip()]}")
+                prs.setdefault(url.strip(), name)
+    return problems
+
+
+def stale_tasks(tasks, now, hours):
+    """`working` tasks nobody has touched for `hours` (or that never said when): the work was interrupted, someone else takes over from
+    next_action, current_commit and the open PRs in the handoff."""
+    stale = []
+    for task in tasks:
+        if not isinstance(task, dict) or task.get("status") != "working":
+            continue
+        stamp = task.get("updated_at")
+        try:
+            at = datetime.fromisoformat(stamp.replace("Z", "+00:00")) if isinstance(stamp, str) else None
+        except ValueError:
+            at = None
+        if at is None or at.tzinfo is None or (now - at).total_seconds() > hours * 3600:
+            stale.append(task.get("task_id") or "?")
+    return stale
+
+
 def main(argv=None):
-    parser = argparse.ArgumentParser(description="Validate a Pixel Plus AI task handoff locally, without network access")
-    parser.add_argument("file", type=Path, help="single JSON task or JSON array of tasks")
+    parser = argparse.ArgumentParser(description="Validate Pixel Plus AI task handoffs locally, without network access")
+    parser.add_argument("file", type=Path, nargs="+", help="JSON task or JSON array of tasks; several files are checked together for duplicated work")
+    parser.add_argument("--stale-hours", type=float, default=None, help="report `working` tasks not updated for this long (interrupted work); exit 3 if any")
+    parser.add_argument("--now", default=None, help="RFC 3339 time to measure staleness from (default: the clock)")
     args = parser.parse_args(argv)
+    tasks, sources = [], []
     try:
-        data = json.loads(args.file.read_text(encoding="utf-8"))
         schema = json.loads(DEFAULT_SCHEMA.read_text(encoding="utf-8"))
+        for path in args.file:
+            data = json.loads(path.read_text(encoding="utf-8"))
+            for task in data if isinstance(data, list) else [data]:
+                tasks.append(task)
+                sources.append(path.name)
     except (OSError, UnicodeError, json.JSONDecodeError) as ex:
         print(f"Cannot read task/schema JSON: {ex}", file=sys.stderr)
         return 2
-    tasks = data if isinstance(data, list) else [data]
     if not tasks:
         print("No tasks supplied", file=sys.stderr)
         return 1
@@ -198,7 +288,25 @@ def main(argv=None):
                 print("  " + issue)
         else:
             print(f"Task {idx + 1}: valid handoff metadata (NOT an authorization)")
-    return 1 if failed else 0
+    for problem in batch_conflicts(tasks):
+        if "duplicate task identifier" in problem:
+            continue  # already reported per task above
+        failed = True
+        print("CONFLICT: " + problem)
+    if failed:
+        return 1
+    if args.stale_hours is not None:
+        try:
+            now = datetime.fromisoformat(args.now.replace("Z", "+00:00")) if args.now else datetime.now().astimezone()
+        except ValueError:
+            print("--now must be an RFC 3339 time with a timezone", file=sys.stderr)
+            return 2
+        stale = stale_tasks(tasks, now, args.stale_hours)
+        for task_id in stale:
+            print(f"STALE: {task_id} is `working` but was not updated for {args.stale_hours:g} hours: take it over from its next_action and current_commit")
+        if stale:
+            return 3
+    return 0
 
 
 if __name__ == "__main__":
