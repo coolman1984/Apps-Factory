@@ -2,6 +2,9 @@
 
 Factory versions (the `README.md` version line). The control catalogue has its own `catalog_version` in `factory/controls.json`.
 
+## 0.16.1 (2026-10-10)
+Integration proof, tests only. `apps/licence-studio/tests/test_studio.py` now signs a 7-day and a 30-day trial from the Studio for a real Al-Store checkout and reads them back with Al-Store's own verifier (state «trial», the right days left): the product's trial length reaches a real shop through the whole chain, and CI (`vendored-drift`) runs it against Al-Store's `main`. Readiness review: the Al-Store manifest still answers **NO-GO** (34 core controls: 30 verified; UX-04, UX-09, DATA-05, A11Y-01 and the field proofs `clean_device_restore`, `core_user_acceptance`, `off_device_cloud_restore` are open); the list of what a machine cannot prove is in Al-Store's `docs/03-ready-to-sell.md`.
+
 ## 0.16.0 (2026-10-10)
 **The trial length is a per-product setting (Licence Studio 1.3.0), 14 days by default.** Al-Store 1.9.1 is the first product whose screens stopped promising «14 يوم».
 - A product's trial length (1 to 60) is read when a code is **signed**: the owner's «✅ موافق» on Telegram and a click in the Studio give the product's length; the automatic policy gives it but never more than its own saved cap (`auto_trial_days`, 14 until raised, now up to 60); the agent gets it but never more than 14. A saved value, a cap or a product never set all behave as before (14).

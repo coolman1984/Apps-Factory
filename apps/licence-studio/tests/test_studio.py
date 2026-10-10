@@ -465,6 +465,17 @@ class WebAndMcpTests(unittest.TestCase):
             ok = subprocess.run([sys.executable, '-c', check], cwd=store, env=env, capture_output=True, text=True, timeout=60)
             got = json.loads(ok.stdout)
             self.assertEqual((got['state'], got['edition'], got['full']), (state, edition, True), ok.stderr)
+        # the product's own trial length reaches the real shop: 7 and 30 days, written in the code and read back by Al-Store's own verifier
+        for length in (7, 30):
+            self.studio.add_product('al-store', 'Al-Store', length)
+            c = self.studio.issue('al-store', 'trial', dev, 'Pilot shop')
+            check = ('import os,sys,json; sys.path.insert(0, "server"); import app, licence;'
+                     'a = app.build(os.environ["SHOP_HOME"], practice=False);'
+                     f'print(json.dumps(licence.activate(a.db, {c["code"]!r})))')
+            ok = subprocess.run([sys.executable, '-c', check], cwd=store, env=env, capture_output=True, text=True, timeout=60)
+            got = json.loads(ok.stdout)
+            self.assertEqual((got['state'], got['edition'], got.get('days_left')), ('trial', 'trial', length), (length, ok.stdout, ok.stderr))
+        self.studio.add_product('al-store', 'Al-Store', 14)
 
 
 if __name__ == '__main__':
