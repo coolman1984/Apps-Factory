@@ -1,0 +1,66 @@
+[
+  {
+    "task_id": "PX-001",
+    "goal": "Review Al-Store 1.7 end-to-end cash-sale and installer acceptance, with independent proof",
+    "project": "Store",
+    "department": "qa-security",
+    "assignee": "reviewer-session-A",
+    "reviewer": "reviewer-session-B",
+    "risk": "medium",
+    "status": "ready",
+    "budget_usd": 0,
+    "time_cap_minutes": 120,
+    "allowed_actions": [
+      "read_repo",
+      "run_synthetic_tests",
+      "draft_report"
+    ],
+    "requires_owner_approval": [
+      "merge_main",
+      "production_deploy"
+    ],
+    "acceptance": [
+      "All required CI on exact commit green",
+      "Store UI actual click-to-db traces captured",
+      "No skipped browser tests counted as green"
+    ],
+    "evidence": [],
+    "customer_data_policy": "synthetic_only",
+    "decision_ref": "docs/PIXEL_PLUS_EXECUTION_ROADMAP_2026.md",
+    "blocker": null,
+    "next_action": "inspect latest main, reproduce 1 sale and produce review bundle",
+    "current_commit": null
+  },
+  {
+    "task_id": "PX-002",
+    "goal": "Draft three Egyptian shop acquisition experiments with sources and owner-approved outreach plan",
+    "project": "Pixel Plus",
+    "department": "marketing",
+    "assignee": "research-agent",
+    "reviewer": "owner",
+    "risk": "low",
+    "status": "backlog",
+    "budget_usd": 0,
+    "time_cap_minutes": 90,
+    "allowed_actions": [
+      "research_public",
+      "draft_copy"
+    ],
+    "requires_owner_approval": [
+      "send_customer_message",
+      "publish_ad",
+      "spend"
+    ],
+    "acceptance": [
+      "Three market-tested customer angles",
+      "Each claim source-linked to released product evidence",
+      "No client contact without explicit consent"
+    ],
+    "evidence": [],
+    "customer_data_policy": "none",
+    "decision_ref": "docs/PIXEL_PLUS_ONE_PERSON_COMPANY_OS.md",
+    "blocker": null,
+    "next_action": "interview owner about target buyer",
+    "current_commit": null
+  }
+]
