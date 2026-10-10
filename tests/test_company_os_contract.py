@@ -269,6 +269,12 @@ class CompanyOSContractTests(unittest.TestCase):
         t["allowed_actions"].append("merge_main")
         self.assertInvalid(t, "allowed_actions")
 
+    def test_owner_gate_does_not_allow_case_or_space_alias(self):
+        t = self.sample()
+        t["status"] = "owner_gate"
+        t["allowed_actions"].append("  PRODUCTION_DEPLOY  ")
+        self.assertInvalid(t, "allowed_actions")
+
     def test_local_decision_path_must_exist(self):
         t = self.sample()
         t["decision_ref"] = "docs/THIS_FILE_DOES_NOT_EXIST.md"
