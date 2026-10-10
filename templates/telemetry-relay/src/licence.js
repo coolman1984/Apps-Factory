@@ -56,6 +56,9 @@ async function note(env, now, requestId, event, detail = '') {
   await env.DB.prepare('INSERT INTO licence_events (at, request_id, event, detail) VALUES (?,?,?,?)').bind(now, requestId, event, String(detail).slice(0, 200)).run();
 }
 
+// The owner's chat id as pasted into the secret: a space or a line break around it is not part of it.
+const ownerId = (env) => String(env.TELEGRAM_OWNER_CHAT_ID || '').trim();
+
 // The owner's phone. The text carries only the kind, the product, the first 8 characters of the request id and the device code:
 // never what the shop typed. A failing Telegram never fails the request.
 export async function tgCall(env, method, payload) {
@@ -71,8 +74,8 @@ export async function tgCall(env, method, payload) {
 }
 
 export async function telegram(env, text, extra = {}) {
-  if (!env.TELEGRAM_BOT_TOKEN || !env.TELEGRAM_OWNER_CHAT_ID) return false;
-  return !!(await tgCall(env, 'sendMessage', {chat_id: env.TELEGRAM_OWNER_CHAT_ID, text, disable_web_page_preview: true, ...extra}));
+  if (!env.TELEGRAM_BOT_TOKEN || !ownerId(env)) return false;
+  return !!(await tgCall(env, 'sendMessage', {chat_id: ownerId(env), text, disable_web_page_preview: true, ...extra}));
 }
 
 // `buttons`: the owner's buttons are switched on (TELEGRAM_WEBHOOK_SECRET is set). Without them the alert says what the Studio will do.
@@ -82,7 +85,7 @@ export const alertText = (row, buttons = true) => `🔔 طلب ${KIND_AR[row.kin
       : 'الموافقة هنا بتسجل قرارك بس: الكود محتاج تأكيد الدفع في برنامج التراخيص.');
 // The buttons are on only when the webhook can really answer them: its secret, the bot, and a private chat (a positive number; a group is refused).
 // One predicate for the alert (shows buttons) and the webhook (accepts presses), so an alert never carries buttons that cannot work.
-export const buttonsReady = (env) => !!env.TELEGRAM_WEBHOOK_SECRET && !!env.TELEGRAM_BOT_TOKEN && /^\d{1,20}$/.test(String(env.TELEGRAM_OWNER_CHAT_ID || ''));
+export const buttonsReady = (env) => !!env.TELEGRAM_WEBHOOK_SECRET && !!env.TELEGRAM_BOT_TOKEN && /^\d{1,20}$/.test(ownerId(env));
 // How long an approval counts (hours). The relay is the only judge of it: the owner's PC is told `expired` and never uses its own clock.
 const approvalSeconds = (env) => Math.max(1, num(env.LICENCE_APPROVAL_HOURS, 72)) * 3600;
 
@@ -291,7 +294,7 @@ export async function handleTelegram(request, env, ctx, now) {
   }
   const cb = update.callback_query;
   if (!cb || typeof cb !== 'object') return reply({ok: true});    // ordinary messages, edits and so on are ignored
-  const owner = String(env.TELEGRAM_OWNER_CHAT_ID);
+  const owner = ownerId(env);
   const answer = (text) => wait(tgCall(env, 'answerCallbackQuery', {callback_query_id: String(cb.id || '').slice(0, 64), text, show_alert: false}));
   if (String(cb.from && cb.from.id) !== owner || String(cb.message && cb.message.chat && cb.message.chat.id) !== owner) {
     await pressRefused(env, now, 'not_owner');

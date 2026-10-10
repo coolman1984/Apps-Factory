@@ -443,7 +443,7 @@ class Studio:
         for r in rows:
             if r['source'] == 'relay' and r['status'] == 'pending':  # what the owner-approved policy would do with it (a hint, nothing is changed)
                 kind, reason, _ = self.auto.verdict(r, approved=r['tg_decision'] == 'approved')
-                r['policy'] = {'verdict': kind, 'reason': reason}
+                r['policy'] = {'verdict': 'hold', 'reason': 'relay_gone'} if r['held'] == 'relay_gone' else {'verdict': kind, 'reason': reason}  # (no automatic round signs a request the relay lost)
         return rows
 
     def decide(self, rid, approve, actor='owner', payment_confirmed=False, payment_ref='', defer=False):

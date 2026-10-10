@@ -298,8 +298,12 @@ async function requests(page) {
     try {
       await post('/api/request/decide', { id, approve: !!b.dataset.yes, payment_confirmed: paid ? paid.checked : undefined, payment_ref: paid ? $(`[data-ref="${id}"]`).value : undefined });
       toast('تمام'); ST = await get('/api/status'); shell(); location.hash = '#/requests';
-      // the sending to the shop runs behind the click: look again twice so the line says «اتبعت للمحل» without a manual refresh
-      [2500, 8000].forEach((ms) => setTimeout(() => { if (location.hash === '#/requests') route(); }, ms));
+      // the sending to the shop runs behind the click: look again once so the line says «اتبعت للمحل» without a manual refresh
+      clearTimeout(window.sendTimers);
+      window.sendTimers = setTimeout(() => {   // only when nothing is being typed or ticked: a page rebuilt under the owner's hands loses the payment reference
+        const busy = $$('[data-ref]').some((i) => i.value) || $$('[data-paid]').some((i) => i.checked) || /INPUT|TEXTAREA|SELECT/.test(document.activeElement?.tagName || '');
+        if (location.hash === '#/requests' && !busy) route();
+      }, 3000);
     } catch (e) { toast(e.key === 'payment.required' ? 'علّم على «الدفع وصل» واكتب مرجع الدفع الأول.' : e.message, true); }
   }));
 }

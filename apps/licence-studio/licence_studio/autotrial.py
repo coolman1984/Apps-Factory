@@ -33,7 +33,7 @@ from .service import MONTHLY_DAYS, StudioError, now_iso, utc_today
 TRIAL_DAYS = 14      # the trial a shop asks for, and the one an owner's button gives
 CLAIM_SECONDS = 300  # a copy to the owner being sent for longer than this is taken to have died
 COPY_WINDOW = 2 * 86400  # a copy is only sent while the code is this fresh: Telegram set up weeks later must not pour old codes onto the owner's phone
-CHECK_SECONDS = 5  # the one look at the relay a person waits for before signing (a slow relay is «cannot confirm», never a long frozen button)
+CHECK_SECONDS = 5  # each network step of the one look at the relay before signing waits at most this long (a socket timeout, not a total deadline)
 RELAY_FORGETS = 3 * 86400  # a waiting request the relay does not know for this long is closed here (it can never be answered)
 BUTTON = 'telegram'  # who signed when the owner's «✅ موافق» on Telegram was the decision (the owner's own press, not the policy)
 
@@ -138,7 +138,7 @@ class AutoTrial:
         if (key, rid) in self._told:
             return
         self._told.add((key, rid))
-        telegram(text)
+        telegram(text, private=False)  # an alert: kind, device, reason; never a code
 
     def deliver(self, r: dict) -> bool:
         """Hand a decided relay request's outcome back through the relay. A failure leaves it for the next cycle."""
@@ -229,7 +229,9 @@ class AutoTrial:
         """Close a waiting request here because the relay says it is no longer waiting. Returns True when it was closed."""
         s = self.s
         if st.get('status') == 'pending':
-            return False  # still waiting on the relay (it just fell outside the page we read): nothing changed
+            with s.lock:  # still waiting on the relay (it just fell outside the page we read): a «gone» mark from an outage is wrong now
+                s.db.execute("UPDATE requests SET held = '' WHERE id = ? AND status = 'pending' AND held = 'relay_gone'", (r['id'],))
+            return False
         by = 'telegram' if st.get('owner_decision') == 'denied' else 'relay'
         reason = 'owner_refused' if by == 'telegram' else ('expired' if st.get('status') == 'expired' else 'closed_elsewhere')
         with s.lock:
@@ -250,7 +252,7 @@ class AutoTrial:
             self.close_from_relay(r, {'status': 'expired'})
             return
         with s.lock:
-            marked = s.db.execute("UPDATE requests SET held = 'relay_gone' WHERE id = ? AND status = 'pending' AND held = ''", (r['id'],)).rowcount  # another reason stays
+            marked = s.db.execute("UPDATE requests SET held = 'relay_gone' WHERE id = ? AND status = 'pending' AND held != 'relay_gone'", (r['id'],)).rowcount  # (the other reasons are worked out again once the relay lists it)
         if marked:
             s.audit('studio', 'request.relay_gone', {'id': r['id']})
             self.last['held'] += 1
@@ -352,11 +354,14 @@ class AutoTrial:
             return
         stale = int(time.time()) - CLAIM_SECONDS  # a claim older than this was left by a send that died (PC shut down): it is taken again
         cutoff = time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime(time.time() - COPY_WINDOW))
-        with s.lock:  # old, never-sent copies are settled now (3 = skipped): the shop was answered through the relay, the owner can read the code in the program
-            skipped = s.db.execute("UPDATE requests SET code_sent = 3 WHERE source = 'relay' AND status = 'approved' AND decided_at IS NOT NULL AND decided_at != '' AND decided_at < ? "
-                                   "AND (code_sent = 0 OR (code_sent = 2 AND COALESCE(code_claim, 0) < ?))", (cutoff, stale)).rowcount  # (never a copy being sent right now, never a row with no date)
-        if skipped:
-            s.audit('studio', 'request.copy_skipped', {'count': skipped})
+        old = "source = 'relay' AND status = 'approved' AND decided_at IS NOT NULL AND decided_at != '' AND decided_at < ? AND (code_sent = 0 OR (code_sent = 2 AND COALESCE(code_claim, 0) < ?))"
+        waiting = s.one(f'SELECT COUNT(*) AS n FROM requests WHERE {old}', cutoff, stale)['n']  # (never one being sent right now, never a row with no date)
+        if waiting and telegram(f'⚠️ فيه {waiting} كود اتصدّر من أكتر من يومين ومااتبعتش لك نسخة منه على تليجرام. ماتبعتش القديم: هتلاقيه في برنامج التراخيص.', private=False):
+            # the owner is told first, and only then are they settled (3 = skipped): a Telegram that was down for two days never swallows them silently
+            with s.lock:
+                skipped = s.db.execute(f'UPDATE requests SET code_sent = 3 WHERE {old}', (cutoff, stale)).rowcount
+            if skipped:
+                s.audit('studio', 'request.copy_skipped', {'count': skipped})
         for r in s.rows("SELECT * FROM requests WHERE source = 'relay' AND status = 'approved' AND (code_sent = 0 OR (code_sent = 2 AND COALESCE(code_claim, 0) < ?)) "
                         "ORDER BY requested_at", stale):
             row = s.one('SELECT code, serial FROM codes WHERE serial = ?', r['serial'])

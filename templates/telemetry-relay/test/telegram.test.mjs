@@ -215,6 +215,17 @@ test('pressing approve again after the approval has gone stale does not promise 
   assert.equal(row(e, a.id).status, 'pending', 'nothing is signed or closed by it');
 });
 
+test('an owner id pasted into the secret with a space or a line break still gets the buttons and the webhook (review of PR #43)', async () => {
+  const e = env({TELEGRAM_OWNER_CHAT_ID: ' ' + OWNER + '\n'});
+  sent = [];
+  const a = await ask(e);
+  const alert = calls('sendMessage')[0].body;
+  assert.equal(alert.chat_id, OWNER, 'the id is sent clean');
+  assert.ok(alert.reply_markup, 'the alert carries the buttons');
+  await press(e, ok(a.id));
+  assert.equal(row(e, a.id).owner_decision, 'approved', 'and the press from that owner counts');
+});
+
 test('«رفض» closes the request at once, the shop sees the refusal, and a refusal is final', async () => {
   const e = env();
   const a = await ask(e);

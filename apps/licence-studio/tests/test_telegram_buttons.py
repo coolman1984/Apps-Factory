@@ -16,6 +16,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import test_relay_chain as rc  # noqa: E402
 from test_relay_chain import ADMIN, PASS, WEBHOOK, Harness, TelegramStub, codes, machine_tag, node_ok  # noqa: E402
+from licence_studio import autotrial as autotrial_mod  # noqa: E402
 from licence_studio import relay as relay_mod  # noqa: E402
 from licence_studio.service import StudioError  # noqa: E402
 
@@ -613,6 +614,7 @@ class Buttons(Harness):
     def test_a_copy_is_only_ever_sent_to_the_owners_private_chat(self):
         os.environ['TELEGRAM_OWNER_CHAT_ID'] = '-1001234567'          # a group: every member would read the codes
         self.assertFalse(relay_mod.telegram_configured())
+        self.assertFalse(relay_mod.telegram('hello'), 'private is the default: a text that might hold a code never goes to a group')
         self.assertFalse(relay_mod.telegram('hello', private=True))
         _, _, d = self.ask()
         self.press(self.ok(d))
@@ -626,11 +628,11 @@ class Buttons(Harness):
         for pasted, chat in (('-1001234567', '-1001234567'), (' 7\n', '7'), ('\t-42 ', '-42')):
             os.environ['TELEGRAM_OWNER_CHAT_ID'] = pasted
             TelegramStub.messages.clear()
-            self.assertTrue(relay_mod.telegram('hello'), pasted)
+            self.assertTrue(relay_mod.telegram('hello', private=False), pasted)
             self.assertEqual(TelegramStub.messages[-1]['chat_id'], chat)
         for bad in ('abc', '7;8', '--1', '1' * 30):
             os.environ['TELEGRAM_OWNER_CHAT_ID'] = bad
-            self.assertFalse(relay_mod.telegram('hello'), bad)
+            self.assertFalse(relay_mod.telegram('hello', private=False), bad)
         os.environ['TELEGRAM_OWNER_CHAT_ID'] = '   '            # blank: the second name is read, not hidden by the blank one
         os.environ['CC_TG_CHAT_ID'] = '9'
         try:
@@ -653,8 +655,17 @@ class Buttons(Harness):
         with self.s.lock:                                          # the code was signed three days ago
             self.s.db.execute("UPDATE requests SET decided_at = '2000-01-01T00:00:00Z'")
         TelegramStub.messages.clear()
+        real_tg = autotrial_mod.telegram
+        autotrial_mod.telegram = lambda *a, **k: False             # Telegram is down: the owner could not be told, so nothing is settled yet
+        try:
+            self.s.auto.send_copies()
+        finally:
+            autotrial_mod.telegram = real_tg
+        self.assertEqual(self.s.one('SELECT code_sent FROM requests')['code_sent'], 0, 'not swallowed silently while the owner cannot be told')
         self.s.auto.send_copies()
         self.assertEqual(self.copies(), [], 'a three-day-old code is not sent')
+        [note] = [m for m in TelegramStub.messages if 'مااتبعتش' in m['text']]
+        self.assertNotIn('<code>', note['text'], 'the owner is told, with no code in the message')
         self.assertEqual(self.s.one('SELECT code_sent FROM requests')['code_sent'], 3, 'settled, so it is not looked at again')
         self.assertEqual(self.s.one("SELECT COUNT(*) AS n FROM audit WHERE action = 'request.copy_skipped'")['n'], 1)
         _, _, d2 = self.ask(pc='pc-fresh', install='i-fresh')     # a fresh one still gets its copy
@@ -694,6 +705,7 @@ class Buttons(Harness):
         self.s.auto.cycle()
         self.assertEqual(self.s.requests()[0]['held'], '')
 
+    @unittest.skipUnless(hasattr(time, 'tzset'), 'no tzset on this platform (Windows)')
     def test_the_age_of_a_request_is_read_as_utc_whatever_the_pcs_zone(self):
         """Second review of PR #43: mktime minus the zone was an hour wrong under summer time."""
         from licence_studio.autotrial import AutoTrial
@@ -733,15 +745,30 @@ class Buttons(Harness):
         self.assertEqual(self.s.requests()[0]['held'], '')
         self.assertEqual(self.s.one("SELECT COUNT(*) AS n FROM audit WHERE action = 'request.relay_gone'")['n'], 0)
 
-    def test_marking_a_request_gone_keeps_the_reason_it_was_already_held_for(self):
+    def test_a_request_the_relay_lost_shows_that_and_not_a_promise_to_sign_it_by_itself(self):
         _, _, d = self.ask(pc='pc-held', install='i-held')
         self.s.auto.cycle()
         with self.s.lock:
             self.s.db.execute("UPDATE requests SET held = 'daily_cap'")
-        r = self.s.requests()[0]
-        self.s.auto.relay_gone(r)
-        self.assertEqual(self.s.requests()[0]['held'], 'daily_cap')
-        self.assertEqual(self.s.one("SELECT COUNT(*) AS n FROM audit WHERE action = 'request.relay_gone'")['n'], 0)
+        self.s.auto.relay_gone(self.s.requests()[0])
+        self.s.auto.relay_gone(self.s.requests()[0])
+        [r] = self.s.requests()
+        self.assertEqual(r['held'], 'relay_gone', 'the lost record matters more than the cap: nothing can be delivered')
+        self.assertEqual(r['policy'], {'verdict': 'hold', 'reason': 'relay_gone'}, 'the list does not say «the policy will sign it by itself»')
+        self.assertEqual(self.s.one("SELECT COUNT(*) AS n FROM audit WHERE action = 'request.relay_gone'")['n'], 1, 'said once, not per round')
+
+    def test_a_gone_mark_is_cleared_when_the_relay_says_it_is_still_waiting(self):
+        _, _, d = self.ask(pc='pc-wait', install='i-wait')
+        self.s.auto.cycle()
+        self.s.auto.relay_gone(self.s.requests()[0])
+        self.assertEqual(self.s.requests()[0]['held'], 'relay_gone')
+        real = self.s.relay.pending_all
+        self.s.relay.pending_all = lambda *a, **k: []             # a listing gap: it is not on the page this round...
+        try:
+            self.s.auto.cycle()                                    # ...but the states call knows it is pending
+        finally:
+            self.s.relay.pending_all = real
+        self.assertEqual(self.s.requests()[0]['held'], '')
 
     def test_a_copy_with_no_date_or_one_being_sent_right_now_is_never_skipped(self):
         _, _, d = self.ask(pc='pc-copy', install='i-copy')

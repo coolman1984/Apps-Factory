@@ -194,9 +194,10 @@ def _tg_call(method: str, payload: dict):
         return None
 
 
-def telegram(text: str, html: bool = False, private: bool = False) -> bool:
+def telegram(text: str, html: bool = False, private: bool = True) -> bool:
     """Tell the owner's phone. Returns False (never raises) when Telegram is not set up or not reachable. `html` lets the text carry <code>.
-    `private`: the text carries a signed code, so it only goes to the owner's own private chat, never to a group."""
+    Private by default: the text goes only to the owner's own private chat, because it may carry a signed code. A plain alert (no code in it)
+    passes `private=False` and may also reach a group the owner made for alerts."""
     chat = owner_chat() if private else alert_chat()
     if not chat:
         return False
