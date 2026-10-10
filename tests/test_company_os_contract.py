@@ -375,5 +375,43 @@ class CompanyOSContractTests(unittest.TestCase):
             self.assertIn("duplicate task identifier", result.stdout)
 
 
+    def test_references_and_identity_fields_reject_trailing_newlines(self):
+        for field, value in (("task_id", "PX-001" + chr(10)),
+                             ("current_commit", "abcdef0" + chr(10)),
+                             ("branch", "feature/x" + chr(10)),
+                             ("decision_ref", "https://example.org/source" + chr(10))):
+            with self.subTest(field=field):
+                t = self.sample()
+                t[field] = value
+                self.assertInvalid(t, field)
+                pattern = self.schema["properties"][field]["pattern"]
+                self.assertIsNone(re.search(pattern, value),
+                                  "portable schema must reject trailing line terminators")
+
+    def test_open_pr_url_rejects_trailing_newline(self):
+        t = self.sample()
+        t["open_prs"] = ["https://github.com/coolman1984/Store/pull/20" + chr(10)]
+        self.assertInvalid(t, "open_prs")
+
+    def test_completed_evidence_date_rejects_trailing_newline(self):
+        t = self.sample()
+        t["status"] = "done"
+        t["evidence"] = [{"type":"ci", "reference":"ci-run-1234",
+                          "verified_at":"2024-02-29T09:20:00Z" + chr(10)}]
+        self.assertInvalid(t, "verified_at")
+
+    def test_batch_id_deduplication_canonicalizes_trailing_whitespace(self):
+        first = self.sample()
+        second = self.sample()
+        second["task_id"] = first["task_id"] + chr(10)
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "duplicates.json"
+            path.write_text(json.dumps([first, second]), encoding="utf-8")
+            result = subprocess.run([sys.executable, str(VALIDATOR), str(path)],
+                                    capture_output=True, text=True, check=False)
+            self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+            self.assertIn("duplicate task identifier", result.stdout)
+
+
 if __name__ == "__main__":
     unittest.main()
