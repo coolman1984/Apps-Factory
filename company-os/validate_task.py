@@ -118,6 +118,29 @@ def validate_task(task, schema=None):
                 errors.append("$.reviewer: independent reviewer must differ from assignee")
         if task.get("status") == "owner_gate" and isinstance(task.get("requires_owner_approval"), list) and not task["requires_owner_approval"]:
             errors.append("$.requires_owner_approval: owner_gate must identify the requested approval")
+
+        # A task must not grant a capability that it still requires owner approval for.
+        allowed = task.get("allowed_actions")
+        approvals = task.get("requires_owner_approval")
+        if isinstance(allowed, list) and isinstance(approvals, list):
+            overlap = {v for v in allowed if isinstance(v, str)} & {v for v in approvals if isinstance(v, str)}
+            if overlap:
+                errors.append("$.allowed_actions: must not overlap requires_owner_approval: " + ", ".join(sorted(overlap)))
+
+        # A syntactically valid local path that does not exist cannot restore context.
+        # Keep the whole validator offline; HTTPS references must be checked separately.
+        ref = task.get("decision_ref")
+        if isinstance(ref, str) and (ref.startswith("docs/") or ref == "DECISIONS.md"):
+            root = HERE.parent.resolve()
+            target = (root / ref).resolve()
+            try:
+                target.relative_to(root)
+            except ValueError:
+                errors.append("$.decision_ref: path escapes the repository")
+            else:
+                if not target.is_file():
+                    errors.append("$.decision_ref: referenced local decision file does not exist")
+
         evidence = task.get("evidence")
         if task.get("status") == "done" and isinstance(evidence, list) and not any(
             isinstance(e, dict) and isinstance(e.get("verified_at"), str)
