@@ -145,7 +145,9 @@ class Studio:
                                             (now_iso(), code['issued_by'], code['serial'], r['id'], stale)).rowcount
                 else:
                     moved = self.db.execute("UPDATE requests SET status = 'pending', payment_confirmed = 0, decide_claim = NULL "
-                                            "WHERE id = ? AND status = 'deciding' AND COALESCE(decide_claim, 0) < ?", (r['id'], stale)).rowcount
+                                            "WHERE id = ? AND status = 'deciding' AND COALESCE(decide_claim, 0) < ? "
+                                            "AND NOT EXISTS (SELECT 1 FROM codes WHERE request_id = ?)",  # (a code signed since the look above: the next pass approves with it)
+                                            (r['id'], stale, r['id'])).rowcount
             if moved:
                 self.audit('studio', 'request.recovered', {'id': r['id'], 'serial': code['serial'] if code else None,
                                                            **({'payment_ref': r['payment_ref']} if code and r['payment_ref'] else {})})

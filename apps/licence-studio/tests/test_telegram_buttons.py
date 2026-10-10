@@ -346,6 +346,32 @@ class Buttons(Harness):
         self.assertEqual(self.s.one('SELECT COUNT(*) AS n FROM codes')['n'], 1)
         self.assertEqual(self.s.one('SELECT status FROM requests')['status'], 'approved')
 
+    def test_a_code_signed_while_the_recovery_was_looking_is_never_left_on_a_reopened_request(self):
+        """Review of PR #40: the recovery looked for a code, found none, and reopened the request in a second step; a stale window finishing its signing in
+        between left a valid code on a request the next decision could refuse."""
+        row, token = self._taken_over()
+        real, done = self.s.one, []
+
+        def late(sql, *a):
+            out = real(sql, *a)
+            if 'FROM codes WHERE request_id' in sql and out is None and not done:
+                done.append(1)   # the sleeping window wakes up and finishes signing right after the recovery looked
+                self.s.issue('al-store', 'trial', row['device'], row['customer'], '', 14, actor='owner', request_id=row['id'], machine=row['machine'], claim=token)
+            return out
+        self.s.one = late
+        try:
+            self.s._recover_deciding()
+        finally:
+            self.s.one = real
+        self.assertEqual(done, [1])
+        self.assertEqual(self.s.one('SELECT status FROM requests')['status'], 'deciding', 'not reopened: a code exists for it')
+        self.s._recover_deciding()                                    # the next pass sees the code and approves with it
+        now = self.s.one('SELECT status, serial FROM requests')
+        self.assertEqual(now['status'], 'approved')
+        self.assertEqual(now['serial'], self.s.one('SELECT serial FROM codes')['serial'])
+        with self.assertRaises(StudioError):
+            self.s.decide(row['id'], False)
+
     def test_two_windows_signing_the_same_request_make_one_code(self):
         """Review of PR #40: the check «is there a code for this request» ran before the write transaction, and `codes.request_id` is not unique, so two
         windows that passed it together signed two append-only codes for one request."""
