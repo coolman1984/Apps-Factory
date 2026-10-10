@@ -153,6 +153,8 @@ def validate_task(task, schema=None):
                 if isinstance(item, dict) and isinstance(item.get("reference"), str):
                     if len("".join(item["reference"].split())) < 6:
                         errors.append(f"$.evidence[{index}].reference: must contain at least 6 non-whitespace characters")
+                    if re.search(r"[A-Za-z0-9]", item["reference"]) is None:
+                        errors.append(f"$.evidence[{index}].reference: needs a readable artifact identifier")
         if task.get("status") == "done" and isinstance(evidence, list) and not any(
             isinstance(e, dict) and isinstance(e.get("verified_at"), str)
             for e in evidence
