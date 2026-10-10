@@ -141,7 +141,18 @@ def validate_task(task, schema=None):
                 if not target.is_file():
                     errors.append("$.decision_ref: referenced local decision file does not exist")
 
+        # Raw minLength counts padding; enforce real content in both runtime and schema.
+        for field, minimum in (("goal", 10), ("next_action", 8)):
+            value = task.get(field)
+            if isinstance(value, str) and len("".join(value.split())) < minimum:
+                errors.append(f"$.{field}: must contain at least {minimum} non-whitespace characters")
+
         evidence = task.get("evidence")
+        if isinstance(evidence, list):
+            for index, item in enumerate(evidence):
+                if isinstance(item, dict) and isinstance(item.get("reference"), str):
+                    if len("".join(item["reference"].split())) < 6:
+                        errors.append(f"$.evidence[{index}].reference: must contain at least 6 non-whitespace characters")
         if task.get("status") == "done" and isinstance(evidence, list) and not any(
             isinstance(e, dict) and isinstance(e.get("verified_at"), str)
             for e in evidence
