@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/coolman1984/Apps-Factory/blob/main/company-os/task.schema.json",
-  "title": "Pixel Plus AI Company Work Handoff v0.1 (non-authorizing)",
-  "description": "Metadata that travels between model sessions. This file NEVER authenticates or authorizes external actions.",
+  "title": "Pixel Plus AI Company Work Handoff v0.2 (non-authorizing)",
+  "description": "Machine-readable handoff, NEVER authority to execute. Schema enforces evidence and provenance. Run validate_task.py for cross-field reviewer independence.",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -18,7 +18,9 @@
     "allowed_actions",
     "acceptance",
     "evidence",
-    "requires_owner_approval"
+    "requires_owner_approval",
+    "decision_ref",
+    "customer_data_policy"
   ],
   "properties": {
     "task_id": {
@@ -71,6 +73,7 @@
         "ready",
         "working",
         "review",
+        "owner_gate",
         "blocked",
         "done"
       ]
@@ -128,7 +131,8 @@
           },
           "reference": {
             "type": "string",
-            "minLength": 3
+            "minLength": 3,
+            "pattern": "\\S"
           },
           "verified_at": {
             "type": [
@@ -167,10 +171,42 @@
       ]
     },
     "decision_ref": {
-      "type": [
-        "string",
-        "null"
-      ]
+      "type": "string",
+      "minLength": 5,
+      "pattern": "^(docs/|DECISIONS\\.md|https://)"
     }
-  }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "done"
+          }
+        },
+        "required": [
+          "status"
+        ]
+      },
+      "then": {
+        "properties": {
+          "evidence": {
+            "minItems": 1,
+            "contains": {
+              "type": "object",
+              "required": [
+                "verified_at"
+              ],
+              "properties": {
+                "verified_at": {
+                  "type": "string",
+                  "format": "date-time"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
 }
