@@ -261,7 +261,8 @@ class AutoTrial:
         except RelayError as e:
             if e.status != 404:  # (404: a relay older than 0.14 has no such call and no buttons either: nothing to re-check)
                 return  # the relay cannot confirm that the request is still open: do not sign now, the next round tries again
-        if not s.claim(r['id']):  # the owner decided it a moment ago
+        token = s.claim(r['id'])
+        if not token:  # the owner decided it a moment ago
             return
         try:
             if kind == 'reissue':
@@ -271,18 +272,20 @@ class AutoTrial:
                 # the shorter term the owner may have set for the automatic policy applies to the policy only
                 code = s.issue(r['product'], 'trial', r['device'], r['customer'], '', TRIAL_DAYS if approved else s.policy()['auto_trial_days'],
                                note='تجربة بموافقتك على تليجرام' if approved else 'تجربة تلقائية بسياسة المالك',
-                               actor=by, request_id=r['id'], machine=r['machine'])
+                               actor=by, request_id=r['id'], machine=r['machine'], claim=token)
                 serial = code['serial']
         except StudioError as e:
-            s.release(r['id'])
-            if e.key == 'key.locked':
+            s.release(r['id'], token)
+            if e.key in ('key.locked', 'request.closed'):  # (closed: this decision was taken over by another window: that one stands)
                 return
             self._close(r, 'refused', 'already_used' if e.key == 'trial.repeat' else 'bad_device', by)
             self.last['refused'] += 1
             return
         with s.lock:
-            s.db.execute("UPDATE requests SET status = 'approved', decided_at = ?, decided_by = ?, serial = ?, held = '' WHERE id = ? AND status = 'deciding'",
-                         (now_iso(), by, serial, r['id']))
+            saved = s.db.execute("UPDATE requests SET status = 'approved', decided_at = ?, decided_by = ?, serial = ?, held = '' WHERE id = ? AND status = 'deciding' "
+                                 "AND decide_claim = ?", (now_iso(), by, serial, r['id'], token)).rowcount
+        if not saved:
+            return
         s.audit(by, 'request.approve', {'id': r['id'], 'serial': serial, 'reissued': kind == 'reissue'})
         self.last['issued'] += 1
         self.deliver(r)

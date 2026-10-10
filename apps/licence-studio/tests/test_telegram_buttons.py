@@ -231,7 +231,7 @@ class Buttons(Harness):
         self.assertTrue(self.s.claim(req['id']))                      # the owner's PC took the request ...
         code = self.s.issue('al-store', 'trial', req['device'], req['customer'], '', 14, actor='telegram', request_id=req['id'], machine=req['machine'])
         self.assertEqual(self.s.one('SELECT status FROM requests')['status'], 'deciding')   # ... signed ... and was switched off before saving
-        self.s.db.execute('UPDATE requests SET decide_claim = ?', (int(time.time()) - 600,))  # (some minutes ago: a decision younger than the lease is a live one)
+        self.s.db.execute('UPDATE requests SET decide_claim = ?', (time.time_ns() - 600 * 10**9,))  # (some minutes ago: a decision younger than the lease is a live one)
         self.s.db.close()
         again = Studio(self.dir)                                       # the owner starts the studio again
         try:
@@ -253,7 +253,7 @@ class Buttons(Harness):
         self.s.auto.ingest(self.s.relay.pending_all()[0])
         rid = self.s.one("SELECT id FROM requests WHERE status = 'pending'")['id']
         self.assertTrue(self.s.claim(rid))
-        self.s.db.execute('UPDATE requests SET decide_claim = ?', (int(time.time()) - 600,))
+        self.s.db.execute('UPDATE requests SET decide_claim = ?', (time.time_ns() - 600 * 10**9,))
         self.s.db.close()
         self.s = Studio(self.dir)
         self.assertEqual(self.s.one('SELECT status FROM requests WHERE id = ?', rid)['status'], 'pending')
@@ -267,7 +267,7 @@ class Buttons(Harness):
         [req] = self.s.requests()
         self.assertTrue(self.s.claim(req['id'], 'InstaPay 5521 / 350 EGP'))            # the owner ticked «arrived» and wrote the reference ...
         code = self.s.issue('al-store', req['edition'], req['device'], req['customer'], '', 30, grace_days=3, actor='owner', request_id=req['id'])
-        self.s.db.execute('UPDATE requests SET decide_claim = ?', (int(time.time()) - 600,))   # ... signed ... and the PC died some minutes ago
+        self.s.db.execute('UPDATE requests SET decide_claim = ?', (time.time_ns() - 600 * 10**9,))   # ... signed ... and the PC died some minutes ago
         self.s.db.close()
         again = Studio(self.dir)
         try:
@@ -282,7 +282,7 @@ class Buttons(Harness):
             again.auto.cycle()
             rid = [r for r in again.requests() if r['status'] == 'pending'][0]['id']
             self.assertTrue(again.claim(rid, 'InstaPay 9'))
-            again.db.execute('UPDATE requests SET decide_claim = ? WHERE id = ?', (int(time.time()) - 600, rid))
+            again.db.execute('UPDATE requests SET decide_claim = ? WHERE id = ?', (time.time_ns() - 600 * 10**9, rid))
             again._recover_deciding()
             row2 = again.one('SELECT status, payment_confirmed FROM requests WHERE id = ?', rid)
             self.assertEqual((row2['status'], row2['payment_confirmed']), ('pending', 0))
@@ -308,6 +308,43 @@ class Buttons(Harness):
             self.assertFalse(other.claim(req['id']), 'and cannot be taken a second time')
         finally:
             other.db.close()
+
+    def _taken_over(self):
+        """A window takes a request, goes to sleep for ten minutes (a closed laptop), and another window takes it back."""
+        _, _, d = self.ask()
+        self.press(self.ok(d))
+        self.s.auto.ingest(self.s.relay.pending_all()[0])
+        row = self.s.one('SELECT * FROM requests')
+        self.assertTrue(self.s.claim(row['id']))
+        token = time.time_ns() - 600 * 10**9                          # (the token is the moment of the claim: ten minutes have passed since)
+        self.s.db.execute('UPDATE requests SET decide_claim = ?', (token,))
+        return row, token
+
+    def test_a_window_that_slept_past_the_lease_cannot_overwrite_the_decision_that_replaced_it(self):
+        """Review of PR #40: the lease had a timestamp but no fencing token, so the window that woke up saved its approval over the owner's
+        refusal (and signed a code for a refused request)."""
+        row, token = self._taken_over()
+        self.s._recover_deciding()                                    # the other window takes it back ...
+        self.s.decide(row['id'], False)                               # ... and the owner refuses it
+        with self.assertRaises(StudioError) as e:                     # the first window wakes up and goes on with its approval
+            self.s._decide_claimed(row, True, 'owner', True, False, '', token)
+        self.assertEqual(e.exception.key, 'request.closed')
+        now = self.s.one('SELECT status, serial FROM requests')
+        self.assertEqual((now['status'], now['serial']), ('refused', None), 'the refusal stands')
+        self.assertEqual(self.s.one('SELECT COUNT(*) AS n FROM codes')['n'], 0, 'and no code was signed for a refused request')
+        self.s.release(row['id'], token)                              # its release cannot reopen anything either
+        self.assertEqual(self.s.one('SELECT status FROM requests')['status'], 'refused')
+
+    def test_a_window_that_wakes_up_after_signing_cannot_replace_the_recovery_that_approved_with_its_code(self):
+        row, token = self._taken_over()
+        code = self.s.issue('al-store', 'trial', row['device'], row['customer'], '', 14, actor='owner', request_id=row['id'], machine=row['machine'], claim=token)
+        self.s._recover_deciding()                                    # signed, then asleep: the recovery approves it with that code
+        self.assertEqual(self.s.one('SELECT status, serial FROM requests')['serial'], code['serial'])
+        with self.assertRaises(StudioError) as e:                     # it wakes up and tries to save its own decision
+            self.s._decide_claimed(row, True, 'owner', True, False, '', token)
+        self.assertEqual(e.exception.key, 'request.closed')
+        self.assertEqual(self.s.one('SELECT COUNT(*) AS n FROM codes')['n'], 1)
+        self.assertEqual(self.s.one('SELECT status FROM requests')['status'], 'approved')
 
     def test_two_windows_signing_the_same_request_make_one_code(self):
         """Review of PR #40: the check «is there a code for this request» ran before the write transaction, and `codes.request_id` is not unique, so two
