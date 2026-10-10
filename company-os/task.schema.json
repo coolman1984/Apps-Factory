@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/coolman1984/Apps-Factory/blob/main/company-os/task.schema.json",
-  "title": "Pixel Plus AI Company Work Handoff v0.6 (non-authorizing)",
+  "title": "Pixel Plus AI Company Work Handoff v0.7 (non-authorizing)",
   "description": "Strict cross-account handoff metadata, not a real-world approval. Both the schema and company-os/validate_task.py MUST be applied.",
   "type": "object",
   "additionalProperties": false,
@@ -32,7 +32,7 @@
   "properties": {
     "task_id": {
       "type": "string",
-      "pattern": "^PX-[0-9]{3,6}$"
+      "pattern": "^PX-[0-9]{3,6}$(?![\\s\\S])"
     },
     "goal": {
       "type": "string",
@@ -152,7 +152,7 @@
               "null"
             ],
             "format": "date-time",
-            "pattern": "^(?!0000)(?:\\d{4}-(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|\\d{4}-(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|\\d{4}-02-(?:0[1-9]|1\\d|2[0-8])|(?:\\d{2}(?:0[48]|[2468][048]|[13579][26])|(?:0[48]|[2468][048]|[13579][26])00)-02-29)T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|[+-](?:0\\d|1[0-4]):[0-5]\\d)$"
+            "pattern": "^(?!0000)(?:\\d{4}-(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|\\d{4}-(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|\\d{4}-02-(?:0[1-9]|1\\d|2[0-8])|(?:\\d{2}(?:0[48]|[2468][048]|[13579][26])|(?:0[48]|[2468][048]|[13579][26])00)-02-29)T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|[+-](?:0\\d|1[0-4]):[0-5]\\d)$(?![\\s\\S])"
           }
         }
       }
@@ -173,7 +173,7 @@
         "string",
         "null"
       ],
-      "pattern": "^[a-fA-F0-9]{7,40}$"
+      "pattern": "^[a-fA-F0-9]{7,40}$(?![\\s\\S])"
     },
     "customer_data_policy": {
       "type": "string",
@@ -185,7 +185,7 @@
     },
     "decision_ref": {
       "type": "string",
-      "pattern": "^(?:docs/[A-Za-z0-9_-]+(?:/[A-Za-z0-9_-]+)*\\.md|DECISIONS\\.md|https://[A-Za-z0-9.-]+\\.[A-Za-z]{2,}(?::[0-9]{2,5})?/[A-Za-z0-9_./?&=%#-]+)$",
+      "pattern": "^(?:docs/[A-Za-z0-9_-]+(?:/[A-Za-z0-9_-]+)*\\.md|DECISIONS\\.md|https://[A-Za-z0-9.-]+\\.[A-Za-z]{2,}(?::[0-9]{2,5})?/[A-Za-z0-9_./?&=%#-]+)$(?![\\s\\S])",
       "minLength": 7
     },
     "branch": {
@@ -194,14 +194,14 @@
         "null"
       ],
       "minLength": 2,
-      "pattern": "^[^\\s]+$"
+      "pattern": "^[^\\s]+$(?![\\s\\S])"
     },
     "open_prs": {
       "type": "array",
       "items": {
         "type": "string",
         "minLength": 8,
-        "pattern": "^https://github\\.com/[^/\\s]+/[^/\\s]+/pull/[1-9][0-9]*$"
+        "pattern": "^https://github\\.com/[^/\\s]+/[^/\\s]+/pull/[1-9][0-9]*$(?![\\s\\S])"
       },
       "uniqueItems": true
     },
