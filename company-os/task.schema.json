@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/coolman1984/Apps-Factory/blob/main/company-os/task.schema.json",
-  "title": "Pixel Plus AI Company Work Handoff v0.3 (non-authorizing)",
+  "title": "Pixel Plus AI Company Work Handoff v0.4 (non-authorizing)",
   "description": "Strict cross-account handoff metadata, not a real-world approval. Both the schema and company-os/validate_task.py MUST be applied.",
   "type": "object",
   "additionalProperties": false,
@@ -107,7 +107,7 @@
       "items": {
         "type": "string",
         "minLength": 3,
-        "pattern": "\\S"
+        "pattern": "[A-Za-z0-9]"
       },
       "uniqueItems": true
     },
@@ -142,8 +142,8 @@
           },
           "reference": {
             "type": "string",
-            "minLength": 3,
-            "pattern": "\\S"
+            "minLength": 6,
+            "pattern": "[A-Za-z0-9]"
           },
           "verified_at": {
             "type": [
