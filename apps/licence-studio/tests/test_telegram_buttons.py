@@ -231,6 +231,7 @@ class Buttons(Harness):
         self.assertTrue(self.s.claim(req['id']))                      # the owner's PC took the request ...
         code = self.s.issue('al-store', 'trial', req['device'], req['customer'], '', 14, actor='telegram', request_id=req['id'], machine=req['machine'])
         self.assertEqual(self.s.one('SELECT status FROM requests')['status'], 'deciding')   # ... signed ... and was switched off before saving
+        self.s.db.execute('UPDATE requests SET decide_claim = ?', (int(time.time()) - 600,))  # (some minutes ago: a decision younger than the lease is a live one)
         self.s.db.close()
         again = Studio(self.dir)                                       # the owner starts the studio again
         try:
@@ -252,9 +253,97 @@ class Buttons(Harness):
         self.s.auto.ingest(self.s.relay.pending_all()[0])
         rid = self.s.one("SELECT id FROM requests WHERE status = 'pending'")['id']
         self.assertTrue(self.s.claim(rid))
+        self.s.db.execute('UPDATE requests SET decide_claim = ?', (int(time.time()) - 600,))
         self.s.db.close()
         self.s = Studio(self.dir)
         self.assertEqual(self.s.one('SELECT status FROM requests WHERE id = ?', rid)['status'], 'pending')
+
+    def test_a_paid_approval_cut_off_after_signing_keeps_the_payment_the_owner_confirmed(self):
+        """Review of PR #40: the owner's «the money arrived» and its reference were saved only after signing, so a studio switched off in between
+        recovered the request as approved, delivered the paid code, and the record said the payment was never confirmed."""
+        from licence_studio.service import Studio
+        device, _, d = self.ask(kind='monthly')
+        self.s.auto.cycle()
+        [req] = self.s.requests()
+        self.assertTrue(self.s.claim(req['id'], 'InstaPay 5521 / 350 EGP'))            # the owner ticked «arrived» and wrote the reference ...
+        code = self.s.issue('al-store', req['edition'], req['device'], req['customer'], '', 30, grace_days=3, actor='owner', request_id=req['id'])
+        self.s.db.execute('UPDATE requests SET decide_claim = ?', (int(time.time()) - 600,))   # ... signed ... and the PC died some minutes ago
+        self.s.db.close()
+        again = Studio(self.dir)
+        try:
+            row = again.one('SELECT * FROM requests')
+            self.assertEqual((row['status'], row['serial'], row['payment_confirmed'], row['payment_ref'], row['decided_by']),
+                             ('approved', code['serial'], 1, 'InstaPay 5521 / 350 EGP', 'owner'))
+            [seen] = [a for a in again.audit_log() if a['action'] == 'request.recovered']
+            self.assertIn('InstaPay 5521', seen['detail'], 'the audit keeps the reference too')
+            # taken with a payment but never signed: it waits again and the payment has to be confirmed again
+            device2, _, d2 = self.ask(pc='pc-2', install='i2', kind='monthly')
+            again.relay.save(self.base, ADMIN)
+            again.auto.cycle()
+            rid = [r for r in again.requests() if r['status'] == 'pending'][0]['id']
+            self.assertTrue(again.claim(rid, 'InstaPay 9'))
+            again.db.execute('UPDATE requests SET decide_claim = ? WHERE id = ?', (int(time.time()) - 600, rid))
+            again._recover_deciding()
+            row2 = again.one('SELECT status, payment_confirmed FROM requests WHERE id = ?', rid)
+            self.assertEqual((row2['status'], row2['payment_confirmed']), ('pending', 0))
+            with self.assertRaises(StudioError):
+                again.decide(rid, True)
+        finally:
+            again.db.close()
+            self.s = Studio(self.dir)
+
+    def test_a_second_window_on_the_same_folder_leaves_a_decision_being_made_alone(self):
+        """Review of PR #40: every `deciding` request was taken for crash residue when a studio opened, so another window (a second `serve`, a
+        command on the same folder) reset one that was being signed right then."""
+        from licence_studio.service import Studio
+        _, _, d = self.ask()
+        self.press(self.ok(d))
+        self.s.auto.ingest(self.s.relay.pending_all()[0])
+        [req] = self.s.requests()
+        self.assertTrue(self.s.claim(req['id']))                      # window one is deciding it right now
+        other = Studio(self.dir)                                       # window two opens on the same folder
+        try:
+            other._recover_deciding()
+            self.assertEqual(other.one('SELECT status FROM requests')['status'], 'deciding', 'a live decision is not touched')
+            self.assertFalse(other.claim(req['id']), 'and cannot be taken a second time')
+        finally:
+            other.db.close()
+
+    def test_two_windows_signing_the_same_request_make_one_code(self):
+        """Review of PR #40: the check «is there a code for this request» ran before the write transaction, and `codes.request_id` is not unique, so two
+        windows that passed it together signed two append-only codes for one request."""
+        from licence_studio.service import Studio
+        _, _, d = self.ask()
+        self.press(self.ok(d))
+        self.s.auto.ingest(self.s.relay.pending_all()[0])
+        [req] = self.s.requests()
+        other = Studio(self.dir)
+        other.unlock(PASS)
+        gate = threading.Barrier(2)
+        real = codes.issue_code
+
+        def slow(*a, **k):  # both windows are past the first check and have signed when either one starts to write
+            out = real(*a, **k)
+            gate.wait(10)
+            return out
+        got, bad = [], []
+
+        def run(studio):
+            try:
+                got.append(studio.issue('al-store', 'trial', req['device'], req['customer'], '', 14, actor='owner', request_id=req['id'])['serial'])
+            except Exception as e:  # noqa: BLE001
+                bad.append(repr(e))
+        codes.issue_code = slow
+        try:
+            threads = [threading.Thread(target=run, args=(x,)) for x in (self.s, other)]
+            [t.start() for t in threads]
+            [t.join(30) for t in threads]
+        finally:
+            codes.issue_code = real
+            other.db.close()
+        self.assertEqual(bad, [])
+        self.assertEqual(len(set(got)), 1, 'both windows are given the same code')
+        self.assertEqual(self.s.one('SELECT COUNT(*) AS n FROM codes WHERE request_id = ?', req['id'])['n'], 1)
 
     def test_a_copy_whose_sender_died_is_sent_again_after_a_while(self):
         _, _, d = self.ask()

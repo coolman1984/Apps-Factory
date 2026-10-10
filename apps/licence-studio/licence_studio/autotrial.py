@@ -166,6 +166,7 @@ class AutoTrial:
         try:
             s = self.s
             self.last = {'at': now_iso(), 'ok': True, 'error': '', 'pulled': 0, 'issued': 0, 'refused': 0, 'held': 0, 'delivered': 0}
+            s._recover_deciding()  # a decision left half-done by a studio that died (and not one being taken right now)
             if not s.relay.configured():
                 self.last.update(ok=None, error='relay.off')
                 return dict(self.last)
