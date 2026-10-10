@@ -29,7 +29,12 @@
     "decision_ref": "docs/PIXEL_PLUS_EXECUTION_ROADMAP_2026.md",
     "blocker": null,
     "next_action": "inspect latest main, reproduce 1 sale and produce review bundle",
-    "current_commit": null
+    "current_commit": null,
+    "branch": null,
+    "open_prs": [],
+    "known_errors": [],
+    "tests_run": [],
+    "tests_skipped": []
   },
   {
     "task_id": "PX-002",
@@ -61,6 +66,11 @@
     "decision_ref": "docs/PIXEL_PLUS_ONE_PERSON_COMPANY_OS.md",
     "blocker": null,
     "next_action": "interview owner about target buyer",
-    "current_commit": null
+    "current_commit": null,
+    "branch": null,
+    "open_prs": [],
+    "known_errors": [],
+    "tests_run": [],
+    "tests_skipped": []
   }
 ]

@@ -135,27 +135,51 @@ Council outputs exactly: options, evidence, disagreements, worst-case loss, 7-da
 7. **Founder bottleneck:** prioritize three decisions per day in owner's inbox; never require human review of every harmless step. Escalate real exceptions.
 
 ## Task object: contract all agents must use
+The **canonical** machine-readable contract is [`company-os/task.schema.json`](../company-os/task.schema.json). Every handoff MUST pass `python3 company-os/validate_task.py <task-file.json>`. Every cross-account handoff carries `branch`, `current_commit`, `open_prs`, `known_errors`, `tests_run`, `tests_skipped`, `next_action` and `decision_ref` (use explicit `null` or an empty list when not applicable, never fabricate evidence). The local checker also enforces **different reviewer and assignee identities**, which portable JSON Schema cannot compare by itself. A valid handoff is NEVER permission to deploy, contact customers, charge money or approve expenses.
+
 ```json
 {
   "task_id": "PX-001",
-  "product": "Store",
-  "goal": "verify one Windows installer after last PR",
-  "customer_data": "synthetic_only",
+  "goal": "Review Al-Store 1.7 end-to-end cash-sale and installer acceptance, with independent proof",
+  "project": "Store",
   "department": "qa-security",
-  "assigned_agent": "independent-reviewer",
-  "branch": "review/store-windows",
+  "assignee": "reviewer-session-A",
+  "reviewer": "reviewer-session-B",
   "risk": "medium",
-  "cost_limit_usd": 0,
-  "state": "ready",
-  "allowed_actions": ["read_repo", "run_tests", "draft_report"],
-  "approval_required_for": ["merge_main", "production_deploy", "paid_spend"],
-  "acceptance": ["installer starts", "sales persist after upgrade", "CI link attached"],
+  "status": "ready",
+  "budget_usd": 0,
+  "time_cap_minutes": 120,
+  "allowed_actions": [
+    "read_repo",
+    "run_synthetic_tests",
+    "draft_report"
+  ],
+  "requires_owner_approval": [
+    "merge_main",
+    "production_deploy"
+  ],
+  "acceptance": [
+    "All required CI on exact commit green",
+    "Store UI actual click-to-db traces captured",
+    "No skipped browser tests counted as green"
+  ],
   "evidence": [],
-  "reviewer": "separate-agent-session",
-  "last_verified_at": null
+  "customer_data_policy": "synthetic_only",
+  "decision_ref": "docs/PIXEL_PLUS_EXECUTION_ROADMAP_2026.md",
+  "blocker": null,
+  "next_action": "inspect latest main, reproduce 1 sale and produce review bundle",
+  "current_commit": null,
+  "branch": null,
+  "open_prs": [],
+  "known_errors": [],
+  "tests_run": [],
+  "tests_skipped": []
 }
 ```
-Status: backlog → ready → working → review → done or blocked. Every retry has an idempotent task/action ID; no parallel sign/deploy to the same production resource. The task's approval scope NEVER grants privileges by itself.
+
+Allowed statuses (same in contract, playbook and CLI): `backlog → ready → working → review → owner_gate → done`, or `blocked` at any step. Here `review` is always independent; `owner_gate` means an owner decision is **requested**, not granted. No task is `done` until it has at least one referenceable evidence item with a timezone-aware `verified_at`; metadata cannot prove the linked external artifact is genuine, so an independent reviewer must inspect it and production/field acceptance remains separate. Never claim a customer field test was performed based on CI.
+
+A cross-account AI session handoff must include current commit, branch, open PR, known errors, tests actually run/skipped, next safe action and decision source. The validation script fails closed for missing sources, unsupported statuses, invalid JSON and same-person self-reviews. No parallel signing or production deployment based on this metadata.
 
 ## Next immediate implementation ticket (most important)
 Create **Pixel Plus Company OS Lite**: stdlib Python + SQLite local task queue, event log, safe synthetic fixture, reviewer/evidence requirement, recorded owner approvals, per-task cost ceiling, read-only HTML status. This is a scheduling/control **prototype**, NOT an authentication layer or production agent dispatcher. Then test on Windows and hand a real Store review across two fresh agent sessions. Only after proof add GitHub read-only status, then authenticated owner approval and bot notifications.

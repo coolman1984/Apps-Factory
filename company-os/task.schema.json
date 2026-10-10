@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/coolman1984/Apps-Factory/blob/main/company-os/task.schema.json",
-  "title": "Pixel Plus AI Company Work Handoff v0.1 (non-authorizing)",
-  "description": "Metadata that travels between model sessions. This file NEVER authenticates or authorizes external actions.",
+  "title": "Pixel Plus AI Company Work Handoff v0.7 (non-authorizing)",
+  "description": "Strict cross-account handoff metadata, not a real-world approval. Both the schema and company-os/validate_task.py MUST be applied.",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -18,17 +18,27 @@
     "allowed_actions",
     "acceptance",
     "evidence",
-    "requires_owner_approval"
+    "requires_owner_approval",
+    "decision_ref",
+    "customer_data_policy",
+    "open_prs",
+    "known_errors",
+    "tests_run",
+    "tests_skipped",
+    "current_commit",
+    "branch",
+    "next_action"
   ],
   "properties": {
     "task_id": {
       "type": "string",
-      "pattern": "^PX-[0-9]{3,6}$"
+      "pattern": "^PX-[0-9]{3,6}$(?![\\s\\S])"
     },
     "goal": {
       "type": "string",
       "minLength": 10,
-      "maxLength": 500
+      "maxLength": 500,
+      "pattern": "^(?=(?:\\s*\\S){10,})"
     },
     "project": {
       "type": "string",
@@ -50,11 +60,13 @@
     },
     "assignee": {
       "type": "string",
-      "minLength": 2
+      "minLength": 2,
+      "pattern": "\\S"
     },
     "reviewer": {
       "type": "string",
-      "minLength": 2
+      "minLength": 2,
+      "pattern": "\\S"
     },
     "risk": {
       "type": "string",
@@ -71,6 +83,7 @@
         "ready",
         "working",
         "review",
+        "owner_gate",
         "blocked",
         "done"
       ]
@@ -93,7 +106,9 @@
     "requires_owner_approval": {
       "type": "array",
       "items": {
-        "type": "string"
+        "type": "string",
+        "minLength": 3,
+        "pattern": "[A-Za-z0-9]"
       },
       "uniqueItems": true
     },
@@ -128,14 +143,16 @@
           },
           "reference": {
             "type": "string",
-            "minLength": 3
+            "minLength": 6,
+            "pattern": "^(?=(?:\\s*\\S){6,})(?=.*[A-Za-z0-9])"
           },
           "verified_at": {
             "type": [
               "string",
               "null"
             ],
-            "format": "date-time"
+            "format": "date-time",
+            "pattern": "^(?!0000)(?:\\d{4}-(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|\\d{4}-(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|\\d{4}-02-(?:0[1-9]|1\\d|2[0-8])|(?:\\d{2}(?:0[48]|[2468][048]|[13579][26])|(?:0[48]|[2468][048]|[13579][26])00)-02-29)T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|[+-](?:0\\d|1[0-4]):[0-5]\\d)$(?![\\s\\S])"
           }
         }
       }
@@ -147,16 +164,16 @@
       ]
     },
     "next_action": {
-      "type": [
-        "string",
-        "null"
-      ]
+      "type": "string",
+      "minLength": 8,
+      "pattern": "^(?=(?:\\s*\\S){8,})"
     },
     "current_commit": {
       "type": [
         "string",
         "null"
-      ]
+      ],
+      "pattern": "^[a-fA-F0-9]{7,40}$(?![\\s\\S])"
     },
     "customer_data_policy": {
       "type": "string",
@@ -167,10 +184,102 @@
       ]
     },
     "decision_ref": {
+      "type": "string",
+      "pattern": "^(?:docs/[A-Za-z0-9_-]+(?:/[A-Za-z0-9_-]+)*\\.md|DECISIONS\\.md|https://[A-Za-z0-9.-]+\\.[A-Za-z]{2,}(?::[0-9]{2,5})?/[A-Za-z0-9_./?&=%#-]+)$(?![\\s\\S])",
+      "minLength": 7
+    },
+    "branch": {
       "type": [
         "string",
         "null"
-      ]
+      ],
+      "minLength": 2,
+      "pattern": "^[^\\s]+$(?![\\s\\S])"
+    },
+    "open_prs": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 8,
+        "pattern": "^https://github\\.com/[^/\\s]+/[^/\\s]+/pull/[1-9][0-9]*$(?![\\s\\S])"
+      },
+      "uniqueItems": true
+    },
+    "known_errors": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 4
+      },
+      "uniqueItems": true
+    },
+    "tests_run": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 3
+      },
+      "uniqueItems": true
+    },
+    "tests_skipped": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 3
+      },
+      "uniqueItems": true
     }
-  }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "done"
+          }
+        },
+        "required": [
+          "status"
+        ]
+      },
+      "then": {
+        "properties": {
+          "evidence": {
+            "minItems": 1,
+            "contains": {
+              "type": "object",
+              "required": [
+                "verified_at"
+              ],
+              "properties": {
+                "verified_at": {
+                  "type": "string",
+                  "format": "date-time"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "owner_gate"
+          }
+        },
+        "required": [
+          "status"
+        ]
+      },
+      "then": {
+        "properties": {
+          "requires_owner_approval": {
+            "minItems": 1
+          }
+        }
+      }
+    }
+  ]
 }

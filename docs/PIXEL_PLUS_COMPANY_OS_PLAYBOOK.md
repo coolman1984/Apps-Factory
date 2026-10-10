@@ -48,9 +48,9 @@ Other repos remain in maintenance / incubation until one viable paid journey is 
 Daily cadence above is a **proposal**, not an installed schedule. Do not create recurring messages or fire live connectors unless the owner approves the exact automation/permissions.
 
 ## Work tracker stages and handoff
-`idea → defined → ready → working → independent_review → owner_gate_if_high_risk → done`, or `blocked`.
+**Canonical status values:** `backlog → ready → working → review → owner_gate → done`, or `blocked` from any step. Early `idea`/`defined` notes remain `backlog` until defined; `independent_review` is `review`, and `owner_gate_if_high_risk` is `owner_gate`. `owner_gate` is waiting for approval and never authorizes an external act.
 
-Every task must contain: unique ID, requested outcome, accountable owner, executing role, independent reviewer, product/version/branch, evidence (PR, CI, browser images, actual business result), spend/time ceiling, allowed permissions, status, next action and reasons for block. Save a short normalized handoff at each model/session limit; never rely solely on disappearing chat context.
+Every task must contain: unique ID, requested outcome, accountable owner, executing role, independent reviewer, product/version/branch, evidence (PR, CI, browser images, actual business result), spend/time ceiling, allowed permissions, status, next action and reasons for block. Save a short normalized handoff at each model/session limit; never rely solely on disappearing chat context. Use `python3 company-os/validate_task.py company-os/examples.json` (or a real task file). Reviewer and assignee must differ. Every task needs a nonempty source/decision reference. `done` needs at least one independently inspectable, dated evidence item. The JSON Schema plus local Python checker are both essential; neither alone proves field acceptance.
 
 When a task is claimed complete, demand direct evidence from the *deployed/released environment*. Code tests passing only mean engineering verification, not customers accepting a product.
 
