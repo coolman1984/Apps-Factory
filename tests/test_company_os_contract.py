@@ -258,5 +258,54 @@ class CompanyOSContractTests(unittest.TestCase):
         self.assertEqual(owner_gate_cond["then"]["properties"]["requires_owner_approval"]["minItems"], 1)
 
 
+    def test_owner_gate_blocks_contradictory_permissions(self):
+        t = self.sample()
+        t["status"] = "owner_gate"
+        t["allowed_actions"].append("production_deploy")
+        self.assertInvalid(t, "allowed_actions")
+
+    def test_other_statuses_block_approval_permission_overlap(self):
+        t = self.sample()
+        t["allowed_actions"].append("merge_main")
+        self.assertInvalid(t, "allowed_actions")
+
+    def test_local_decision_path_must_exist(self):
+        t = self.sample()
+        t["decision_ref"] = "docs/THIS_FILE_DOES_NOT_EXIST.md"
+        self.assertInvalid(t, "decision_ref")
+
+    def test_local_decision_file_exists_in_repository(self):
+        t = self.sample()
+        t["decision_ref"] = "DECISIONS.md"
+        self.assertEqual(self.validate(t), [])
+
+    def test_punctuation_only_approval_name_is_rejected(self):
+        for bad in ("---", "...", "__", "---!!!"):
+            with self.subTest(bad=bad):
+                t = self.sample()
+                t["status"] = "owner_gate"
+                t["requires_owner_approval"] = [bad]
+                self.assertInvalid(t, "requires_owner_approval")
+
+    def test_punctuation_only_evidence_reference_is_rejected(self):
+        for bad in ("---", "......", "----///"):
+            with self.subTest(bad=bad):
+                t = self.sample()
+                t["status"] = "done"
+                t["evidence"] = [{"type":"customer_acceptance","reference":bad,
+                                  "verified_at":"2026-10-10T09:20:00Z"}]
+                self.assertInvalid(t, "reference")
+
+    def test_good_done_reference_and_approval_name(self):
+        t = self.sample()
+        t["status"] = "done"
+        t["evidence"] = [{"type":"ci","reference":"https://github.com/coolman1984/Apps-Factory/actions/runs/38032982570",
+                          "verified_at":"2026-10-10T09:20:00Z"}]
+        self.assertEqual(self.validate(t), [])
+        t["status"] = "owner_gate"
+        t["requires_owner_approval"] = ["release_prod"]
+        self.assertEqual(self.validate(t), [])
+
+
 if __name__ == "__main__":
     unittest.main()
