@@ -9,6 +9,9 @@ For cross-product Pixel Plus/Store work, begin with [the unified owner execution
 
 Then read only the spec for the part you touch (linked from PARTS.md). Read [DECISIONS.md](DECISIONS.md) when a business choice is involved (price, sensitive data, anything paid). Look up a control or an old id with `python3 scripts/factory.py controls <ID>`. Day-to-day commands (tests, releases, drift checks) are in [PLAYBOOK.md](PLAYBOOK.md).
 
+## Company-level agent handoffs
+For CEO/marketing/research/council/portfolio tasks, consult [Pixel Plus's one-person company strategy](docs/PIXEL_PLUS_ONE_PERSON_COMPANY_OS.md) and [operations playbook](docs/PIXEL_PLUS_COMPANY_OS_PLAYBOOK.md). The coordinator must assign a bounded task with source references, spend cap, allowed tools, exact definition of done, independent reviewer and owner decision gates. A new chat session must reconstruct state from main, current PRs and the approved roadmap, not stale chat claims. Do not infer permission for spending, customer outreach, data-sharing, licensing or deploys.
+
 ## Visual/UI work
 Any UI, UX, page, dashboard, RTL, accessibility or CSS task: read `design-factory/AGENTS.md` first and follow it.
 
