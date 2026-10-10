@@ -178,8 +178,14 @@ def main(argv=None):
         print("No tasks supplied", file=sys.stderr)
         return 1
     failed = False
+    seen_ids = set()
     for idx, task in enumerate(tasks):
         issues = validate_task(task, schema)
+        if isinstance(task, dict) and isinstance(task.get("task_id"), str):
+            task_id = task["task_id"]
+            if task_id in seen_ids:
+                issues.append("$.task_id: duplicate task identifier in the handoff batch")
+            seen_ids.add(task_id)
         if issues:
             failed = True
             print(f"Task {idx + 1}: INVALID")
