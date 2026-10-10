@@ -204,10 +204,14 @@ test('pressing approve again after the approval has gone stale does not promise 
   assert.equal(calls('answerCallbackQuery').at(-1).body.text, 'وافقت قبل كده ✅', 'inside the window it is still the approval');
   const before = events(e).length;
   await press(e, ok(a.id), {id: 'late'}, NOW + 3 * 3600);
-  assert.equal(calls('answerCallbackQuery').at(-1).body.text, 'الموافقة قديمة: خلي المحل يطلب تاني');
+  assert.equal(calls('answerCallbackQuery').at(-1).body.text, 'الموافقة قديمة: وافق من برنامج التراخيص بنفسك أو خلي المحل يطلب تاني');
   assert.match(calls('editMessageText').at(-1).body.text, /الموافقة قديمة/);
   assert.deepEqual(calls('editMessageText').at(-1).body.reply_markup.inline_keyboard, [], 'no approve button is left on it');
   assert.equal(events(e).length, before + 1, 'one audit line: the stale press');
+  await press(e, ok(a.id), {id: 'later'}, NOW + 4 * 3600);
+  await press(e, ok(a.id), {id: 'later2'}, NOW + 5 * 3600);
+  assert.equal(events(e).length, before + 1, 'pressing it again adds nothing: one line per request');
+  assert.equal(events(e).at(-1).event, 'tg_stale');
   assert.equal(row(e, a.id).status, 'pending', 'nothing is signed or closed by it');
 });
 

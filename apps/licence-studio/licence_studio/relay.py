@@ -138,7 +138,10 @@ class Relay:
         An id the relay no longer knows is absent from the answer."""
         out: dict = {}
         for i in range(0, len(ids), 50):
-            out.update(self._call('POST', '/licence/states', {'ids': ids[i:i + 50]}, timeout=timeout).get('states') or {})
+            got = self._call('POST', '/licence/states', {'ids': ids[i:i + 50]}, timeout=timeout).get('states')
+            if not isinstance(got, dict):  # a 200 without the answer (another build, a proxy) is not «the relay knows none of them»
+                raise RelayError('relay.shape', 'The relay answered without the states.')
+            out.update(got)
         return out
 
     def events(self, limit: int = 100) -> list[dict]:
@@ -161,13 +164,13 @@ def _chat_setting() -> str:
 def owner_chat() -> str:
     """The owner's own private chat (a positive number), the only place a signed code is sent: everybody in a group would read it."""
     chat = _chat_setting()
-    return chat if re.fullmatch(r'\d{1,20}', chat) else ''
+    return chat if re.fullmatch(r'[0-9]{1,20}', chat) else ''
 
 
 def alert_chat() -> str:
     """Where plain alerts (no code in them) go: the owner's chat, or a group or channel the owner made for it (a negative number)."""
     chat = _chat_setting()
-    return chat if re.fullmatch(r'-?\d{1,20}', chat) else ''
+    return chat if re.fullmatch(r'-?[0-9]{1,20}', chat) else ''
 
 
 def telegram_configured() -> bool:

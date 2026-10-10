@@ -21,6 +21,7 @@ Every step is in the append-only audit. What a shop typed (its name, a payment r
 """
 from __future__ import annotations
 
+import calendar
 import threading
 import time
 import uuid
@@ -45,6 +46,7 @@ class AutoTrial:
         self.lock = threading.Lock()
         self.last = {'at': None, 'ok': None, 'error': '', 'pulled': 0, 'issued': 0, 'refused': 0, 'held': 0, 'delivered': 0}
         self._told: set[tuple[str, str]] = set()
+        self._deliver_lock = threading.Lock()  # a click's own thread and the round must not both hand the same decision to the relay
 
     # ------------------------------------------------------------------ the policy
     def verdict(self, r: dict, approved: bool = False) -> tuple[str, str, dict | None]:
@@ -88,10 +90,11 @@ class AutoTrial:
         rid = item.get('id')
         if not isinstance(rid, str) or not UUID.match(rid) or item.get('kind') not in KIND_EDITION:
             return None
-        known = s.one('SELECT id, tg_decision FROM requests WHERE relay_id = ?', rid)
+        known = s.one('SELECT id, tg_decision, held FROM requests WHERE relay_id = ?', rid)
         if known:
-            with s.lock:  # the relay lists it again: it is a normal waiting request once more
-                s.db.execute("UPDATE requests SET held = '' WHERE id = ? AND status = 'pending' AND held = 'relay_gone'", (known['id'],))
+            if known['held'] == 'relay_gone':  # the relay lists it again: it is a normal waiting request once more
+                with s.lock:
+                    s.db.execute("UPDATE requests SET held = '' WHERE id = ? AND status = 'pending' AND held = 'relay_gone'", (known['id'],))
             self.note_decision(known, item)
             return None
         kind = item['kind']
@@ -139,6 +142,10 @@ class AutoTrial:
 
     def deliver(self, r: dict) -> bool:
         """Hand a decided relay request's outcome back through the relay. A failure leaves it for the next cycle."""
+        with self._deliver_lock:
+            return self._deliver(r)
+
+    def _deliver(self, r: dict) -> bool:
         s = self.s
         r = s.one('SELECT * FROM requests WHERE id = ?', r['id'])
         if not r or r['source'] != 'relay' or r['relayed'] or r['status'] not in ('approved', 'refused'):
@@ -243,7 +250,7 @@ class AutoTrial:
             self.close_from_relay(r, {'status': 'expired'})
             return
         with s.lock:
-            marked = s.db.execute("UPDATE requests SET held = 'relay_gone' WHERE id = ? AND status = 'pending' AND held != 'relay_gone'", (r['id'],)).rowcount
+            marked = s.db.execute("UPDATE requests SET held = 'relay_gone' WHERE id = ? AND status = 'pending' AND held = ''", (r['id'],)).rowcount  # another reason stays
         if marked:
             s.audit('studio', 'request.relay_gone', {'id': r['id']})
             self.last['held'] += 1
@@ -251,7 +258,7 @@ class AutoTrial:
     @staticmethod
     def _epoch(stamp) -> float | None:
         try:
-            return time.mktime(time.strptime(stamp, '%Y-%m-%dT%H:%M:%SZ')) - time.timezone
+            return calendar.timegm(time.strptime(stamp, '%Y-%m-%dT%H:%M:%SZ'))  # a UTC stamp read as UTC, whatever this PC's clock zone and summer time are
         except (TypeError, ValueError):
             return None
 
@@ -297,8 +304,7 @@ class AutoTrial:
             state = self.relay_state(r)
             if state == 'closed':
                 return
-            if state == 'gone':  # a code nobody can receive is not signed on its own: the owner decides
-                self.relay_gone(r)
+            if state == 'gone':  # (listed a moment ago yet unknown now: not signed on a guess; the next round looks again)
                 return
         except RelayError as e:
             if e.status != 404:  # (404: a relay older than 0.14 has no such call and no buttons either: nothing to re-check)
@@ -347,7 +353,8 @@ class AutoTrial:
         stale = int(time.time()) - CLAIM_SECONDS  # a claim older than this was left by a send that died (PC shut down): it is taken again
         cutoff = time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime(time.time() - COPY_WINDOW))
         with s.lock:  # old, never-sent copies are settled now (3 = skipped): the shop was answered through the relay, the owner can read the code in the program
-            skipped = s.db.execute("UPDATE requests SET code_sent = 3 WHERE source = 'relay' AND status = 'approved' AND code_sent IN (0, 2) AND COALESCE(decided_at, '') < ?", (cutoff,)).rowcount
+            skipped = s.db.execute("UPDATE requests SET code_sent = 3 WHERE source = 'relay' AND status = 'approved' AND decided_at IS NOT NULL AND decided_at != '' AND decided_at < ? "
+                                   "AND (code_sent = 0 OR (code_sent = 2 AND COALESCE(code_claim, 0) < ?))", (cutoff, stale)).rowcount  # (never a copy being sent right now, never a row with no date)
         if skipped:
             s.audit('studio', 'request.copy_skipped', {'count': skipped})
         for r in s.rows("SELECT * FROM requests WHERE source = 'relay' AND status = 'approved' AND (code_sent = 0 OR (code_sent = 2 AND COALESCE(code_claim, 0) < ?)) "
@@ -388,13 +395,14 @@ class AutoTrial:
             self._deliver_now(rid)
 
     def _deliver_now(self, rid: str):
-        try:
-            r = self.s.one('SELECT * FROM requests WHERE id = ?', rid)
-            if r and r['source'] == 'relay':
-                self.deliver(r)
-                self.send_copies()
-        except Exception:  # a failure here is retried by the next round: it must never surface as an error in a finished decision
-            self.last.update(ok=False, error='deliver.crash')
+        for step in (lambda r: self.deliver(r), lambda r: self.send_copies()):
+            try:  # a failure is retried by the next round, and left in the audit: it must never surface as an error in a finished decision
+                r = self.s.one('SELECT * FROM requests WHERE id = ?', rid)
+                if r and r['source'] == 'relay':
+                    step(r)
+            except Exception as e:
+                self.last.update(ok=False, error='deliver.crash')
+                self.s.audit('studio', 'request.deliver_crash', {'id': rid, 'error': e.__class__.__name__})
 
     # ------------------------------------------------------------------ background loop
     def loop(self, stop: threading.Event, every: float = 60.0):

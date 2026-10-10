@@ -9,6 +9,7 @@ The six findings left open on purpose in PR #42 (earlier, merged code), closed w
 - **Copies of codes:** copies still unsent after two days are settled as skipped (and audited) instead of being poured onto the phone when Telegram is set up weeks later.
 - **A request the relay does not know** (another relay was set up, or its record is gone) is no longer closed as «expired»: it is kept and marked for the owner, no automatic round signs it, it clears itself if the relay lists it again, and it is closed as expired only after three days.
 - **The owner's click in the Studio** returns as soon as the decision is saved and signed; delivery to the relay and the copy to Telegram run on their own thread (the next round retries them), and the one look at the relay before signing waits at most 5 seconds.
+- Second independent review of this PR: the age of a request is read as UTC whatever the PC's zone; one hand-over at a time (the click's thread and the round no longer both deliver); a failure behind the click is audited; `relay_gone` keeps an existing hold reason; a relay answer without `states` is an error, not «knows nothing»; Arabic-Indic digits are not a chat id; copies with no date or being sent are never skipped; the relay records a stale press once per request and tells the owner the same thing the Studio does; the list refreshes itself after a click; the Studio is 1.2.1.
 - Cleanup: an unused import and an alias.
 
 ## 0.15.0 (2026-10-10)

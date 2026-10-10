@@ -337,9 +337,10 @@ export async function handleTelegram(request, env, ctx, now) {
   // action === 'ok'
   if (row.status !== 'pending') return closed();
   if (row.owner_decision === 'approved' && now - row.owner_decided_at > approvalSeconds(env)) {  // an approval nobody used for days no longer counts: do not say the program will issue it
-    await note(env, now, id, 'tg_refused', 'stale');
-    await answer('الموافقة قديمة: خلي المحل يطلب تاني');
-    await show('⌛ الموافقة قديمة ومابقتش تنفع: خلي المحل يطلب تاني');
+    await env.DB.prepare("INSERT INTO licence_events (at, request_id, event, detail) SELECT ?, ?, 'tg_stale', 'approval' WHERE NOT EXISTS "
+      + "(SELECT 1 FROM licence_events WHERE request_id = ? AND event = 'tg_stale')").bind(now, id, id).run();  // once per request, however often the button is pressed
+    await answer('الموافقة قديمة: وافق من برنامج التراخيص بنفسك أو خلي المحل يطلب تاني');
+    await show('⌛ الموافقة قديمة ومابقتش تنفع: وافق من برنامج التراخيص بنفسك أو خلي المحل يطلب تاني');
     return reply({ok: true});
   }
   if (row.owner_decision === 'approved') {

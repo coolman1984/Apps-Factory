@@ -30,7 +30,7 @@ A permanent code needs af-license 0.3.0 in the product. An older product refuses
 Issue a code · Codes (search, copy, WhatsApp message, issue the next code) · Requests from shops and agents · Verify · Products · Keys (create, unlock,
 export the **public** key for `licence_keys.txt`) · Agent access (tokens, trial policy).
 
-## Shop requests, Telegram buttons and automatic trials (1.2.0)
+## Shop requests, Telegram buttons and automatic trials (1.2.0; hardened in 1.2.1)
 A shop asks for a trial from its own screen; the owner's phone gets a Telegram message; this program, on the trusted PC, pulls the request through the relay, decides by the policy the owner switched on, signs, and sends the code back; the shop checks it with the public key and switches itself on (no copying). Full chain, threat model and limits: [docs/LICENCE_ACTIVATION.md](../../docs/LICENCE_ACTIVATION.md).
 - **Page «طلبات المحلات»:** connect the relay (address + token, stored only in `relay.json` here with owner-only permissions, or `LS_RELAY_URL` / `LS_RELAY_TOKEN`), pull now, switch the policy on, set the daily cap, and «افضل مفتوح» (the key stays in memory for at most 12 hours so trials go out while you are away; locking or restarting ends it).
 - **Policy (off until you switch it on):** a trial is automatic only for a PC that never had one (permanent `trial_ledger`), within the day's cap, from a sender that is not flooding, with the key unlocked. The same device asking again gets the same code. Everything else waits for you.
@@ -56,3 +56,6 @@ and a daily limit when the owner turns it on. Paid codes always need the owner. 
 2. The customer opens the product → Licence card shows the **device code** → sends it to you.
 3. Issue a 14-day trial for that device → paste the code → product unlocks. After the end day it locks to read/export/backup only.
 4. When the customer pays: a monthly code each month («اشتراك شهري»), or one permanent code («تفعيل دائم») for that device.
+
+### 1.2.1
+Chat ids are trimmed and plain alerts also reach a group (a signed code never does: only the owner's private chat). A copy of a code is sent only while it is under two days old. A waiting request the relay does not know is kept and marked for you (never signed automatically; closed as expired after three days). Your click returns when the decision is saved and signed: sending to the shop and the copy to your phone run behind it and are retried each round.

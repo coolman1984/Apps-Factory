@@ -694,6 +694,116 @@ class Buttons(Harness):
         self.s.auto.cycle()
         self.assertEqual(self.s.requests()[0]['held'], '')
 
+    def test_the_age_of_a_request_is_read_as_utc_whatever_the_pcs_zone(self):
+        """Second review of PR #43: mktime minus the zone was an hour wrong under summer time."""
+        from licence_studio.autotrial import AutoTrial
+        old = os.environ.get('TZ')
+        try:
+            for zone in ('Africa/Cairo', 'America/New_York', 'UTC'):
+                os.environ['TZ'] = zone
+                time.tzset()
+                self.assertEqual(AutoTrial._epoch('2026-07-01T12:00:00Z'), 1782907200, zone)
+                self.assertEqual(AutoTrial._epoch('2026-01-01T00:00:00Z'), 1767225600, zone)
+        finally:
+            if old is None:
+                os.environ.pop('TZ', None)
+            else:
+                os.environ['TZ'] = old
+            time.tzset()
+        self.assertIsNone(AutoTrial._epoch('not a date'))
+        self.assertIsNone(AutoTrial._epoch(None))
+
+    def test_a_chat_id_in_arabic_digits_is_not_accepted_as_a_number(self):
+        for bad in ('\u0661\u0662\u0663\u0664\u0665', '-\u0661\u0662'):
+            os.environ['TELEGRAM_OWNER_CHAT_ID'] = bad
+            self.assertEqual((relay_mod.owner_chat(), relay_mod.alert_chat()), ('', ''), bad)
+
+    def test_an_answer_without_states_is_an_error_not_an_empty_relay(self):
+        real = self.s.relay._call
+        self.s.relay._call = lambda *a, **k: {}                     # a 200 with nothing in it (another build, a proxy)
+        try:
+            with self.assertRaises(relay_mod.RelayError) as e:
+                self.s.relay.states([str(uuid.uuid4())])
+            self.assertEqual(e.exception.key, 'relay.shape')
+            _, _, d = self.ask(pc='pc-shape', install='i-shape')
+            self.s.auto.cycle()                                    # (the round shows the error, never marks anything gone)
+        finally:
+            self.s.relay._call = real
+        out = self.s.auto.cycle()
+        self.assertEqual(self.s.requests()[0]['held'], '')
+        self.assertEqual(self.s.one("SELECT COUNT(*) AS n FROM audit WHERE action = 'request.relay_gone'")['n'], 0)
+
+    def test_marking_a_request_gone_keeps_the_reason_it_was_already_held_for(self):
+        _, _, d = self.ask(pc='pc-held', install='i-held')
+        self.s.auto.cycle()
+        with self.s.lock:
+            self.s.db.execute("UPDATE requests SET held = 'daily_cap'")
+        r = self.s.requests()[0]
+        self.s.auto.relay_gone(r)
+        self.assertEqual(self.s.requests()[0]['held'], 'daily_cap')
+        self.assertEqual(self.s.one("SELECT COUNT(*) AS n FROM audit WHERE action = 'request.relay_gone'")['n'], 0)
+
+    def test_a_copy_with_no_date_or_one_being_sent_right_now_is_never_skipped(self):
+        _, _, d = self.ask(pc='pc-copy', install='i-copy')
+        self.press(self.ok(d))
+        token = os.environ.pop('TELEGRAM_BOT_TOKEN')
+        try:
+            self.s.auto.cycle()
+        finally:
+            os.environ['TELEGRAM_BOT_TOKEN'] = token
+        with self.s.lock:                                          # a migrated row with no date; and a claim taken just now
+            self.s.db.execute("UPDATE requests SET decided_at = NULL, code_sent = 0")
+        TelegramStub.messages.clear()
+        self.s.auto.send_copies()
+        self.assertEqual(len(self.copies()), 1, 'no date is not «very old»: the owner still gets the code')
+        with self.s.lock:
+            self.s.db.execute("UPDATE requests SET decided_at = '2000-01-01T00:00:00Z', code_sent = 2, code_claim = ?", (int(time.time()),))
+        self.s.auto.send_copies()
+        self.assertEqual(self.s.one('SELECT code_sent FROM requests')['code_sent'], 2, 'a sender is working on it: left alone')
+
+    def test_two_threads_handing_over_the_same_decision_make_one_delivery(self):
+        """Second review of PR #43: the click's thread and the round both read «not sent» and both sent."""
+        _, _, d = self.ask(pc='pc-two', install='i-two')
+        self.s.auto.cycle()
+        rid = self.s.requests()[0]['id']
+        self.s.unlock(PASS)
+        self.s.decide(rid, True)                                   # signed and (synchronously) delivered once
+        with self.s.lock:
+            self.s.db.execute("UPDATE requests SET relayed = 0")   # as if it had not been delivered yet
+        calls = []
+        real = self.s.relay.issue
+
+        def slow(relay_id, code):
+            calls.append(relay_id)
+            time.sleep(0.4)
+            return real(relay_id, code)
+        self.s.relay.issue = slow
+        try:
+            row = self.s.one('SELECT * FROM requests')
+            threads = [threading.Thread(target=self.s.auto.deliver, args=(row,)) for _ in range(2)]
+            [t.start() for t in threads]
+            [t.join(15) for t in threads]
+        finally:
+            self.s.relay.issue = real
+        self.assertEqual(len(calls), 1, 'one hand-over, not two')
+
+    def test_a_failure_behind_the_click_is_left_in_the_audit(self):
+        _, _, d = self.ask(pc='pc-crash', install='i-crash')
+        self.s.auto.cycle()
+        rid = self.s.requests()[0]['id']
+        self.s.unlock(PASS)
+        real = self.s.auto.deliver
+
+        def boom(r):
+            raise KeyError('codes row missing')
+        self.s.auto.deliver = boom
+        try:
+            self.s.decide(rid, True)
+        finally:
+            self.s.auto.deliver = real
+        self.assertEqual(self.s.one("SELECT COUNT(*) AS n FROM audit WHERE action = 'request.deliver_crash'")['n'], 1)
+        self.assertEqual(self.s.one('SELECT status FROM requests')['status'], 'approved', 'the decision stands')
+
     def test_the_owners_click_returns_without_waiting_for_the_network(self):
         """Review of PR #42: decide() called the relay and Telegram inside the click's own request; a slow network froze the window."""
         _, _, d = self.ask(pc='pc-slow', install='i-slow')

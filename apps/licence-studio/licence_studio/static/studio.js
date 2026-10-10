@@ -287,7 +287,7 @@ async function requests(page) {
         ${r.status === 'pending' && r.policy ? html`<div class="xs faint">${POLICY_SAYS[r.policy.verdict]}${r.policy.reason ? ' (' + (HELD[r.policy.reason] || r.policy.reason) + ')' : ''}</div>` : ''}
         ${r.status === 'pending' && r.source === 'relay' && r.kind !== 'trial' ? html`<div class="row wrap"><label class="check"><input type="checkbox" data-paid="${r.id}">الدفع وصل</label>
           <input class="input mono" data-ref="${r.id}" placeholder="مرجع الدفع" value="${r.payment_ref || ''}" maxlength="60" autocomplete="off"></div>` : ''}
-        ${r.status !== 'pending' && r.source === 'relay' ? html`<div class="xs faint">${r.relayed === 1 ? 'اتبعت للمحل' : r.relayed === 2 ? 'الوسيط قفل الطلب: ابعت الكود للمحل يدوي' : 'لسه ماتبعتش للمحل: هيتحاول تاني'}</div>` : ''}</div>
+        ${r.status !== 'pending' && r.source === 'relay' ? html`<div class="xs faint">${r.relayed === 1 ? 'اتبعت للمحل' : r.relayed === 2 ? 'الوسيط قفل الطلب: ابعت الكود للمحل يدوي' : 'بيتبعت للمحل… لو ماوصلش هيتحاول تاني لوحده'}</div>` : ''}</div>
       <div class="row">${r.status === 'pending' ? html`<button class="btn sm" data-no="${r.id}">ارفض</button><button class="btn sm volt" data-yes="${r.id}">وافق واعمل الكود</button>`
         : html`<span class="badge ${r.status === 'approved' ? 'ok' : 'bad'}">${r.status === 'approved' ? 'اتوافق' : 'اترفض'}</span>`}</div></div>`)}</div>`
       : html`<div class="card"><div class="empty">${icon('message')}<h3>مفيش طلبات</h3></div></div>`}`);
@@ -298,6 +298,8 @@ async function requests(page) {
     try {
       await post('/api/request/decide', { id, approve: !!b.dataset.yes, payment_confirmed: paid ? paid.checked : undefined, payment_ref: paid ? $(`[data-ref="${id}"]`).value : undefined });
       toast('تمام'); ST = await get('/api/status'); shell(); location.hash = '#/requests';
+      // the sending to the shop runs behind the click: look again twice so the line says «اتبعت للمحل» without a manual refresh
+      [2500, 8000].forEach((ms) => setTimeout(() => { if (location.hash === '#/requests') route(); }, ms));
     } catch (e) { toast(e.key === 'payment.required' ? 'علّم على «الدفع وصل» واكتب مرجع الدفع الأول.' : e.message, true); }
   }));
 }
