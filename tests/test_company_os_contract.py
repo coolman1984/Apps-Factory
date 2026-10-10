@@ -19,7 +19,7 @@ class CompanyOSContractTests(unittest.TestCase):
     def setUpClass(cls):
         cls.schema = json.loads((CONTRACT / "task.schema.json").read_text(encoding="utf-8"))
         cls.examples = json.loads((CONTRACT / "examples.json").read_text(encoding="utf-8"))
-        cls.validate = runpy.run_path(str(VALIDATOR))["validate_task"]
+        cls.validate = staticmethod(runpy.run_path(str(VALIDATOR))["validate_task"])
 
     def sample(self):
         return copy.deepcopy(self.examples[0])
