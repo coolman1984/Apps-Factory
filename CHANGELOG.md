@@ -2,6 +2,15 @@
 
 Factory versions (the `README.md` version line). The control catalogue has its own `catalog_version` in `factory/controls.json`.
 
+## 0.15.1 (2026-10-10)
+The six findings left open on purpose in PR #42 (earlier, merged code), closed with a test each that fails without the fix. Nothing commercial changes: a paid kind is still never signed without the payment tick and reference in the Licence Studio, and a button still only decides a trial.
+- **Relay:** pressing «✅ موافق» again on an approval nobody used for longer than `LICENCE_APPROVAL_HOURS` no longer answers «the program will issue the code»: it says the approval is old, shows no button, records one audit line and signs nothing.
+- **Telegram chat ids:** an id pasted with a space or a line break works; a blank first name no longer hides the second; plain alerts also reach a group the owner made for them (a negative id). **A signed code still goes only to the owner's own private chat**, never to a group.
+- **Copies of codes:** copies still unsent after two days are settled as skipped (and audited) instead of being poured onto the phone when Telegram is set up weeks later.
+- **A request the relay does not know** (another relay was set up, or its record is gone) is no longer closed as «expired»: it is kept and marked for the owner, no automatic round signs it, it clears itself if the relay lists it again, and it is closed as expired only after three days.
+- **The owner's click in the Studio** returns as soon as the decision is saved and signed; delivery to the relay and the copy to Telegram run on their own thread (the next round retries them), and the one look at the relay before signing waits at most 5 seconds.
+- Cleanup: an unused import and an alias.
+
 ## 0.15.0 (2026-10-10)
 Closes the open points of the old PRs #26 and #9 against the real state of `main` (most of them had been fixed meanwhile; what was left is here).
 - **Licence Studio:** the agent's «one trial per device» rule and its daily limit were a look followed by a write: two requests arriving together (a double click, two windows) both passed and two trials were signed. Both limits, and the owner's automatic-trial daily cap, are now counted inside the write transaction, by the UTC day the codes are stamped with (not the PC's local day). `tests/test_studio.py`: two tests that fail on 0.14.1 (2 trials instead of 1; 2 codes against a limit of 1). The other points of #26 were already true on `main` and are covered by tests: a product's own trial days are used (`trial_days`, the form follows the product), the commercial terms are recorded in `DECISIONS.md` (three kinds; no prices or support terms invented), the shared copies match (`vendored-drift` is green).

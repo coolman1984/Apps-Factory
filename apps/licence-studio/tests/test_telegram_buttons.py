@@ -564,7 +564,7 @@ class Buttons(Harness):
         real = self.s.relay.states
 
         def answers(code):
-            def f(ids):
+            def f(ids, **kw):
                 raise relay_mod.RelayError('relay.http', f'The relay answered {code}.', code)
             return f
         try:
@@ -613,13 +613,114 @@ class Buttons(Harness):
     def test_a_copy_is_only_ever_sent_to_the_owners_private_chat(self):
         os.environ['TELEGRAM_OWNER_CHAT_ID'] = '-1001234567'          # a group: every member would read the codes
         self.assertFalse(relay_mod.telegram_configured())
-        self.assertFalse(relay_mod.telegram('hello'))
+        self.assertFalse(relay_mod.telegram('hello', private=True))
         _, _, d = self.ask()
         self.press(self.ok(d))
         self.s.auto.cycle()
         self.assertEqual(self.status(d)['status'], 'issued', 'the shop is served')
-        self.assertEqual(TelegramStub.messages, [], 'nothing went to the group')
+        self.assertEqual(self.copies(), [], 'no code went to the group')
         self.assertEqual(self.s.one('SELECT code_sent FROM requests')['code_sent'], 0)
+
+    def test_plain_alerts_still_reach_a_group_or_a_pasted_id_with_spaces(self):
+        """Review of PR #42: a negative id (a group the owner made for alerts) or an id pasted with a space or a line break muted every alert."""
+        for pasted, chat in (('-1001234567', '-1001234567'), (' 7\n', '7'), ('\t-42 ', '-42')):
+            os.environ['TELEGRAM_OWNER_CHAT_ID'] = pasted
+            TelegramStub.messages.clear()
+            self.assertTrue(relay_mod.telegram('hello'), pasted)
+            self.assertEqual(TelegramStub.messages[-1]['chat_id'], chat)
+        for bad in ('abc', '7;8', '--1', '1' * 30):
+            os.environ['TELEGRAM_OWNER_CHAT_ID'] = bad
+            self.assertFalse(relay_mod.telegram('hello'), bad)
+        os.environ['TELEGRAM_OWNER_CHAT_ID'] = '   '            # blank: the second name is read, not hidden by the blank one
+        os.environ['CC_TG_CHAT_ID'] = '9'
+        try:
+            self.assertEqual(relay_mod.owner_chat(), '9')
+        finally:
+            del os.environ['CC_TG_CHAT_ID']
+        os.environ['TELEGRAM_OWNER_CHAT_ID'] = ' 7 '
+        self.assertTrue(relay_mod.telegram_configured(), 'a private id with a space is still the owner')
+
+    def test_old_unsent_copies_are_not_poured_onto_the_phone_when_telegram_is_set_up_late(self):
+        """Review of PR #42: copies pending while Telegram was not set up were all sent at once, weeks later."""
+        _, _, d = self.ask()
+        self.press(self.ok(d))
+        token = os.environ.pop('TELEGRAM_BOT_TOKEN')
+        try:
+            self.s.auto.cycle()                                   # signed, delivered, no copy: Telegram is not set up
+            self.assertEqual(self.s.one('SELECT code_sent FROM requests')['code_sent'], 0)
+        finally:
+            os.environ['TELEGRAM_BOT_TOKEN'] = token
+        with self.s.lock:                                          # the code was signed three days ago
+            self.s.db.execute("UPDATE requests SET decided_at = '2000-01-01T00:00:00Z'")
+        TelegramStub.messages.clear()
+        self.s.auto.send_copies()
+        self.assertEqual(self.copies(), [], 'a three-day-old code is not sent')
+        self.assertEqual(self.s.one('SELECT code_sent FROM requests')['code_sent'], 3, 'settled, so it is not looked at again')
+        self.assertEqual(self.s.one("SELECT COUNT(*) AS n FROM audit WHERE action = 'request.copy_skipped'")['n'], 1)
+        _, _, d2 = self.ask(pc='pc-fresh', install='i-fresh')     # a fresh one still gets its copy
+        self.press(self.ok(d2))
+        self.s.auto.cycle()
+        self.assertEqual(len(self.copies()), 1)
+
+    def test_a_request_the_relay_does_not_know_is_kept_for_the_owner_not_closed_as_expired(self):
+        """Review of PR #42: an id missing from /licence/states was closed locally as «expired», even when a different relay had been set up."""
+        _, _, d = self.ask(pc='pc-gone', install='i-gone')
+        self.s.auto.cycle()                                        # the policy is off: the studio holds it as waiting
+        self.s.set_setting('auto_trials', True)                    # now the policy would sign it, if the relay still knew it
+        real_pending, real_states = self.s.relay.pending_all, self.s.relay.states
+        self.s.relay.pending_all = lambda *a, **k: []             # the relay lists nothing...
+        self.s.relay.states = lambda ids, **k: {}                  # ...and does not know the id
+        try:
+            out = self.s.auto.cycle()
+            [req] = self.s.requests(status='')
+            self.assertEqual((req['status'], req['held']), ('pending', 'relay_gone'), 'kept, marked, not refused')
+            self.assertEqual((out['refused'], out['issued']), (0, 0))
+            self.s.auto.cycle()
+            self.assertEqual(self.s.one('SELECT COUNT(*) AS n FROM codes')['n'], 0, 'no automatic round signs a code nobody can receive')
+            self.assertEqual(self.s.one("SELECT COUNT(*) AS n FROM audit WHERE action = 'request.relay_gone'")['n'], 1, 'said once')
+            with self.s.lock:                                      # nobody can still be waiting for it after three days
+                self.s.db.execute("UPDATE requests SET requested_at = '2000-01-01T00:00:00Z'")
+            self.s.auto.cycle()
+            [req] = self.s.requests(status='')
+            self.assertEqual((req['status'], req['held']), ('refused', 'expired'))
+        finally:
+            self.s.relay.pending_all, self.s.relay.states = real_pending, real_states
+
+    def test_a_request_the_relay_lists_again_is_waiting_normally_again(self):
+        _, _, d = self.ask(pc='pc-back', install='i-back')
+        self.s.auto.cycle()
+        with self.s.lock:
+            self.s.db.execute("UPDATE requests SET held = 'relay_gone' WHERE status = 'pending'")
+        self.s.auto.cycle()
+        self.assertEqual(self.s.requests()[0]['held'], '')
+
+    def test_the_owners_click_returns_without_waiting_for_the_network(self):
+        """Review of PR #42: decide() called the relay and Telegram inside the click's own request; a slow network froze the window."""
+        _, _, d = self.ask(pc='pc-slow', install='i-slow')
+        self.s.auto.cycle()
+        rid = self.s.requests()[0]['id']
+        self.s.unlock(PASS)
+        gate, started = threading.Event(), threading.Event()
+        real = self.s.auto.deliver
+
+        def slow(r):
+            started.set()
+            gate.wait(10)
+            return real(r)
+        self.s.auto.deliver = slow
+        try:
+            began = time.time()
+            self.s.decide(rid, True, defer=True)
+            self.assertLess(time.time() - began, 5, 'the click came back while the network work was still waiting')
+            self.assertTrue(started.wait(5), 'the delivery did start, on its own thread')
+            self.assertEqual(self.s.one('SELECT status FROM requests')['status'], 'approved', 'the decision itself was already saved')
+        finally:
+            gate.set()
+            self.s.auto.deliver = real
+        deadline = time.time() + 10
+        while time.time() < deadline and self.status(d)['status'] != 'issued':
+            time.sleep(0.1)
+        self.assertEqual(self.status(d)['status'], 'issued', 'and the shop still gets its code')
 
     def test_html_in_what_the_relay_sends_cannot_break_the_copy_to_the_owner(self):
         _, _, d = self.ask()

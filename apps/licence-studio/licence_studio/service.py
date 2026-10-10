@@ -446,7 +446,7 @@ class Studio:
                 r['policy'] = {'verdict': kind, 'reason': reason}
         return rows
 
-    def decide(self, rid, approve, actor='owner', payment_confirmed=False, payment_ref=''):
+    def decide(self, rid, approve, actor='owner', payment_confirmed=False, payment_ref='', defer=False):
         r = self.one('SELECT * FROM requests WHERE id = ?', rid)
         if not r or r['status'] != 'pending':
             raise StudioError('request.closed', 'This request is not pending.', 409)
@@ -470,7 +470,7 @@ class Studio:
             self.release(rid, token)
             raise
         if relay:
-            self.auto.owner_decided(rid)
+            self.auto.owner_decided(rid, defer=defer)
         return self.one('SELECT * FROM requests WHERE id = ?', rid)
 
     def claim(self, rid, payment_ref=None):

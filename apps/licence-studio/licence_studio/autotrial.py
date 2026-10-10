@@ -31,6 +31,9 @@ from .service import MONTHLY_DAYS, StudioError, now_iso, utc_today
 
 TRIAL_DAYS = 14      # the trial a shop asks for, and the one an owner's button gives
 CLAIM_SECONDS = 300  # a copy to the owner being sent for longer than this is taken to have died
+COPY_WINDOW = 2 * 86400  # a copy is only sent while the code is this fresh: Telegram set up weeks later must not pour old codes onto the owner's phone
+CHECK_SECONDS = 5  # the one look at the relay a person waits for before signing (a slow relay is «cannot confirm», never a long frozen button)
+RELAY_FORGETS = 3 * 86400  # a waiting request the relay does not know for this long is closed here (it can never be answered)
 BUTTON = 'telegram'  # who signed when the owner's «✅ موافق» on Telegram was the decision (the owner's own press, not the policy)
 
 SAME_SOURCE_LIMIT = 5  # more than this many requests from one address in a day are held for the owner to look at (shops share addresses: held, never refused)
@@ -87,6 +90,8 @@ class AutoTrial:
             return None
         known = s.one('SELECT id, tg_decision FROM requests WHERE relay_id = ?', rid)
         if known:
+            with s.lock:  # the relay lists it again: it is a normal waiting request once more
+                s.db.execute("UPDATE requests SET held = '' WHERE id = ? AND status = 'pending' AND held = 'relay_gone'", (known['id'],))
             self.note_decision(known, item)
             return None
         kind = item['kind']
@@ -184,12 +189,12 @@ class AutoTrial:
             except RelayError as e:  # an older relay without /licence/states, or a hiccup: everything else in this round still runs
                 self.last.update(error='sync.' + e.key)
             # 1. the owner's own «✅ موافق»: it stands in for the policy for that one request (even when the policy is off)
-            for r in s.rows("SELECT * FROM requests WHERE source = 'relay' AND status = 'pending' AND tg_decision = 'approved' AND kind = 'trial' ORDER BY requested_at"):
+            for r in s.rows("SELECT * FROM requests WHERE source = 'relay' AND status = 'pending' AND tg_decision = 'approved' AND kind = 'trial' AND held != 'relay_gone' ORDER BY requested_at"):
                 self.decide_auto(r, BUTTON)   # (a paid kind is never signed by a button: it waits for the payment proof in this program)
             # 2. the policy the owner switched on, for the rest
             pol = s.policy()
             if pol['auto_trials']:
-                for r in s.rows("SELECT * FROM requests WHERE source = 'relay' AND status = 'pending' AND NOT (kind = 'trial' AND tg_decision = 'approved') ORDER BY requested_at"):
+                for r in s.rows("SELECT * FROM requests WHERE source = 'relay' AND status = 'pending' AND NOT (kind = 'trial' AND tg_decision = 'approved') AND held != 'relay_gone' ORDER BY requested_at"):
                     self.decide_auto(r, 'auto-trial')   # (a trial the owner approved on the phone was handled above: this loop must not hold or re-word it)
             for r in s.rows("SELECT * FROM requests WHERE source = 'relay' AND status IN ('approved', 'refused') AND relayed = 0 ORDER BY requested_at"):
                 self.deliver(r)
@@ -202,12 +207,16 @@ class AutoTrial:
         """Requests this program still holds as waiting but the relay no longer lists: the owner pressed «❌ رفض» on Telegram, the request
         timed out, or it was replaced. Ask the relay what happened and close them here too, so a later click cannot sign for a closed request."""
         s = self.s
-        ours = [r for r in s.rows("SELECT id, relay_id, kind, device FROM requests WHERE source = 'relay' AND status = 'pending'") if r['relay_id'] not in seen]
+        ours = [r for r in s.rows("SELECT id, relay_id, kind, device, requested_at FROM requests WHERE source = 'relay' AND status = 'pending'") if r['relay_id'] not in seen]
         if not ours:
             return
         states = s.relay.states([r['relay_id'] for r in ours])
         for r in ours:
-            self.close_from_relay(r, states.get(r['relay_id']) or {})
+            st = states.get(r['relay_id'])
+            if st is None:
+                self.relay_gone(r)
+            else:
+                self.close_from_relay(r, st)
 
     def close_from_relay(self, r: dict, st: dict) -> bool:
         """Close a waiting request here because the relay says it is no longer waiting. Returns True when it was closed."""
@@ -215,7 +224,7 @@ class AutoTrial:
         if st.get('status') == 'pending':
             return False  # still waiting on the relay (it just fell outside the page we read): nothing changed
         by = 'telegram' if st.get('owner_decision') == 'denied' else 'relay'
-        reason = 'owner_refused' if by == 'telegram' else ('expired' if st.get('status') in ('expired', None) else 'closed_elsewhere')
+        reason = 'owner_refused' if by == 'telegram' else ('expired' if st.get('status') == 'expired' else 'closed_elsewhere')
         with s.lock:
             done = s.db.execute("UPDATE requests SET status = 'refused', decided_at = ?, decided_by = ?, held = ?, relayed = 2 WHERE id = ? AND status = 'pending'",
                                 (now_iso(), by, reason, r['id'])).rowcount
@@ -224,10 +233,39 @@ class AutoTrial:
             self.last['refused'] += 1
         return bool(done)
 
+    def relay_gone(self, r: dict):
+        """The relay does not know this waiting request at all (a different relay was set up, or its record is gone). That is not «refused» or
+        «expired»: the request is kept for the owner, marked, and no automatic round signs it, until the relay lists it again or it is old
+        enough that no shop is still waiting (then it is closed as expired)."""
+        s = self.s
+        age = time.time() - (self._epoch(r.get('requested_at')) or time.time())
+        if age > RELAY_FORGETS:
+            self.close_from_relay(r, {'status': 'expired'})
+            return
+        with s.lock:
+            marked = s.db.execute("UPDATE requests SET held = 'relay_gone' WHERE id = ? AND status = 'pending' AND held != 'relay_gone'", (r['id'],)).rowcount
+        if marked:
+            s.audit('studio', 'request.relay_gone', {'id': r['id']})
+            self.last['held'] += 1
+
+    @staticmethod
+    def _epoch(stamp) -> float | None:
+        try:
+            return time.mktime(time.strptime(stamp, '%Y-%m-%dT%H:%M:%SZ')) - time.timezone
+        except (TypeError, ValueError):
+            return None
+
+    def relay_state(self, r: dict) -> str:
+        """Before signing: 'closed' (the relay closed it, so it is closed here too), 'gone' (the relay does not know it) or 'open'."""
+        st = self.s.relay.states([r['relay_id']], timeout=CHECK_SECONDS).get(r['relay_id'])
+        if st is None:
+            return 'gone'
+        return 'closed' if self.close_from_relay(r, st) else 'open'
+
     def refresh_one(self, r: dict) -> bool:
-        """Before the owner signs for a relay request in this program: has the relay closed it meanwhile (a «❌ رفض» on the phone)?"""
-        st = self.s.relay.states([r['relay_id']]).get(r['relay_id']) or {}
-        return self.close_from_relay(r, st)
+        """Before the owner signs for a relay request in this program: has the relay closed it meanwhile (a «❌ رفض» on the phone)?
+        A request the relay does not know is not «closed»: the owner decides, and delivery reports what the relay says."""
+        return self.relay_state(r) == 'closed'
 
     def decide_auto(self, r: dict, by: str):
         """Decide one waiting request without the owner at the keyboard: `by` is 'auto-trial' (the owner's policy) or 'telegram' (the owner's
@@ -256,7 +294,11 @@ class AutoTrial:
                 self.tell('locked', r['id'], f'🔒 فيه طلب تجربة {"وافقت عليه" if approved else "مستني"} والبرنامج مقفول\nالجهاز: {r["device"]}\nافتح برنامج التراخيص واكتب كلمة السر.')
             return
         try:  # the owner may have refused it on the phone since this round pulled it: ask the relay once more, right before signing
-            if self.refresh_one(r):
+            state = self.relay_state(r)
+            if state == 'closed':
+                return
+            if state == 'gone':  # a code nobody can receive is not signed on its own: the owner decides
+                self.relay_gone(r)
                 return
         except RelayError as e:
             if e.status != 404:  # (404: a relay older than 0.14 has no such call and no buttons either: nothing to re-check)
@@ -303,6 +345,11 @@ class AutoTrial:
         if not telegram_configured():
             return
         stale = int(time.time()) - CLAIM_SECONDS  # a claim older than this was left by a send that died (PC shut down): it is taken again
+        cutoff = time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime(time.time() - COPY_WINDOW))
+        with s.lock:  # old, never-sent copies are settled now (3 = skipped): the shop was answered through the relay, the owner can read the code in the program
+            skipped = s.db.execute("UPDATE requests SET code_sent = 3 WHERE source = 'relay' AND status = 'approved' AND code_sent IN (0, 2) AND COALESCE(decided_at, '') < ?", (cutoff,)).rowcount
+        if skipped:
+            s.audit('studio', 'request.copy_skipped', {'count': skipped})
         for r in s.rows("SELECT * FROM requests WHERE source = 'relay' AND status = 'approved' AND (code_sent = 0 OR (code_sent = 2 AND COALESCE(code_claim, 0) < ?)) "
                         "ORDER BY requested_at", stale):
             row = s.one('SELECT code, serial FROM codes WHERE serial = ?', r['serial'])
@@ -314,7 +361,7 @@ class AutoTrial:
             if not claimed:
                 continue
             ok = telegram(f'✅ اتصدّر {html_escape(KIND_AR[r["kind"]])}\nالجهاز: {html_escape(r["device"] or "")}\nرقم الكود: {html_escape(row["serial"])}\n'
-                          f'لو المحل معاه نت هيتفعّل لوحده. لو لأ، ابعت له الكود ده يكتبه في شاشة التفعيل:\n<code>{html_escape(row["code"])}</code>', html=True)
+                          f'لو المحل معاه نت هيتفعّل لوحده. لو لأ، ابعت له الكود ده يكتبه في شاشة التفعيل:\n<code>{html_escape(row["code"])}</code>', html=True, private=True)
             with s.lock:
                 s.db.execute('UPDATE requests SET code_sent = ? WHERE id = ?', (1 if ok else 0, r['id']))
             if ok:
@@ -331,12 +378,23 @@ class AutoTrial:
         self.deliver(r)
 
     # ------------------------------------------------------------------ owner's decisions on a relay request
-    def owner_decided(self, rid: str):
-        """The owner approved or refused in the studio: send the outcome to the shop through the relay (best effort, retried each round)."""
-        r = self.s.one('SELECT * FROM requests WHERE id = ?', rid)
-        if r and r['source'] == 'relay':
-            self.deliver(r)
-            self.send_copies()
+    def owner_decided(self, rid: str, defer: bool = False):
+        """The owner approved or refused in the studio: send the outcome to the shop through the relay (best effort, retried each round).
+        `defer`: from a page click, the network work (the relay, then Telegram) runs on its own thread: the decision is already saved and
+        signed, and the owner's window must not wait up to a minute for a slow network."""
+        if defer:
+            threading.Thread(target=self._deliver_now, args=(rid,), daemon=True).start()
+        else:
+            self._deliver_now(rid)
+
+    def _deliver_now(self, rid: str):
+        try:
+            r = self.s.one('SELECT * FROM requests WHERE id = ?', rid)
+            if r and r['source'] == 'relay':
+                self.deliver(r)
+                self.send_copies()
+        except Exception:  # a failure here is retried by the next round: it must never surface as an error in a finished decision
+            self.last.update(ok=False, error='deliver.crash')
 
     # ------------------------------------------------------------------ background loop
     def loop(self, stop: threading.Event, every: float = 60.0):

@@ -36,6 +36,7 @@ REASON_AR = {
     'relay_down': 'مفيش اتصال بالوسيط',
     'expired': 'الطلب انتهى عند الوسيط',
     'closed_elsewhere': 'الطلب اتقفل عند الوسيط',
+    'relay_gone': 'الوسيط مابقاش يعرف الطلب ده: راجعه بنفسك',
 }
 
 
@@ -132,12 +133,12 @@ class Relay:
     def refuse(self, relay_id: str, reason: str = 'owner_refused'):
         return self._call('POST', '/licence/decide', {'id': relay_id, 'action': 'refuse', 'reason': reason})
 
-    def states(self, ids: list[str]) -> dict:
+    def states(self, ids: list[str], timeout: float = 15) -> dict:
         """What became of requests this studio still holds as waiting (the owner's «❌ رفض» button closes one on the relay at once).
         An id the relay no longer knows is absent from the answer."""
         out: dict = {}
         for i in range(0, len(ids), 50):
-            out.update(self._call('POST', '/licence/states', {'ids': ids[i:i + 50]}).get('states') or {})
+            out.update(self._call('POST', '/licence/states', {'ids': ids[i:i + 50]}, timeout=timeout).get('states') or {})
         return out
 
     def events(self, limit: int = 100) -> list[dict]:
@@ -148,11 +149,25 @@ def bot_token() -> str:
     return os.environ.get('TELEGRAM_BOT_TOKEN') or os.environ.get('CC_TG_BOT_TOKEN') or ''
 
 
+def _chat_setting() -> str:
+    """The configured chat id, trimmed (a pasted id often carries a space or a line break). A blank first name does not hide the second."""
+    for name in ('TELEGRAM_OWNER_CHAT_ID', 'CC_TG_CHAT_ID'):
+        value = (os.environ.get(name) or '').strip()
+        if value:
+            return value
+    return ''
+
+
 def owner_chat() -> str:
-    """The owner's chat id, only if it is the owner's own private chat (a positive number). A group or channel id is refused: signed codes are
-    sent to this chat, and everybody in a group would read them."""
-    chat = os.environ.get('TELEGRAM_OWNER_CHAT_ID') or os.environ.get('CC_TG_CHAT_ID') or ''
+    """The owner's own private chat (a positive number), the only place a signed code is sent: everybody in a group would read it."""
+    chat = _chat_setting()
     return chat if re.fullmatch(r'\d{1,20}', chat) else ''
+
+
+def alert_chat() -> str:
+    """Where plain alerts (no code in them) go: the owner's chat, or a group or channel the owner made for it (a negative number)."""
+    chat = _chat_setting()
+    return chat if re.fullmatch(r'-?\d{1,20}', chat) else ''
 
 
 def telegram_configured() -> bool:
@@ -176,9 +191,10 @@ def _tg_call(method: str, payload: dict):
         return None
 
 
-def telegram(text: str, html: bool = False) -> bool:
-    """Tell the owner's phone. Returns False (never raises) when Telegram is not set up or not reachable. `html` lets the text carry <code>."""
-    chat = owner_chat()
+def telegram(text: str, html: bool = False, private: bool = False) -> bool:
+    """Tell the owner's phone. Returns False (never raises) when Telegram is not set up or not reachable. `html` lets the text carry <code>.
+    `private`: the text carries a signed code, so it only goes to the owner's own private chat, never to a group."""
+    chat = owner_chat() if private else alert_chat()
     if not chat:
         return False
     return _tg_call('sendMessage', {'chat_id': chat, 'text': text, 'disable_web_page_preview': True, **({'parse_mode': 'HTML'} if html else {})}) is not None

@@ -240,7 +240,7 @@ function codeFile(c) {
 
 const KIND = { trial: 'تجربة 14 يوم', monthly: 'اشتراك شهري', permanent: 'تفعيل دائم' };
 const HELD = { locked: 'البرنامج مقفول: افتحه وهيتعمل لوحده', daily_cap: 'عدد التجارب النهاردة وصل الحد', review_src: 'طلبات كتير من نفس المكان: راجعها', payment_needed: 'مستني تأكيد الدفع',
-  already_used: 'الكمبيوتر ده خد تجربة قبل كده', owner_refused: 'إنت رفضت', expired: 'الطلب انتهى عند الوسيط', closed_elsewhere: 'الطلب اتقفل عند الوسيط', bad_device: 'رقم الجهاز مش مظبوط', bad_machine: 'بصمة الكمبيوتر مش مظبوطة', unknown_product: 'البرنامج مش معروف' };
+  already_used: 'الكمبيوتر ده خد تجربة قبل كده', owner_refused: 'إنت رفضت', expired: 'الطلب انتهى عند الوسيط', closed_elsewhere: 'الطلب اتقفل عند الوسيط', relay_gone: 'الوسيط مابقاش يعرف الطلب ده: راجعه بنفسك', bad_device: 'رقم الجهاز مش مظبوط', bad_machine: 'بصمة الكمبيوتر مش مظبوطة', unknown_product: 'البرنامج مش معروف' };
 const POLICY_SAYS = { issue: 'السياسة هتصدّره لوحدها', reissue: 'السياسة هتبعت نفس الكود تاني', refuse: 'السياسة هترفضه', hold: 'السياسة هتسيبه لك' };
 
 async function relayPanel(page) {

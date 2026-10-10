@@ -196,6 +196,21 @@ test('pressing approve twice (a double click, or Telegram sending it again) does
   assert.equal(calls('answerCallbackQuery').at(-1).body.text, 'وافقت قبل كده ✅');
 });
 
+test('pressing approve again after the approval has gone stale does not promise a code (review of PR #42)', async () => {
+  const e = env({LICENCE_APPROVAL_HOURS: '2'});
+  const a = await ask(e);
+  await press(e, ok(a.id));
+  await press(e, ok(a.id), {id: 'inside'}, NOW + 3600);
+  assert.equal(calls('answerCallbackQuery').at(-1).body.text, 'وافقت قبل كده ✅', 'inside the window it is still the approval');
+  const before = events(e).length;
+  await press(e, ok(a.id), {id: 'late'}, NOW + 3 * 3600);
+  assert.equal(calls('answerCallbackQuery').at(-1).body.text, 'الموافقة قديمة: خلي المحل يطلب تاني');
+  assert.match(calls('editMessageText').at(-1).body.text, /الموافقة قديمة/);
+  assert.deepEqual(calls('editMessageText').at(-1).body.reply_markup.inline_keyboard, [], 'no approve button is left on it');
+  assert.equal(events(e).length, before + 1, 'one audit line: the stale press');
+  assert.equal(row(e, a.id).status, 'pending', 'nothing is signed or closed by it');
+});
+
 test('«رفض» closes the request at once, the shop sees the refusal, and a refusal is final', async () => {
   const e = env();
   const a = await ask(e);

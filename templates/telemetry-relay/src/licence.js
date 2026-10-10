@@ -305,7 +305,7 @@ export async function handleTelegram(request, env, ctx, now) {
     return reply({ok: true});
   }
   const [, action, id] = m;
-  const row = await env.DB.prepare('SELECT r.id, r.product, r.kind, r.device, r.status, r.reason, r.created_at, o.decision AS owner_decision '
+  const row = await env.DB.prepare('SELECT r.id, r.product, r.kind, r.device, r.status, r.reason, r.created_at, o.decision AS owner_decision, o.decided_at AS owner_decided_at '
     + 'FROM licence_requests r LEFT JOIN licence_owner o ON o.request_id = r.id WHERE r.id = ?').bind(id).first();
   const message = cb.message && Number.isInteger(cb.message.message_id) ? cb.message.message_id : null;
   // Show the outcome on the message itself (and drop the buttons it no longer needs). Rebuilt from our own row, never from the
@@ -336,6 +336,12 @@ export async function handleTelegram(request, env, ctx, now) {
   }
   // action === 'ok'
   if (row.status !== 'pending') return closed();
+  if (row.owner_decision === 'approved' && now - row.owner_decided_at > approvalSeconds(env)) {  // an approval nobody used for days no longer counts: do not say the program will issue it
+    await note(env, now, id, 'tg_refused', 'stale');
+    await answer('الموافقة قديمة: خلي المحل يطلب تاني');
+    await show('⌛ الموافقة قديمة ومابقتش تنفع: خلي المحل يطلب تاني');
+    return reply({ok: true});
+  }
   if (row.owner_decision === 'approved') {
     await answer('وافقت قبل كده ✅');
     await show('✅ وافقت: برنامج التراخيص هيصدر الكود', true);
