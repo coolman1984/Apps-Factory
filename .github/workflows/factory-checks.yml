@@ -64,6 +64,7 @@ jobs:
           python -m unittest discover -s packages/af-consent/tests -v
           python -m unittest discover -s packages/af-telemetry/tests -v
           node --check packages/af-consent/af-consent.js
+          node --test packages/af-consent/tests/core.test.mjs
           node --check packages/af-telemetry/af-telemetry.js
           node --test packages/af-telemetry/tests/core.test.mjs
       - name: Telemetry relay tests (Cloudflare Worker + D1 shim)

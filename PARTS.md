@@ -20,16 +20,16 @@ Product use below was read from the product clones on 2026-10-09 (Store, Teacher
 - **Used by:** Store (vendored codes, 0.3.0: trial, monthly subscription and permanent codes). Teachers, Yousef-Transportation and Mr.Ayman-HR carry their own Ed25519 code and are not on the vendored copy.
 
 ### af-guide — guided onboarding (role courses, coach, "?", problem links, style lint)
-- **Version:** 0.1.2 (`packages/af-guide/af_guide.py`). Checker, Arabic style lint (`style/ar-lexicon.json`), browser walker (`testing/walk_guides.py`), JS engine and CSS.
+- **Version:** 0.1.3 (`packages/af-guide/af_guide.py`). Checker, Arabic style lint (`style/ar-lexicon.json`), browser walker (`testing/walk_guides.py`), JS engine and CSS.
 - **Vendor:** `python3 scripts/vendor_guide.py <product>` → `server/afguide.py`, `server/afguide_ar_lexicon.json`, `<js>/vendor/af-guide.js`, `<css>/af-guide.css`. Check a product's guide with `python3 scripts/factory.py guide <product>/guide --release`.
 - **Spec:** `docs/GUIDED_ONBOARDING_STANDARD.md` and `docs/HELP_AND_GUIDANCE_STANDARD.md` (Arabic register, learning path); package `packages/af-guide/README.md`. Controls HELP-07, HELP-09, HELP-11.
-- **Used by:** Store (vendored 0.1.2 as `server/afguide.py`, byte-identical below its header; checked 2026-10-09). Demo shop in `packages/af-guide/examples/shop`.
+- **Used by:** Store (vendored 0.1.3 as `server/afguide.py`, byte-identical below its header; checked 2026-10-09). Demo shop in `packages/af-guide/examples/shop`.
 
 ### af-consent — two-level consent records
-- **Version:** 0.1.0 (`packages/af-consent/af_consent.py`).
+- **Version:** 0.1.1 (`packages/af-consent/af_consent.py`).
 - **Vendor:** `python3 scripts/vendor_consent.py <product>` → `server/afconsent.py`, `<js>/vendor/af-consent.js`, `<css>/af-consent.css`.
 - **Spec:** `docs/PRIVACY_TELEMETRY_STANDARD.md`; package `packages/af-consent/README.md`. Control PRIV-01.
-- **Used by:** Store (vendored 0.1.0 as `server/afconsent.py`, byte-identical below its header; checked 2026-10-09).
+- **Used by:** Store (vendored 0.1.1 as `server/afconsent.py`, byte-identical below its header; checked 2026-10-09).
 
 ### af-telemetry — ids-and-counts telemetry, offline outbox, problem reports
 - **Version:** 0.2.0 (`packages/af-telemetry/af_telemetry.py`), protocol 2, taxonomy `events.json`.

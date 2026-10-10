@@ -71,7 +71,11 @@ REQUEST_COLUMNS = (('source', "TEXT NOT NULL DEFAULT 'agent'"), ('relay_id', 'TE
                    ('relayed', 'INTEGER NOT NULL DEFAULT 0'), ('payment_confirmed', 'INTEGER NOT NULL DEFAULT 0'),
                    # the owner's «✅ موافق» on Telegram (recorded on the relay; never a licence by itself) and whether the owner's phone got a copy of the code
                    ('tg_decision', "TEXT NOT NULL DEFAULT ''"), ('tg_at', 'INTEGER'), ('code_sent', 'INTEGER NOT NULL DEFAULT 0'),
-                   ('code_claim', 'INTEGER'))
+                   ('code_claim', 'INTEGER'),
+                   # when a decision was taken (moved to `deciding`, in nanoseconds): it is also that decision's token (only its holder may finish or
+                   # release it), and only one older than DECIDE_LEASE can have been left by a studio that died
+                   ('decide_claim', 'INTEGER'))
+DECIDE_LEASE = 120  # seconds: signing and saving one decision takes milliseconds, so a longer one belongs to a studio that is gone
 UNATTENDED = ('auto-trial', 'telegram')  # actors that sign without the owner at the keyboard: they never keep the key open
 MONTHLY_DAYS, MONTHLY_GRACE = 30, 3   # owner decision 2026-10-09: the Studio defaults for a monthly code
 MAX_KEEP_UNLOCKED_HOURS = 12
@@ -122,6 +126,42 @@ class Studio:
         self.auto = AutoTrial(self)
         self._unlock_lock = threading.Lock()
         self._unlock_failures, self._unlock_blocked_until = 0, 0.0
+        self._recover_deciding()
+
+    def _recover_deciding(self):
+        """A request is moved to `deciding` before the code is signed and to approved/refused after. A studio that was shut down in between
+        (power cut, killed) would leave it there for ever: not waiting, not decided, never delivered. Each such request older than the lease is put
+        right (a younger one belongs to a studio that is alive, maybe another window on the same folder, and is left alone): with a code already
+        signed for it (codes are append-only and tied to the request) it is approved with that code, by whoever signed it, with the payment
+        the owner had confirmed (saved when the decision was taken, before signing), and delivered by the next round; without one it waits again
+        and the payment must be confirmed again. A paid request found with a code but no saved payment was left by a version that saved the
+        confirmation only after signing: its code is kept (never a second one) but it is not approved on its own, it waits for the owner to confirm
+        the payment again (his reference was never saved and cannot be guessed), and the same code then goes out."""
+        now = time.time_ns()
+        # old: taken longer ago than the lease, or stamped by a clock that was put back since (a dead BIOS battery after a power cut): the stamp is then
+        # in the future, and waiting for the clock to catch up would leave the request stuck
+        stale, future = now - DECIDE_LEASE * 10**9, now + DECIDE_LEASE * 10**9
+        old = '(COALESCE(decide_claim, 0) < ? OR decide_claim > ?)'
+        for r in self.rows(f"SELECT id, payment_ref, payment_confirmed, source, kind FROM requests WHERE status = 'deciding' AND {old}", stale, future):
+            code = self.one('SELECT serial, issued_by FROM codes WHERE request_id = ?', r['id'])
+            legacy_paid = bool(code) and r['source'] == 'relay' and r['kind'] in ('monthly', 'permanent') and not r['payment_confirmed']
+            with self.lock:
+                if legacy_paid:
+                    moved = self.db.execute(f"UPDATE requests SET status = 'pending', decide_claim = NULL WHERE id = ? AND status = 'deciding' "
+                                            f"AND {old} AND payment_confirmed = 0", (r['id'], stale, future)).rowcount
+                elif code:
+                    moved = self.db.execute("UPDATE requests SET status = 'approved', decided_at = COALESCE(decided_at, ?), decided_by = COALESCE(NULLIF(decided_by, ''), ?), "
+                                            f"serial = ?, held = '', decide_claim = NULL WHERE id = ? AND status = 'deciding' AND {old}",
+                                            (now_iso(), code['issued_by'], code['serial'], r['id'], stale, future)).rowcount
+                else:
+                    moved = self.db.execute("UPDATE requests SET status = 'pending', payment_confirmed = 0, decide_claim = NULL "
+                                            f"WHERE id = ? AND status = 'deciding' AND {old} "
+                                            "AND NOT EXISTS (SELECT 1 FROM codes WHERE request_id = ?)",  # (a code signed since the look above: the next pass approves with it)
+                                            (r['id'], stale, future, r['id'])).rowcount
+            if moved:
+                self.audit('studio', 'request.recovered', {'id': r['id'], 'serial': code['serial'] if code else None,
+                                                           **({'payment': 'confirm again'} if legacy_paid else {}),
+                                                           **({'payment_ref': r['payment_ref']} if code and r['payment_ref'] and not legacy_paid else {})})
 
     # ------------------------------------------------------------------ helpers
     def rows(self, sql, *args):
@@ -279,7 +319,7 @@ class Studio:
             raise StudioError('device.required', 'A trial or perpetual code must be tied to the customer\'s device code (so it cannot be passed on).')
 
     def issue(self, product, edition, device, customer='', phone='', days=None, first_day=None, grace_days=0, seats=1, note='',
-              actor='owner', request_id=None, machine=None):
+              actor='owner', request_id=None, machine=None, claim=None):
         if request_id:  # the same request asked twice (a retry after a crash) gives the same code, never a second one
             done = self.one('SELECT serial FROM codes WHERE request_id = ?', request_id)
             if done:
@@ -298,6 +338,13 @@ class Studio:
         with self.lock:
             self.db.execute('BEGIN IMMEDIATE')
             try:
+                if claim and not self.db.execute("SELECT 1 FROM requests WHERE id = ? AND status = 'deciding' AND decide_claim = ?", (request_id, claim)).fetchone():
+                    raise StudioError('request.closed', 'This decision was taken over (it waited more than two minutes) and is not yours any more.', 409)
+                if request_id:  # asked again under the file's write lock: another window on this folder may have signed it since the check above
+                    done = self.db.execute('SELECT serial FROM codes WHERE request_id = ?', (request_id,)).fetchone()
+                    if done:
+                        self.db.execute('ROLLBACK')
+                        return self.code(done['serial'])
                 if machine and edition == 'trial':  # one automatic trial per PC for ever: the primary key refuses a second, even in a race
                     try:
                         self.db.execute('INSERT INTO trial_ledger(product, machine, device, serial, relay_id, at) VALUES (?, ?, ?, ?, ?, ?)',
@@ -403,28 +450,39 @@ class Studio:
                     raise StudioError('request.closed', 'The owner already refused or closed this request from Telegram. The shop will not get a code for it.', 409)
             except RelayError:
                 pass  # the relay cannot be reached (or is older than 0.14): the owner may still sign; delivery is retried and a closed request is reported then
-        if not self.claim(rid):  # the automatic round took it a moment ago
+        token = self.claim(rid, ref if approve and paid else None)
+        if not token:  # the automatic round took it a moment ago
             raise StudioError('request.closed', 'This request was decided a moment ago.', 409)
         try:
-            serial = self._decide_claimed(r, approve, actor, relay, paid, ref)
+            serial = self._decide_claimed(r, approve, actor, relay, paid, ref, token)
         except BaseException:
-            self.release(rid)
+            self.release(rid, token)
             raise
         if relay:
             self.auto.owner_decided(rid)
         return self.one('SELECT * FROM requests WHERE id = ?', rid)
 
-    def claim(self, rid):
+    def claim(self, rid, payment_ref=None):
         """One decision per request: whoever moves it from pending to deciding decides it (the owner or the automatic round), and only
-        that one signs and delivers (review of PR #34: both could decide the same request and the relay and the Studio disagreed)."""
+        that one signs and delivers (review of PR #34: both could decide the same request and the relay and the Studio disagreed).
+        A paid approval saves the confirmed payment here, in the same step, so a studio switched off after signing still knows the money was confirmed.
+        Returns the decision's token (0 when it was not taken). Signing, saving and releasing must show it: a window that slept longer than DECIDE_LEASE
+        and finds its decision taken back and decided by another cannot overwrite that decision."""
+        token = time.time_ns()
         with self.lock:
-            return self.db.execute("UPDATE requests SET status = 'deciding' WHERE id = ? AND status = 'pending'", (rid,)).rowcount == 1
+            if payment_ref is None:
+                taken = self.db.execute("UPDATE requests SET status = 'deciding', decide_claim = ? WHERE id = ? AND status = 'pending'", (token, rid)).rowcount == 1
+            else:
+                taken = self.db.execute("UPDATE requests SET status = 'deciding', decide_claim = ?, payment_ref = ?, payment_confirmed = 1 "
+                                        "WHERE id = ? AND status = 'pending'", (token, payment_ref, rid)).rowcount == 1
+        return token if taken else 0
 
-    def release(self, rid):
+    def release(self, rid, token=None):
         with self.lock:
-            self.db.execute("UPDATE requests SET status = 'pending' WHERE id = ? AND status = 'deciding'", (rid,))
+            self.db.execute("UPDATE requests SET status = 'pending', payment_confirmed = 0, decide_claim = NULL WHERE id = ? AND status = 'deciding' "
+                            "AND (? IS NULL OR decide_claim = ?)", (rid, token, token))
 
-    def _decide_claimed(self, r, approve, actor, relay, paid, ref):
+    def _decide_claimed(self, r, approve, actor, relay, paid, ref, token):
         rid = r['id']
         serial = None
         if approve:
@@ -435,11 +493,14 @@ class Studio:
             if machine and self.one('SELECT 1 FROM trial_ledger WHERE product = ? AND machine = ?', r['product'], machine):
                 machine = None  # the owner knowingly gives a second trial to this PC: it stays in the audit, the ledger keeps the first
             serial = self.issue(r['product'], r['edition'], r['device'], r['customer'], r['phone'], days, grace_days=grace, note=r['note'],
-                                actor=actor, request_id=rid, machine=machine)['serial']
+                                actor=actor, request_id=rid, machine=machine, claim=token)['serial']
         with self.lock:
-            self.db.execute('UPDATE requests SET status = ?, decided_at = ?, decided_by = ?, serial = ?, held = ?, payment_ref = ?, payment_confirmed = ? '
-                            'WHERE id = ?', ('approved' if approve else 'refused', now_iso(), actor, serial, '' if approve else 'owner_refused', ref,
-                                             1 if (approve and paid) else 0, rid))
+            saved = self.db.execute("UPDATE requests SET status = ?, decided_at = ?, decided_by = ?, serial = ?, held = ?, payment_ref = ?, payment_confirmed = ? "
+                                    "WHERE id = ? AND status = 'deciding' AND decide_claim = ?",
+                                    ('approved' if approve else 'refused', now_iso(), actor, serial, '' if approve else 'owner_refused', ref,
+                                     1 if (approve and paid) else 0, rid, token)).rowcount
+        if not saved:  # taken back after the lease and decided by someone else: that decision stands
+            raise StudioError('request.closed', 'This decision was taken over (it waited more than two minutes) and is not yours any more.', 409)
         self.audit(actor, 'request.' + ('approve' if approve else 'refuse'), {'id': rid, 'serial': serial, **({'payment_ref': ref} if paid and approve else {})})
         return serial
 
