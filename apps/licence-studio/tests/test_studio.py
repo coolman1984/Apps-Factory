@@ -154,6 +154,35 @@ class ServiceTests(unittest.TestCase):
             codes.issue_code = real
         return got, bad
 
+    def test_the_agents_daily_limit_counts_the_day_the_code_is_stamped_with(self):
+        """Review of PR #42: codes are stamped with the UTC day but the limit looked for the PC's local day, so on a PC whose date differs from
+        UTC's (most of every day somewhere) the codes made today were never counted and the limit never held."""
+        import time
+        from datetime import datetime, timezone
+        utc_day = lambda: datetime.now(timezone.utc).date().isoformat()  # noqa: E731
+        self.s.create_key(PASS)
+        self.s.set_setting('agent_may_issue_trials', True)
+        self.s.set_setting('agent_daily_limit', 1)
+        before = os.environ.get('TZ')
+        d1, d2 = codes.device_code('pc-2', 'i-2'), codes.device_code('pc-3', 'i-3')
+        try:
+            for zone in ('Pacific/Kiritimati', 'Etc/GMT+12'):          # UTC+14 and UTC-12: one of them is on another date than UTC right now
+                os.environ['TZ'] = zone
+                time.tzset()
+                if date.today().isoformat() != utc_day():
+                    break
+            self.assertNotEqual(date.today().isoformat(), utc_day())
+            self.assertEqual(self.s.agent_issue_trial('al-store', d1, 'Shop')['status'], 'issued')
+            with self.assertRaises(StudioError) as e:
+                self.s.agent_issue_trial('al-store', d2, 'Shop')
+            self.assertEqual(e.exception.status, 429)
+        finally:
+            if before is None:
+                os.environ.pop('TZ', None)
+            else:
+                os.environ['TZ'] = before
+            time.tzset()
+
     def test_two_agent_requests_for_one_device_at_once_make_one_trial(self):
         """Review of PR #26: «one trial per device» was a look followed by a write, so two requests arriving together (a double click, two windows)
         both passed the look and both trials were signed."""

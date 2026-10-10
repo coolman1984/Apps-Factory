@@ -88,6 +88,11 @@ class StudioError(Exception):
         self.key, self.status = key, status
 
 
+def utc_today():
+    """The day `issued_at` is written with (now_iso is UTC): the daily count must use the same day, not the PC's local one."""
+    return datetime.now(timezone.utc).date().isoformat()
+
+
 def now_iso():
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace('+00:00', 'Z')
 
@@ -343,7 +348,7 @@ class Studio:
                 if agent_limits:  # the agent's two limits are counted under the write lock too: two requests together cannot both pass a look taken before either wrote
                     if device and self.db.execute('SELECT 1 FROM codes WHERE product = ? AND device = ?', (product, device)).fetchone():
                         raise StudioError('agent.repeat', 'This device already had a code. A new or longer code is the owner\'s decision.', 409)
-                    used = self.db.execute("SELECT COUNT(*) AS n FROM codes WHERE issued_by = 'agent' AND substr(issued_at, 1, 10) = ?", (date.today().isoformat(),)).fetchone()['n']
+                    used = self.db.execute("SELECT COUNT(*) AS n FROM codes WHERE issued_by = 'agent' AND substr(issued_at, 1, 10) = ?", (utc_today(),)).fetchone()['n']
                     if used >= agent_limits['daily']:
                         raise StudioError('agent.limit', 'The agent reached today\'s limit of trial codes. The owner can raise it.', 429)
                 if request_id:  # asked again under the file's write lock: another window on this folder may have signed it since the check above
@@ -523,8 +528,7 @@ class Studio:
         normalized = codes.group(codes.normalize(device), 5) if isinstance(device, str) else None
         if normalized and self.one('SELECT 1 FROM codes WHERE product = ? AND device = ?', product, normalized):
             raise StudioError('agent.repeat', 'This device already had a code. A new or longer code is the owner\'s decision.', 409)
-        today = date.today().isoformat()
-        used = self.one("SELECT COUNT(*) AS n FROM codes WHERE issued_by = 'agent' AND substr(issued_at, 1, 10) = ?", today)['n']
+        used = self.one("SELECT COUNT(*) AS n FROM codes WHERE issued_by = 'agent' AND substr(issued_at, 1, 10) = ?", utc_today())['n']
         if used >= pol['agent_daily_limit']:
             raise StudioError('agent.limit', 'The agent reached today\'s limit of trial codes. The owner can raise it.', 429)
         return {'status': 'issued', 'code': self.issue(product, 'trial', device, customer, phone, days, note=note, actor='agent',

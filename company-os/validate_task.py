@@ -24,7 +24,11 @@ SENSITIVE_WORDS = {
     "delete", "drop", "wipe", "purge", "truncate", "destroy",
     "secret", "secrets", "credential", "credentials", "password", "passwords", "token", "tokens", "signing", "private",
 }
+# Real customer data and reaching customers: sensitive unless the action says it is synthetic («read_synthetic_data» is fine, «read_customer_data» is not).
+DATA_WORDS = {"customer", "customers", "client", "clients", "data", "record", "records", "personal", "real", "pii", "database", "db", "backup", "backups"}
+OUTREACH_WORDS = {"contact", "call", "upload", "export", "share", "notify", "submit", "phone", "dm", "reply"}
 WRITE_WORDS = {"push", "write", "commit", "edit", "update", "change", "modify"}
+FAILED_TESTS = re.compile(r"(?<![\d.])[1-9]\d*\s*(?:failed|failures?|errors?|skipped|xfail)\b|(?-i:\b(?:FAILED|FAILURE|ERROR)\b)|\bnot\s+(?:green|passing|passed)\b|\bred\b", re.I)
 ACTIVE = {"ready", "working", "review", "owner_gate"}  # statuses in which a person or agent is expected to be doing the task
 
 
@@ -39,7 +43,8 @@ def sensitive_actions(allowed):
         if not isinstance(action, str):
             continue
         words = _words(action)
-        if words & SENSITIVE_WORDS or ("main" in words and words & WRITE_WORDS):
+        if (words & SENSITIVE_WORDS or ("main" in words and words & WRITE_WORDS)
+                or ((words & DATA_WORDS or words & OUTREACH_WORDS) and "synthetic" not in words)):
             found.append(action)
     return found
 
@@ -206,12 +211,15 @@ def validate_task(task, schema=None):
                 errors.append("$.tests_skipped: skipped tests are not green, a completed task cannot list any")
             if task.get("current_commit") and isinstance(task.get("tests_run"), list) and not task["tests_run"]:
                 errors.append("$.tests_run: a completed task with code (current_commit) must list the tests that were run on it")
+            for line in task.get("tests_run") if isinstance(task.get("tests_run"), list) else []:
+                if isinstance(line, str) and FAILED_TESTS.search(line):  # a description is free text: a recorded failure or skip is never read as green
+                    errors.append(f"$.tests_run: {line!r} records a failure or a skip; a completed task needs a clean run")
     return errors
 
 
 def batch_conflicts(tasks):
     """Work that would be done twice: the same id in two handoffs, or two ACTIVE tasks on the same branch or the same open PR."""
-    problems, ids, branches, prs = [], {}, {}, {}
+    problems, ids, branches, prs = [], {}, {}, {}  # a branch name is only unique inside its project (Factory and Store may both have fix/x)
     for index, task in enumerate(tasks):
         if not isinstance(task, dict):
             continue
@@ -224,9 +232,10 @@ def batch_conflicts(tasks):
             continue
         branch = task.get("branch")
         if isinstance(branch, str) and branch.strip():
-            if branch.strip() in branches:
-                problems.append(f"{name}: branch {branch!r} is already being worked on by {branches[branch.strip()]}")
-            branches.setdefault(branch.strip(), name)
+            bkey = (str(task.get("project", "")).strip().casefold(), branch.strip())
+            if bkey in branches:
+                problems.append(f"{name}: branch {branch!r} of {task.get('project')} is already being worked on by {branches[bkey]}")
+            branches.setdefault(bkey, name)
         for url in task.get("open_prs") or []:
             if isinstance(url, str):
                 if url.strip() in prs:
@@ -298,6 +307,8 @@ def main(argv=None):
     if args.stale_hours is not None:
         try:
             now = datetime.fromisoformat(args.now.replace("Z", "+00:00")) if args.now else datetime.now().astimezone()
+            if now.tzinfo is None or now.utcoffset() is None:
+                raise ValueError("timezone required")
         except ValueError:
             print("--now must be an RFC 3339 time with a timezone", file=sys.stderr)
             return 2

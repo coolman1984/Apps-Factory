@@ -437,12 +437,14 @@ class CompanyOSSafetyTests(unittest.TestCase):
 
     def test_a_handoff_cannot_pre_grant_money_customers_production_or_secrets(self):
         for action in ("send_payment", "refund_customer", "deploy_to_production", "publish_release", "merge_main", "force_push", "delete_customer_data",
-                       "send_whatsapp", "post_announcement", "rotate_signing_key", "read_secrets", "push_main", "Spend-Budget", "drop table"):
+                       "send_whatsapp", "post_announcement", "rotate_signing_key", "read_secrets", "push_main", "Spend-Budget", "drop table",
+                       "read_customer_data", "export_customer_records", "contact_customer", "call_client", "upload_backup", "read_real_database"):
             problems = self.validate(self.sample(allowed_actions=["read_repo", action]))
             self.assertTrue(any("is sensitive" in p and action in p for p in problems), (action, problems))
 
     def test_ordinary_actions_and_look_alike_words_are_accepted(self):
-        for action in ("read_repo", "run_synthetic_tests", "draft_report", "inspect_payload", "comment_on_pr", "push_branch", "read_main_branch", "write_tests"):
+        for action in ("read_repo", "run_synthetic_tests", "draft_report", "inspect_payload", "comment_on_pr", "push_branch", "read_main_branch", "write_tests",
+                       "read_synthetic_data", "export_synthetic_records"):
             self.assertEqual([p for p in self.validate(self.sample(allowed_actions=[action])) if "is sensitive" in p], [], action)
 
     def test_the_same_sensitive_action_is_fine_as_a_request_for_approval(self):
@@ -456,6 +458,12 @@ class CompanyOSSafetyTests(unittest.TestCase):
         self.assertTrue(any("must list the tests" in p for p in self.validate(self.done(tests_run=[]))))
         self.assertEqual(self.validate(self.done(current_commit=None, branch=None, tests_run=[])), [], "a task with no code needs no test list")
 
+    def test_a_recorded_failure_or_skip_in_the_test_list_is_never_green(self):
+        for line in ("pytest: 3 failed", "113 passed, 2 failed", "FAILED test_x", "5 skipped", "2 errors in 4s", "browser tests: not green", "suite is red"):
+            self.assertTrue(any("records a failure or a skip" in p for p in self.validate(self.done(tests_run=[line]))), line)
+        for line in ("python -m unittest discover -s tests: 113 passed, 0 failed, 0 skipped", "node --test: 34 passed", "Ran 304 tests OK"):
+            self.assertEqual(self.validate(self.done(tests_run=[line])), [], line)
+
     def test_the_same_work_cannot_be_carried_twice(self):
         a = self.sample(task_id="PX-101", status="working", branch="fix/shared-1")
         b = self.sample(task_id="PX-102", status="ready", branch="fix/shared-1")
@@ -468,6 +476,10 @@ class CompanyOSSafetyTests(unittest.TestCase):
         finished = self.sample(task_id="PX-105", status="done", branch="fix/shared-1")
         self.assertEqual(self.conflicts([a, finished]), [], "a finished task does not hold its branch")
         self.assertEqual(self.conflicts([self.sample(task_id="PX-106", branch=None), self.sample(task_id="PX-107", branch=None)]), [])
+        other = self.sample(task_id="PX-108", status="working", branch="fix/shared-1", project="Factory")
+        self.assertEqual(self.conflicts([a, other]), [], "the same branch name in another project is not the same work")
+        again = self.sample(task_id="PX-109", status="working", branch="fix/shared-1", project=a["project"])
+        self.assertTrue(self.conflicts([a, again]))
 
     def test_the_command_line_checks_several_files_together(self):
         a = self.sample(task_id="PX-201", status="working", branch="fix/cli-1")
@@ -499,6 +511,9 @@ class CompanyOSSafetyTests(unittest.TestCase):
             self.assertEqual(run.returncode, 3, run.stdout)
             self.assertIn("STALE: PX-302", run.stdout)
             self.assertNotIn("STALE: PX-301", run.stdout)
+            naive = subprocess.run([sys.executable, str(VALIDATOR), str(f), "--stale-hours", "24", "--now", "2026-10-10T12:00:00"], capture_output=True, text=True)
+            self.assertEqual(naive.returncode, 2, naive.stdout + naive.stderr)
+            self.assertIn("timezone", naive.stderr)
 
 
 if __name__ == "__main__":
