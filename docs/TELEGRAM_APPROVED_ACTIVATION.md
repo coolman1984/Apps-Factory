@@ -1,5 +1,5 @@
 # Telegram-owner-approved activation: Factory to Store
-Owner request: 2026-10-09. **DESIGN ONLY** until wired, checked and field accepted. This is a new feature and does not mean existing Telegram alert support is the same as instant licence activation.
+Owner request: 2026-10-09. **Status (Factory 0.14.0): `implemented` and tested end to end against a fake Telegram and an isolated test-only signing key. Not deployed, not field-verified.** Steps A–D of the implementation order are built (relay webhook with the owner's buttons, local signer, Store screen and polling); E and F (live bot on a real chat, Windows clean-PC trial, operator setup) still need the owner. The rest of this page is the design; what was built and the few places where it differs on purpose are in the section "What was built (0.14.0)" at the end.
 
 ## Desired buyer-visible experience
 Owner is installing Store in front of a shop:
@@ -50,3 +50,28 @@ E. System integration & malicious actor tests; Windows PR+main installer; full l
 F. Write operator setup: BotFather secret and chat-id in secured environment, worker URL, signing PC online/locked behavior, key recovery, support checklist; after user approval and tests, canary first.
 
 Source docs: [Factory current protection](PROTECTION_UPDATES_AND_SUPPORT.md), [patch bot architecture](CUSTOMER_PATCH_PIPELINE.md), [company execution](PIXEL_PLUS_EXECUTION_ROADMAP_2026.md).
+
+## What was built (0.14.0)
+
+| Step in the design | Where | How it is checked |
+|---|---|---|
+| Alert with **✅ موافق / ❌ رفض** (button data = action + opaque request id only) | `templates/telemetry-relay/src/licence.js` (`alertText`, `keyboard`) | `test/telegram.test.mjs` |
+| Webhook `POST /telegram`: secret token **and** allow-listed owner chat **and** callback actor; stale buttons refused; idempotent; refusals logged without secrets (capped; a wrong secret costs no database query) | `handleTelegram` | 19 relay tests: wrong/missing secret, other person, group chat, copied message, junk body/data, double click, old button, log cap |
+| **رفض** closes the request at once; a denial is final; **موافق** only records the owner's decision (table `licence_owner`); the owner may withdraw it until the code is signed | relay + `schema.sql` (a new table: re-running the file is the upgrade) | same |
+| Trusted signer: only the Licence Studio on the owner's PC, key unlocked, signs; the relay and the bot never hold a key or a signing endpoint | `apps/licence-studio` `autotrial.py` (`decide_auto` with `by='telegram'`) | `tests/test_telegram_buttons.py` (real Worker over HTTP) |
+| Hard rules still hold after «موافق»: one trial per PC (append-only ledger), well-formed device and PC tag, known product; the owner's own daily cap and flood check do not hold back a request the owner chose by hand | `verdict(approved=True)` | button tests |
+| Monthly / permanent: the button records intent only; signing needs the payment tick and reference in the Studio | `verdict` (`payment_needed`) + `decide` | button tests (paid) |
+| The Studio closes a request the owner refused on the phone, and refuses to sign for one the relay closed meanwhile | `sync_closed`, `refresh_one`, relay `POST /licence/states` | button tests |
+| Code delivered to the **originating installation only**, checked locally with the public key, activates | existing `/licence/status`, Store `server/trial.py` | Store `tests/test_trial.py`, Studio `test_store_chain.py` |
+| **A copy of the code to the owner's chat** for the phone readout: once per request, claimed atomically, retried until Telegram accepts it, never in the audit or a log | `send_copies` | button tests (retry; 6 concurrent senders give 1 message) |
+| The shop is told honestly «الشركة وافقت، الكود جاي» (`stage: approved`) without being treated as active | relay `/licence/status`, Store 1.8.0 | Store tests |
+| Setting the webhook up (`setWebhook` with `secret_token`, only `callback_query`, https only) | `python -m licence_studio telegram-webhook` | button tests |
+
+**Differences from the design, on purpose.**
+- The relay edits the owner's message to show the outcome and, after an approval, leaves one button «❌ سحب الموافقة» (revocation before signing).
+- An approval counts for 72 hours by default (`LICENCE_APPROVAL_HOURS` on the relay, at least 1). The **relay** judges it (it answers `expired`), never the owner's PC clock; after that the owner approves again in the Studio.
+- Before the Studio signs without the owner at the keyboard it asks the relay once more whether the request is still open (an owner who refused a second ago gets no code); if the relay cannot confirm, nothing is signed that round. A relay older than 0.14 (no such call) is simply not asked.
+- The signer **pulls** (it never listens): nothing reaches the owner's PC from the internet. The round is every 60 seconds while the Studio runs, so «instant» means about a minute plus the shop's 20-second look, and only while the Studio is open and unlocked.
+- No fresh-install one-use challenge was added. The admission rules are the existing ones (nonce, per-address / per-device / waiting-list limits, one trial per machine tag); spoofing by a determined person with a new identity remains possible and is stated in the threat model of `LICENCE_ACTIVATION.md`.
+
+**Still not done (needs the owner):** create the bot and the Worker secrets; run `telegram-webhook`; a live approval on a real phone; a Windows clean-PC trial with real secrets; the owner's decision on a fresh-install challenge.

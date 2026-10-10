@@ -30,14 +30,16 @@ A permanent code needs af-license 0.3.0 in the product. An older product refuses
 Issue a code · Codes (search, copy, WhatsApp message, issue the next code) · Requests from shops and agents · Verify · Products · Keys (create, unlock,
 export the **public** key for `licence_keys.txt`) · Agent access (tokens, trial policy).
 
-## Shop requests, Telegram and automatic trials (1.1.0)
+## Shop requests, Telegram buttons and automatic trials (1.2.0)
 A shop asks for a trial from its own screen; the owner's phone gets a Telegram message; this program, on the trusted PC, pulls the request through the relay, decides by the policy the owner switched on, signs, and sends the code back; the shop checks it with the public key and switches itself on (no copying). Full chain, threat model and limits: [docs/LICENCE_ACTIVATION.md](../../docs/LICENCE_ACTIVATION.md).
 - **Page «طلبات المحلات»:** connect the relay (address + token, stored only in `relay.json` here with owner-only permissions, or `LS_RELAY_URL` / `LS_RELAY_TOKEN`), pull now, switch the policy on, set the daily cap, and «افضل مفتوح» (the key stays in memory for at most 12 hours so trials go out while you are away; locking or restarting ends it).
 - **Policy (off until you switch it on):** a trial is automatic only for a PC that never had one (permanent `trial_ledger`), within the day's cap, from a sender that is not flooding, with the key unlocked. The same device asking again gets the same code. Everything else waits for you.
 - **Paid kinds never go out alone:** a monthly (30 days + 3 grace) or permanent code needs «الدفع وصل» ticked and a payment reference; the server refuses without them.
-- **Telegram** (environment only, never stored): `TELEGRAM_BOT_TOKEN`, `TELEGRAM_OWNER_CHAT_ID`. One message per event: issued, refused, held, locked.
+- **Telegram** (environment only, never stored): `TELEGRAM_BOT_TOKEN`, `TELEGRAM_OWNER_CHAT_ID`. One message per event: refused, held, locked, old approval.
+- **The owner's buttons (1.2.0):** the relay's alert has «✅ موافق» / «❌ رفض». «موافق» makes this program sign **that one trial** on its next round even when the policy is off (key unlocked; one trial per PC and every hard rule still apply; the relay says when an approval is too old, 72 hours by default, and it is then not acted on). «رفض» is closed here too, and a click in this program on a request you refused on the phone is refused. For a monthly or permanent request the button records your intent only: you still tick «الدفع وصل» and write the reference here. Whenever a code is signed for a shop's request, **your phone gets a copy of it** (once, retried until Telegram accepts it, never in the audit) for the phone readout when the shop is offline.
+- **Set the buttons up:** make a long random secret (`python -c "import secrets; print(secrets.token_urlsafe(32))"`), give it to the relay (`wrangler secret put TELEGRAM_WEBHOOK_SECRET`) and to this PC (`TELEGRAM_WEBHOOK_SECRET` in the environment), then `python -m licence_studio telegram-webhook`. Telegram is told to send only button presses, over https, with that secret; the command never prints or stores it.
 - A round runs every 60 seconds while `serve` runs (`LS_RELAY_EVERY`, 0 = off) and from the button. A failed delivery is retried each round.
-- Tests: `tests/test_relay_chain.py` runs the **real relay Worker** (Node 22.13+) over HTTP; `tests/test_ui_relay.py` clicks the page in a real browser.
+- Tests: `tests/test_relay_chain.py` and `tests/test_telegram_buttons.py` run the **real relay Worker** (Node 22.13+) over HTTP; `tests/test_ui_relay.py` clicks the page in a real browser.
 
 ## AI agents (MCP)
 Add to Claude Code / any MCP client:

@@ -18,7 +18,7 @@ ROOT = HERE.parents[1]
 sys.path.insert(0, str(HERE))
 sys.path.insert(0, str(ROOT / 'packages' / 'af-license'))
 sys.path.insert(0, str(HERE / 'tests'))
-from test_relay_chain import ADMIN, PASS, SERVE, TelegramStub, machine_tag, node_ok  # noqa: E402
+from test_relay_chain import ADMIN, PASS, SERVE, WEBHOOK, TelegramStub, machine_tag, node_ok  # noqa: E402
 from af_license import codes  # noqa: E402
 from licence_studio.server import serve  # noqa: E402
 from licence_studio.service import Studio  # noqa: E402
@@ -145,6 +145,44 @@ class StudioPage(unittest.TestCase):
             b.close()
         self.assertEqual(errors, [])
         self.assertTrue(any('طلب' in m['text'] and 'تجربة' in m['text'] or '✅' in m['text'] for m in TelegramStub.messages))
+
+    def test_a_button_pressed_on_the_phone_shows_on_the_page_and_the_trial_goes_out_without_the_policy(self):
+        errors = []
+        with sync_playwright() as p:
+            b = p.chromium.launch(executable_path=CHROMIUM) if CHROMIUM else p.chromium.launch()
+            pg = b.new_page(viewport={'width': 1366, 'height': 860})
+            pg.on('console', lambda m: errors.append(m.text) if m.type == 'error' else None)
+            pg.on('pageerror', lambda e: errors.append(str(e)))
+            pg.goto(f'http://127.0.0.1:{self.port}/')
+            pg.wait_for_selector('#pp')
+            pg.fill('#pp', PASS)
+            pg.click('button.volt')
+            pg.wait_for_selector('.shell')
+            self.studio.relay.save(self.relay_base, ADMIN)
+            device, trial = self.ask('pc-ui-3')
+            _, refused = self.ask('pc-ui-4')
+
+            def press(data, **kw):
+                req = urllib.request.Request(self.relay_base + '/telegram', method='POST', headers={'Content-Type': 'application/json', 'X-Telegram-Bot-Api-Secret-Token': WEBHOOK},
+                                             data=json.dumps({'update_id': 1, 'callback_query': {'id': 'c', 'from': {'id': 7}, 'message': {'message_id': 9, 'chat': {'id': 7}}, 'data': data}}).encode())
+                urllib.request.urlopen(req, timeout=10).read()
+            # the studio already holds both as waiting; then the owner agrees to one on the phone and refuses the other. The policy is OFF throughout.
+            self.assertFalse(self.studio.policy()['auto_trials'])
+            self.assertEqual(self.studio.auto.cycle()['pulled'], 2)
+            press('no:' + refused['id'])
+            press('ok:' + trial['id'])
+            pg.goto(f'http://127.0.0.1:{self.port}/#/requests')
+            pg.wait_for_selector('#rf')
+            pg.click('#pull')
+            self.until(pg, "document.body.innerText.includes('القرار من تليجرام')")
+            text = pg.inner_text('#page')
+            self.assertEqual(text.count('القرار من تليجرام'), 2, 'the approved trial and the refused one both say the decision came from the phone')
+            got = self.shop('GET', '/licence/status?id=' + trial['id'], token=trial['poll_token'])
+            self.assertEqual(got['status'], 'issued')
+            self.assertTrue(codes.read_code(got['code'], [self.public], 'al-store', device).valid)
+            self.assertEqual(self.shop('GET', '/licence/status?id=' + refused['id'], token=refused['poll_token'])['status'], 'refused')
+            b.close()
+        self.assertEqual(errors, [])
 
 
 if __name__ == '__main__':

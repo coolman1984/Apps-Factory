@@ -28,6 +28,7 @@ from af_license import codes  # noqa: E402
 
 PASS = 'a long passphrase for tests'
 ADMIN = 'licence-admin-secret-for-tests'
+WEBHOOK = 'webhook-secret-for-tests-' + 'z' * 16   # the relay's TELEGRAM_WEBHOOK_SECRET in test/serve.mjs
 SERVE = ROOT / 'templates' / 'telemetry-relay' / 'test' / 'serve.mjs'
 
 
@@ -63,7 +64,8 @@ def machine_tag(name):
 
 
 @unittest.skipUnless(node_ok(), 'Node 22.13+ (node:sqlite) is needed to run the relay Worker')
-class Chain(unittest.TestCase):
+class Harness(unittest.TestCase):
+    """A real relay Worker over HTTP, a Telegram stub, and a studio with a key: shared by the chain tests and the button tests."""
     def setUp(self):
         TelegramStub.messages = []
         self.tg = HTTPServer(('127.0.0.1', 0), TelegramStub)
@@ -118,6 +120,28 @@ class Chain(unittest.TestCase):
         with urllib.request.urlopen(self.base + '/__test/telegram', timeout=10) as r:
             return [m['body']['text'] for m in json.loads(r.read())]
 
+    def press(self, data, sender=7, chat=7, secret=WEBHOOK, message_id=501):
+        """The owner's button press, as Telegram would send it to the relay's webhook."""
+        body = {'update_id': 1, 'callback_query': {'id': 'cb-' + uuid.uuid4().hex[:6], 'from': {'id': sender}, 'message': {'message_id': message_id, 'chat': {'id': chat}}, 'data': data}}
+        req = urllib.request.Request(self.base + '/telegram', method='POST', data=json.dumps(body).encode(),
+                                     headers={'Content-Type': 'application/json', **({'X-Telegram-Bot-Api-Secret-Token': secret} if secret else {})})
+        try:
+            with urllib.request.urlopen(req, timeout=10) as r:
+                return r.status
+        except urllib.error.HTTPError as e:
+            return e.code
+
+    def relay_clock_ahead(self, seconds):
+        """Test only: the relay's clock runs `seconds` ahead (an approval ages without waiting)."""
+        urllib.request.urlopen(f'{self.base}/__test/skew?seconds={int(seconds)}', timeout=10).read()
+
+    def relay_calls(self):
+        with urllib.request.urlopen(self.base + '/__test/telegram', timeout=10) as r:
+            return json.loads(r.read())
+
+
+@unittest.skipUnless(node_ok(), 'Node 22.13+ (node:sqlite) is needed to run the relay Worker')
+class Chain(Harness):
     # ---- tests
     def test_trial_is_issued_by_policy_delivered_and_checked_by_the_shop(self):
         device, st, d = self.ask()

@@ -67,7 +67,7 @@ jobs:
           node --check packages/af-telemetry/af-telemetry.js
           node --test packages/af-telemetry/tests/core.test.mjs
       - name: Telemetry relay tests (Cloudflare Worker + D1 shim)
-        run: node --experimental-sqlite --test templates/telemetry-relay/test/relay.test.mjs templates/telemetry-relay/test/licence.test.mjs
+        run: node --experimental-sqlite --test templates/telemetry-relay/test/relay.test.mjs templates/telemetry-relay/test/licence.test.mjs templates/telemetry-relay/test/telegram.test.mjs
       - name: Licence Studio tests
         working-directory: apps/licence-studio
         env:

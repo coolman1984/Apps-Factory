@@ -2,5 +2,5 @@
   "name": "af-telemetry-relay",
   "private": true,
   "type": "module",
-  "scripts": {"test": "node --experimental-sqlite --test test/relay.test.mjs test/licence.test.mjs"}
+  "scripts": {"test": "node --experimental-sqlite --test test/relay.test.mjs test/licence.test.mjs test/telegram.test.mjs"}
 }

@@ -25,7 +25,7 @@ from pathlib import Path
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
-from .relay import Relay
+from .relay import Relay, RelayError
 
 try:
     from af_license import codes
@@ -68,7 +68,11 @@ CREATE TRIGGER IF NOT EXISTS audit_append_only_d BEFORE DELETE ON audit BEGIN SE
 # columns the relay's requests need on the older `requests` table (added once, never removed)
 REQUEST_COLUMNS = (('source', "TEXT NOT NULL DEFAULT 'agent'"), ('relay_id', 'TEXT'), ('machine', 'TEXT'), ('src', 'TEXT'),
                    ('kind', "TEXT NOT NULL DEFAULT ''"), ('payment_ref', "TEXT NOT NULL DEFAULT ''"), ('held', "TEXT NOT NULL DEFAULT ''"),
-                   ('relayed', 'INTEGER NOT NULL DEFAULT 0'), ('payment_confirmed', 'INTEGER NOT NULL DEFAULT 0'))
+                   ('relayed', 'INTEGER NOT NULL DEFAULT 0'), ('payment_confirmed', 'INTEGER NOT NULL DEFAULT 0'),
+                   # the owner's «✅ موافق» on Telegram (recorded on the relay; never a licence by itself) and whether the owner's phone got a copy of the code
+                   ('tg_decision', "TEXT NOT NULL DEFAULT ''"), ('tg_at', 'INTEGER'), ('code_sent', 'INTEGER NOT NULL DEFAULT 0'),
+                   ('code_claim', 'INTEGER'))
+UNATTENDED = ('auto-trial', 'telegram')  # actors that sign without the owner at the keyboard: they never keep the key open
 MONTHLY_DAYS, MONTHLY_GRACE = 30, 3   # owner decision 2026-10-09: the Studio defaults for a monthly code
 MAX_KEEP_UNLOCKED_HOURS = 12
 DEFAULT_PRODUCTS = [('al-store', 'Al-Store · الستور', 14), ('hessa-centre', 'Hessa · حصّة', 14)]
@@ -105,6 +109,8 @@ class Studio:
         for name, ddl in REQUEST_COLUMNS:
             if name not in have:
                 self.db.execute(f'ALTER TABLE requests ADD COLUMN {name} {ddl}')
+                if name == 'code_sent':  # an older studio: its finished requests must not flood the owner's phone with old codes
+                    self.db.execute("UPDATE requests SET code_sent = 1 WHERE status IN ('approved', 'refused')")
         self.db.execute('CREATE UNIQUE INDEX IF NOT EXISTS requests_relay ON requests(relay_id) WHERE relay_id IS NOT NULL')
         for pid, name, days in DEFAULT_PRODUCTS:
             self.db.execute('INSERT OR IGNORE INTO products(id, name, trial_days, created_at) VALUES (?, ?, ?, ?)', (pid, name, days, now_iso()))
@@ -287,7 +293,7 @@ class Studio:
         first = date.fromisoformat(first_day) if first_day else date.today()
         if first < date.today() - timedelta(days=1):
             raise StudioError('first_day', 'The first day cannot be in the past.')
-        out = codes.issue_code(self._pem(owner=actor != 'auto-trial'), product, edition, first, days, device, int(grace_days), int(seats), date.today())
+        out = codes.issue_code(self._pem(owner=actor not in UNATTENDED), product, edition, first, days, device, int(grace_days), int(seats), date.today())
         kid = (self.public_key() or ':').split(':', 1)[0]
         with self.lock:
             self.db.execute('BEGIN IMMEDIATE')
@@ -378,7 +384,7 @@ class Studio:
         rows = self.rows("SELECT * FROM requests WHERE (? = '' OR status = ?) ORDER BY requested_at DESC LIMIT 200", status, status)
         for r in rows:
             if r['source'] == 'relay' and r['status'] == 'pending':  # what the owner-approved policy would do with it (a hint, nothing is changed)
-                kind, reason, _ = self.auto.verdict(r)
+                kind, reason, _ = self.auto.verdict(r, approved=r['tg_decision'] == 'approved')
                 r['policy'] = {'verdict': kind, 'reason': reason}
         return rows
 
@@ -391,6 +397,12 @@ class Studio:
         ref = (payment_ref or r['payment_ref'] or '').strip()[:60]
         if approve and paid and (not payment_confirmed or len(ref) < 3):  # a paid code is never given before the owner confirms the money arrived
             raise StudioError('payment.required', 'Tick that the payment arrived and write its reference first.', 400)
+        if relay and approve and self.relay.configured():  # the owner's «❌ رفض» on the phone may have closed it while this page was open
+            try:
+                if self.auto.refresh_one(r):
+                    raise StudioError('request.closed', 'The owner already refused or closed this request from Telegram. The shop will not get a code for it.', 409)
+            except RelayError:
+                pass  # the relay cannot be reached (or is older than 0.14): the owner may still sign; delivery is retried and a closed request is reported then
         if not self.claim(rid):  # the automatic round took it a moment ago
             raise StudioError('request.closed', 'This request was decided a moment ago.', 409)
         try:

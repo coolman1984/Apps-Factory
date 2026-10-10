@@ -34,6 +34,8 @@ REASON_AR = {
     'locked': 'برنامج التراخيص مقفول (اكتب كلمة السر)',
     'review_src': 'طلبات كتير من نفس المكان: راجعها بنفسك',
     'relay_down': 'مفيش اتصال بالوسيط',
+    'expired': 'الطلب انتهى عند الوسيط',
+    'closed_elsewhere': 'الطلب اتقفل عند الوسيط',
 }
 
 
@@ -100,7 +102,7 @@ class Relay:
         url = check_url(c['url']) + path
         data = json.dumps(body).encode() if body is not None else None
         req = urllib.request.Request(url, data=data, method=method, headers={
-            'Authorization': 'Bearer ' + c['token'], 'Content-Type': 'application/json', 'User-Agent': 'LicenceStudio/1.1'})
+            'Authorization': 'Bearer ' + c['token'], 'Content-Type': 'application/json', 'User-Agent': 'LicenceStudio/1.2'})
         try:
             with urllib.request.urlopen(req, timeout=timeout) as r:
                 return json.loads(r.read().decode('utf-8') or '{}')
@@ -130,24 +132,65 @@ class Relay:
     def refuse(self, relay_id: str, reason: str = 'owner_refused'):
         return self._call('POST', '/licence/decide', {'id': relay_id, 'action': 'refuse', 'reason': reason})
 
+    def states(self, ids: list[str]) -> dict:
+        """What became of requests this studio still holds as waiting (the owner's «❌ رفض» button closes one on the relay at once).
+        An id the relay no longer knows is absent from the answer."""
+        out: dict = {}
+        for i in range(0, len(ids), 50):
+            out.update(self._call('POST', '/licence/states', {'ids': ids[i:i + 50]}).get('states') or {})
+        return out
+
     def events(self, limit: int = 100) -> list[dict]:
         return self._call('GET', f'/licence/events?limit={int(limit)}').get('events') or []
 
 
-def telegram(text: str) -> bool:
-    """Tell the owner's phone. Returns False (never raises) when Telegram is not set up or not reachable."""
-    token = os.environ.get('TELEGRAM_BOT_TOKEN') or os.environ.get('CC_TG_BOT_TOKEN')
-    chat = os.environ.get('TELEGRAM_OWNER_CHAT_ID') or os.environ.get('CC_TG_CHAT_ID')
-    if not token or not chat:
-        return False
+def bot_token() -> str:
+    return os.environ.get('TELEGRAM_BOT_TOKEN') or os.environ.get('CC_TG_BOT_TOKEN') or ''
+
+
+def owner_chat() -> str:
+    """The owner's chat id, only if it is the owner's own private chat (a positive number). A group or channel id is refused: signed codes are
+    sent to this chat, and everybody in a group would read them."""
+    chat = os.environ.get('TELEGRAM_OWNER_CHAT_ID') or os.environ.get('CC_TG_CHAT_ID') or ''
+    return chat if re.fullmatch(r'\d{1,20}', chat) else ''
+
+
+def telegram_configured() -> bool:
+    return bool(bot_token() and owner_chat())
+
+
+def _tg_call(method: str, payload: dict):
+    """One call to the Telegram Bot API with this PC's bot token. Returns the decoded answer or None; never raises."""
+    token = bot_token()
+    if not token:
+        return None
     api = 'https://api.telegram.org'
     override = os.environ.get('LS_TELEGRAM_API', '')  # for tests only, and only ever a program on this PC: a bot token never goes to another host
     if override and urlparse(override).hostname in ('127.0.0.1', 'localhost', '::1'):
         api = override.rstrip('/')
-    req = urllib.request.Request(f'{api}/bot{token}/sendMessage', method='POST', headers={'Content-Type': 'application/json'},
-                                 data=json.dumps({'chat_id': chat, 'text': text, 'disable_web_page_preview': True}).encode())
+    req = urllib.request.Request(f'{api}/bot{token}/{method}', method='POST', headers={'Content-Type': 'application/json'}, data=json.dumps(payload).encode())
     try:
         with urllib.request.urlopen(req, timeout=10) as r:
-            return 200 <= r.status < 300
+            return json.loads(r.read().decode('utf-8') or '{}') if 200 <= r.status < 300 else None
     except (urllib.error.URLError, OSError, ValueError, TimeoutError):
+        return None
+
+
+def telegram(text: str, html: bool = False) -> bool:
+    """Tell the owner's phone. Returns False (never raises) when Telegram is not set up or not reachable. `html` lets the text carry <code>."""
+    chat = owner_chat()
+    if not chat:
         return False
+    return _tg_call('sendMessage', {'chat_id': chat, 'text': text, 'disable_web_page_preview': True, **({'parse_mode': 'HTML'} if html else {})}) is not None
+
+
+def set_webhook(relay_url: str, secret: str) -> dict | None:
+    """Tell Telegram where the owner's buttons go: the relay's /telegram, with the secret Telegram must send back with every update.
+    Only button presses are wanted; anything waiting from before is dropped."""
+    url = check_url(relay_url)
+    if urlparse(url).scheme != 'https':
+        raise RelayError('relay.url', 'Telegram only talks to an https address.')
+    if not isinstance(secret, str) or not re.fullmatch(r'[A-Za-z0-9_-]{24,256}', secret):
+        raise RelayError('relay.secret', 'The webhook secret needs 24 to 256 letters, digits, - or _.')
+    return _tg_call('setWebhook', {'url': url + '/telegram', 'secret_token': secret, 'allowed_updates': ['callback_query'], 'max_connections': 5,
+                                   'drop_pending_updates': True})
