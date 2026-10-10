@@ -4,6 +4,13 @@ Dated owner decisions, newest first. Only decisions recorded in the repository a
 
 ## Decided
 
+### 2026-10-10 — One-person Pixel Plus operating-company direction
+- The owner wants one accountable human with AI-assisted engineering, marketing, research, management, Council, support, cost analysis and operational execution. **Direction approved; architecture is a staged proposal, not delegated broad credentials or permission to spend.**
+- [Research and operating architecture](docs/PIXEL_PLUS_ONE_PERSON_COMPANY_OS.md) and [first 30-day workflows](docs/PIXEL_PLUS_COMPANY_OS_PLAYBOOK.md): bounded work queue, reviewed handoffs, evidence links, independent QA, low-cost current tools and owner approval for all customer-impacting/financial/external acts.
+- "90% automation" is a **measurement objective for selected repeatable tasks**; current percentage unknown until workflow execution is instrumented. Chat subscriptions must not be assumed to cover API fees.
+- Next approval required: any live connector permissions, data disclosure, Telegram workflow, spend ceilings and production automation. No new customer/deployment/sales feature is shipped by these research docs.
+
+
 ### 2026-10-09 — Integrated Pixel Plus execution plan, Telegram approvals and partner modules
 - **Approved direction:** local-first Egyptian small-business software, modular product + four connectivity/packaging plans; no enterprise complexity or automatic cloud spending. [Execution roadmap](docs/PIXEL_PLUS_EXECUTION_ROADMAP_2026.md) gives sequence and honest delivery statuses.
 - **Owner Telegram activation journey requested:** Store sends a minimal consented 14-day trial request; owner approves/denies in a private Telegram chat; local trusted Licence Studio signs device-bound code with its offline encrypted key; only requester receives/verifies code, owner receives the code for manual offline fallback. **Update 2026-10-10: approval buttons, signing on the owner's PC and delivery are implemented (Factory 0.14.0) and tested against a fake Telegram; not deployed.** No remote bot/cloud signing key and no charge/issue of paid code without verified human payment authorization. See [activation design](docs/TELEGRAM_APPROVED_ACTIVATION.md).
