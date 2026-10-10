@@ -467,14 +467,14 @@ class CompanyOSSafetyTests(unittest.TestCase):
         for line in ("1 failing", "pytest: failed", "npm test exited with code 1", "tests aborted", "browser run timed out", "FAIL tests/x.py", "2 errors"):
             self.assertTrue(any("records a failure" in p for p in self.validate(self.done(tests_run=[line]))), line)
         for line in ("164 passed, 12 skips", "50 passed, 3 skip", "12 passed, 1 errored", "5 failed 0 passed", "2 failed 0 warnings", "0 passed", "pass 0\nfail 3",
-                     "suite timed out", "exit 1", "# fail 2"):                                    # review of PR #42: holes found by trying real summaries
+                     "suite timed out", "exit 1", "# fail 2", "fails", "error", "tests fail", "12 passed, skipped"):   # review of PR #42: holes found by trying real summaries
             self.assertTrue(self.validate(self.done(tests_run=[line])), line)
         for line in ("error handling suite: 12 passed", "tests/test-errors.py: 12 passed"):   # a word inside a name is not a failure
             self.assertEqual(self.validate(self.done(tests_run=[line])), [], line)
         for line in ("ran the tests", "tests were run on the branch"):                       # no stated result is not a pass
             self.assertTrue(any("does not say the tests passed" in p for p in self.validate(self.done(tests_run=[line]))), line)
         for line in ("python -m unittest discover -s tests: 113 passed, 0 failed, 0 skipped", "node --test: 34 passed", "Ran 304 tests OK", "all green, no failures",
-                     "# pass 34\n# fail 0\n# skipped 0", "unittest OK (failures=0)", "Failed: 0, Passed: 12"):   # the zero may come after the word as well as before
+                     "# pass 34\n# fail 0\n# skipped 0", "unittest OK (failures=0)", "Failed: 0, Passed: 12", "47 pass, 0 fail", "47 pass"):   # the zero may come after the word as well as before
             self.assertEqual(self.validate(self.done(tests_run=[line])), [], line)
 
     def test_the_same_work_cannot_be_carried_twice(self):

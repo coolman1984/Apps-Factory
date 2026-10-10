@@ -63,7 +63,7 @@ Dated owner decisions, newest first. Only decisions recorded in the repository a
 - **Help is written in simple formal Arabic** («العربية الميسّرة»), with a learning path per role; HELP-08 is folded into HELP-07. See ADR-0006.
 
 ### 2026-10-09 (factory 0.10.0, "rules cleanup")
-- **Only 32 core controls block a release.** The other 75 are `reference` advice. 24 ids were merged into survivors and 7 were retired; old ids still resolve with `factory.py controls <ID>`.
+- **Only 32 core controls blocked a release at the time (34 since catalogue 1.11.0, see 2026-10-10).** The other 75 were `reference` advice. 24 ids were merged into survivors and 7 were retired; old ids still resolve with `factory.py controls <ID>`.
 - **Release evidence is two items:** `clean_device_restore` and `core_user_acceptance`. The market, privacy and security review items left the gate.
 - **Competitor count is advice.** Fewer than 5 competitor rows prints a note and no longer fails `--release`.
 - **No outside-review framing.** The gate has no outside-review step and controls state practical outcomes only. What is enforced is consent (PRIV-01) and the never-collect limits (PRIV-03). REG-01 and REG-02 were retired for this reason.

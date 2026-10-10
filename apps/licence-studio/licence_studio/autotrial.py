@@ -27,7 +27,7 @@ import uuid
 from html import escape as html_escape
 
 from .relay import DEVICE, KIND_AR, KIND_EDITION, MACHINE, REASON_AR, UUID, RelayError, telegram, telegram_configured
-from .service import MONTHLY_DAYS, UNATTENDED, StudioError, now_iso, utc_today
+from .service import MONTHLY_DAYS, StudioError, now_iso, utc_today
 
 TRIAL_DAYS = 14      # the trial a shop asks for, and the one an owner's button gives
 CLAIM_SECONDS = 300  # a copy to the owner being sent for longer than this is taken to have died
@@ -313,9 +313,8 @@ class AutoTrial:
                                        (int(time.time()), r['id'], stale)).rowcount == 1
             if not claimed:
                 continue
-            esc = html_escape
-            ok = telegram(f'✅ اتصدّر {esc(KIND_AR[r["kind"]])}\nالجهاز: {esc(r["device"] or "")}\nرقم الكود: {esc(row["serial"])}\n'
-                          f'لو المحل معاه نت هيتفعّل لوحده. لو لأ، ابعت له الكود ده يكتبه في شاشة التفعيل:\n<code>{esc(row["code"])}</code>', html=True)
+            ok = telegram(f'✅ اتصدّر {html_escape(KIND_AR[r["kind"]])}\nالجهاز: {html_escape(r["device"] or "")}\nرقم الكود: {html_escape(row["serial"])}\n'
+                          f'لو المحل معاه نت هيتفعّل لوحده. لو لأ، ابعت له الكود ده يكتبه في شاشة التفعيل:\n<code>{html_escape(row["code"])}</code>', html=True)
             with s.lock:
                 s.db.execute('UPDATE requests SET code_sent = ? WHERE id = ?', (1 if ok else 0, r['id']))
             if ok:

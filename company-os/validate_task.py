@@ -30,8 +30,8 @@ SAFE_ACTIONS = {
 _LABEL = r"(?:fail(?:ed|ing|ures?)?|errors?|errored|skipp?(?:ed|s|ing)?|xfail\w*)"
 ZERO_COUNT = re.compile(rf"\b(?:0|no|zero)\s+{_LABEL}\b|\b{_LABEL}\s*[:=]\s*0\b|(?m:^\s*#\s*{_LABEL}\s+0\b)", re.I)
 FAILURE_FORMS = re.compile(rf"(?<![\d.])[1-9]\d*\s*{_LABEL}\b|\b{_LABEL}\s*[:=#]?\s*[1-9]\d*\b|\b(?:failed|failing|failures?|errored|aborted|crash\w*|timed?[\s-]*out|timeout)\b"
-                           r"|(?-i:\b(?:FAIL|FAILED|ERROR)\b)|\bred\b|\bnot\s+(?:green|passing|passed)\b|\bexit(?:ed)?(?:\s+with)?(?:\s+(?:code|status))?\s+[1-9]", re.I)
-PASS_EVIDENCE = re.compile(r"(?<![\d.])[1-9]\d*\s*(?:tests?\s+)?pass(?:ed|ing)\b|\bpass(?:ed|ing)?\s*[:=#]?\s*[1-9]\d*|\b(?:green|succeeded|success|all\s+(?:tests\s+)?pass(?:ed|ing)?)\b|(?-i:\bOK\b)", re.I)
+                           r"|(?<![-/_.\w])(?:fails?|errors?|skipp?(?:ed|s|ing)?)\b(?![-/_.]\w)(?!\s+[a-z])|(?-i:\b(?:FAIL|FAILED|ERROR)\b)|\bred\b|\bnot\s+(?:green|passing|passed)\b|\bexit(?:ed)?(?:\s+with)?(?:\s+(?:code|status))?\s+[1-9]", re.I)
+PASS_EVIDENCE = re.compile(r"(?<![\d.])[1-9]\d*\s*(?:tests?\s+)?pass(?:ed|es|ing)?\b|\bpass(?:ed|es|ing)?\s*[:=#]?\s*[1-9]\d*|\b(?:green|succeeded|success|all\s+(?:tests\s+)?pass(?:ed|ing)?)\b|(?-i:\bOK\b)", re.I)
 ACTIVE = {"ready", "working", "review", "owner_gate"}  # statuses in which a person or agent is expected to be doing the task
 
 
