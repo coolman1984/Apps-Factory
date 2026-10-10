@@ -131,6 +131,10 @@ class Harness(unittest.TestCase):
         except urllib.error.HTTPError as e:
             return e.code
 
+    def relay_clock_ahead(self, seconds):
+        """Test only: the relay's clock runs `seconds` ahead (an approval ages without waiting)."""
+        urllib.request.urlopen(f'{self.base}/__test/skew?seconds={int(seconds)}', timeout=10).read()
+
     def relay_calls(self):
         with urllib.request.urlopen(self.base + '/__test/telegram', timeout=10) as r:
             return json.loads(r.read())

@@ -38,7 +38,8 @@ const ask = async (e, over = {}, now = NOW) => (await call(e, '/licence/request'
 }, {'cf-connecting-ip': '203.0.113.7'}), now)).json();
 const admin = {authorization: 'Bearer ' + ADMIN};
 const poll = async (e, a, now = NOW) => (await call(e, '/licence/status?id=' + a.id, {headers: {authorization: 'Bearer ' + a.poll_token}}, now)).json();
-const row = (e, id) => e.DB.raw.prepare('SELECT * FROM licence_requests WHERE id = ?').get(id);
+const row = (e, id) => e.DB.raw.prepare('SELECT r.*, o.decision AS owner_decision, o.decided_at AS owner_decided_at FROM licence_requests r '
+  + 'LEFT JOIN licence_owner o ON o.request_id = r.id WHERE r.id = ?').get(id);
 const events = (e) => e.DB.raw.prepare('SELECT * FROM licence_events ORDER BY id').all();
 
 // What Telegram sends when a button is pressed (the parts we read).
@@ -76,35 +77,39 @@ test('the buttons are closed unless the webhook secret, the bot and a private ow
   const a = await ask(env());
   for (const extra of [{TELEGRAM_WEBHOOK_SECRET: ''}, {TELEGRAM_BOT_TOKEN: ''}, {TELEGRAM_OWNER_CHAT_ID: ''}, {TELEGRAM_OWNER_CHAT_ID: '-100123'}]) {
     const e = env(extra);
+    sent = [];
     const b = await ask(e);
     assert.equal((await press(e, ok(b.id))).status, 404, JSON.stringify(extra));
     assert.equal(row(e, b.id).owner_decision, null);
+    assert.equal(sent.filter((c) => c.body.reply_markup).length, 0, `an alert never carries buttons that cannot work: ${JSON.stringify(extra)}`);
   }
   assert.equal((await call(env(), '/telegram')).status, 404, 'a GET is not a press');
   assert.ok(a.id);
 });
 
-test('a wrong or missing secret is refused, changes nothing, and is logged without any secret', async () => {
+test('a wrong or missing secret is refused, changes nothing, costs no D1 query and tells nobody', async () => {
   const e = env();
   const a = await ask(e);
   sent = [];
-  for (const secret of [null, '', 'nope', SECRET + 'x', SECRET.slice(0, -1)]) {
-    assert.equal((await press(e, ok(a.id), {secret})).status, 401, String(secret));
-  }
+  e.DB.log.length = 0;
+  const warn = console.warn;
+  console.warn = () => {};
+  try {
+    for (const secret of [null, '', 'nope', SECRET + 'x', SECRET.slice(0, -1)]) {
+      assert.equal((await press(e, ok(a.id), {secret})).status, 401, String(secret));
+    }
+  } finally { console.warn = warn; }
   assert.equal(row(e, a.id).owner_decision, null);
   assert.equal(row(e, a.id).status, 'pending');
   assert.equal(sent.length, 0, 'an unauthenticated caller makes the bot say nothing');
-  const log = events(e).filter((x) => x.event === 'tg_refused');
-  assert.equal(log.length, 5);
-  assert.ok(log.every((x) => x.detail === 'bad_secret'));
-  assert.ok(!JSON.stringify(events(e)).includes(SECRET) && !JSON.stringify(events(e)).includes('BOT-SECRET'));
+  assert.equal(e.DB.log.length, 0, 'a flood of wrong secrets never touches the database (the address is public and the plan is free)');
 });
 
-test('the refused-press log is capped, so strangers cannot fill the database', async () => {
+test('the log of refused presses (from the owner\'s own chat or Telegram) is capped, so nobody can fill the database', async () => {
   const e = env();
-  for (let i = 0; i < 80; i++) await press(e, ok(randomUUID()), {secret: 'wrong'});
+  for (let i = 0; i < 80; i++) await press(e, ok(randomUUID()), {from: '999'});
   assert.equal(events(e).filter((x) => x.event === 'tg_refused').length, 50);
-  await press(e, ok(randomUUID()), {secret: 'wrong'}, NOW + 2 * HOUR);
+  await press(e, ok(randomUUID()), {from: '999'}, NOW + 2 * HOUR);
   assert.equal(events(e).filter((x) => x.event === 'tg_refused').length, 51, 'the next hour counts again');
 });
 
@@ -143,6 +148,41 @@ test('approve records the owner\'s decision, keeps the request waiting, tells th
   assert.deepEqual(edit.reply_markup.inline_keyboard[0].map((b) => b.callback_data), [no(a.id)]);
   assert.match(edit.text, /وافقت/);
   assert.deepEqual(events(e).map((x) => x.event), ['created', 'approved']);
+  assert.equal(JSON.stringify(Object.keys(row(e, a.id)).filter((k) => k.startsWith('owner'))), '["owner_decision","owner_decided_at"]');
+});
+
+test('the shop is told "approved" only for a trial and only while the approval counts', async () => {
+  const e = env();
+  const trial = await ask(e);
+  const paid = await ask(e, {kind: 'monthly', machine: undefined, device: 'AAAAA-BBBBB'});
+  await press(e, ok(trial.id));
+  await press(e, ok(paid.id), {id: 'p'});
+  assert.equal((await poll(e, trial)).stage, 'approved');
+  assert.equal((await poll(e, paid)).stage, undefined, 'a paid kind is only the owner\'s intent: the shop is not told it is settled');
+  assert.equal((await poll(e, trial, NOW + 73 * HOUR)).stage, undefined, 'and the word expires with the approval');
+  const [a, b] = (await (await call(e, '/licence/pending', {headers: admin})).json()).requests;
+  assert.deepEqual([a.owner_decision, b.owner_decision], ['approved', 'approved']);
+  const late = (await (await call(e, '/licence/pending', {headers: admin}, NOW + 73 * HOUR)).json()).requests;
+  assert.deepEqual(late.map((r) => r.owner_decision), ['expired', 'expired'], 'the relay, not the owner\'s PC clock, says an approval is too old');
+});
+
+test('LICENCE_APPROVAL_HOURS can not be set to nothing: an approval always counts for at least an hour', async () => {
+  const e = env({LICENCE_APPROVAL_HOURS: '0'});
+  const a = await ask(e);
+  await press(e, ok(a.id), {}, NOW + 30 * 60);
+  assert.equal(row(e, a.id).owner_decision, 'approved');
+});
+
+test('upgrading a 0.13 database is just running schema.sql again (no ALTER, nothing to forget)', async () => {
+  const {readFileSync} = await import('node:fs');
+  const {DatabaseSync} = await import('node:sqlite');
+  const db = new DatabaseSync(':memory:');
+  const schema = readFileSync(new URL('../schema.sql', import.meta.url), 'utf8');
+  db.exec(schema.replace(/CREATE TABLE IF NOT EXISTS licence_owner[^;]*;\s*CREATE INDEX IF NOT EXISTS licence_owner_at[^;]*;/, ''));   // a database made by 0.13
+  assert.equal(db.prepare("SELECT COUNT(*) AS n FROM sqlite_master WHERE name = 'licence_owner'").get().n, 0);
+  db.exec(schema);
+  db.exec(schema);                                                                   // and twice is fine
+  assert.equal(db.prepare("SELECT COUNT(*) AS n FROM sqlite_master WHERE name = 'licence_owner'").get().n, 1);
 });
 
 test('pressing approve twice (a double click, or Telegram sending it again) does one thing', async () => {
@@ -236,12 +276,16 @@ test('junk is answered calmly and changes nothing: bad data, unknown request, no
   assert.equal(row(e, a.id).status, 'pending');
 });
 
-test('a button press touches D1 at most three times and the log never holds a code or a secret', async () => {
+test('a button press touches D1 at most three times (four for a refusal) and the log never holds a code or a secret', async () => {
   const e = env();
   const a = await ask(e);
+  const b = await ask(e, {device: 'AAAAA-BBBBB', machine: 'b'.repeat(64)});
   e.DB.log.length = 0;
   await press(e, ok(a.id));
-  assert.ok(e.DB.log.length <= 3, `used ${e.DB.log.length} queries`);
+  assert.ok(e.DB.log.length <= 3, `approve used ${e.DB.log.length} queries`);
+  e.DB.log.length = 0;
+  await press(e, no(b.id), {id: 'b'});
+  assert.ok(e.DB.log.length <= 4, `refuse used ${e.DB.log.length} queries`);
   await call(e, '/licence/decide', json({id: a.id, action: 'issue', code: CODE}, admin));
   const text = JSON.stringify(events(e)) + JSON.stringify(sent);
   assert.ok(!text.includes(CODE) && !text.includes(SECRET) && !text.includes('BOT-SECRET') && !text.includes(a.poll_token) && !text.includes('Test shop'));

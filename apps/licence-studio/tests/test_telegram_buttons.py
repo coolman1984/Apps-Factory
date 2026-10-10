@@ -197,26 +197,57 @@ class Buttons(Harness):
         self.assertEqual([self.status(d)['status'] for d in ds].count('issued'), 2, 'the owner chose this one by hand')
         self.assertEqual(self.status(pending[1])['status'], 'pending')
 
-    def test_an_old_approval_is_not_acted_on_and_the_owner_is_told(self):
+    def test_an_old_approval_is_not_acted_on_the_relay_says_so_and_the_owner_is_told(self):
         _, _, d = self.ask()
         self.press(self.ok(d))
         self.s.lock_key()                          # the owner is away: the studio pulls the request with its approval and waits
         self.s.auto.cycle()
+        self.assertEqual(self.s.requests()[0]['tg_decision'], 'approved')
+        self.relay_clock_ahead(73 * 3600)          # ... and by the time the owner is back the approval is three days old (the RELAY's clock decides)
         self.s.unlock(PASS)
-        old = int(time.time()) - 73 * 3600         # ... and by the time the owner is back the approval is three days old
-        with self.s.lock:
-            self.s.db.execute('UPDATE requests SET tg_at = ?', (old,))
         out = self.s.auto.cycle()
         self.assertEqual(out['issued'], 0)
-        self.assertEqual(self.s.requests()[0]['tg_decision'], 'expired')
-        self.assertEqual(self.s.requests()[0]['status'], 'pending', 'the request itself is untouched: the owner can still approve it in the studio')
+        [req] = self.s.requests()
+        self.assertEqual((req['tg_decision'], req['status']), ('expired', 'pending'), 'the request itself is untouched')
         self.assertEqual(self.s.one('SELECT COUNT(*) AS n FROM codes')['n'], 0)
         self.assertEqual(len([m for m in self.messages() if '⌛' in m]), 1)
         self.s.auto.cycle()
         self.assertEqual(len([m for m in self.messages() if '⌛' in m]), 1, 'told once')
         self.assertEqual(self.s.requests()[0]['tg_decision'], 'expired', 'and it stays expired although the relay still lists the press')
+        self.assertEqual(self.s.one("SELECT COUNT(*) AS n FROM audit WHERE action = 'request.approval_expired'")['n'], 1, 'audited once, not every round')
+        self.assertEqual(self.status(d)['status'], 'pending')
         self.s.decide(self.s.requests()[0]['id'], True)
         self.assertEqual(self.status(d)['status'], 'issued', 'the owner can still approve it by hand')
+
+    def test_a_copy_whose_sender_died_is_sent_again_after_a_while(self):
+        _, _, d = self.ask()
+        self.press(self.ok(d))
+        self.s.auto.cycle()
+        TelegramStub.messages.clear()
+        with self.s.lock:  # the studio was killed right after claiming the copy
+            self.s.db.execute('UPDATE requests SET code_sent = 2, code_claim = ?', (int(time.time()),))
+        self.s.auto.send_copies()
+        self.assertEqual(len(self.copies()), 0, 'a fresh claim is respected: another sender may be working on it')
+        with self.s.lock:
+            self.s.db.execute('UPDATE requests SET code_claim = ?', (int(time.time()) - 600,))
+        self.s.auto.send_copies()
+        self.assertEqual(len(self.copies()), 1)
+        self.assertEqual(self.s.one('SELECT code_sent FROM requests')['code_sent'], 1)
+
+    def test_with_telegram_down_one_try_is_made_per_round_not_one_per_request(self):
+        os.environ['LS_TELEGRAM_API'] = 'http://127.0.0.1:9'
+        for i in range(3):
+            _, _, d = self.ask(pc=f'pc-{i}', install=f'i-{i}')
+            self.press(self.ok(d))
+        calls = []
+        real = relay_mod.telegram
+        import licence_studio.autotrial as at
+        at.telegram = lambda *a, **k: (calls.append(1), False)[1]
+        try:
+            self.s.auto.cycle()
+        finally:
+            at.telegram = real
+        self.assertEqual(len(calls), 1, 'one failed try stops the round\'s sending')
 
     def test_the_copy_to_the_owner_is_retried_until_telegram_takes_it_and_never_sent_twice(self):
         os.environ['LS_TELEGRAM_API'] = 'http://127.0.0.1:9'          # nothing listens: Telegram is unreachable
@@ -254,21 +285,85 @@ class Buttons(Harness):
         self.assertIn(self.status(d)['code'], copy['text'])
         self.assertEqual(self.s.one('SELECT issued_by FROM codes')['issued_by'], 'auto-trial')
 
-    def test_a_stale_approval_never_flips_the_reason_every_round_even_with_the_policy_on_and_the_cap_reached(self):
+    def test_a_trial_the_owner_approved_is_not_held_or_reworded_by_the_policy_loop(self):
         self.s.set_setting('auto_trials', True)       # the policy also looks at each request every round
-        self.s.set_setting('auto_trial_daily_cap', 0)
+        self.s.set_setting('auto_trial_daily_cap', 0)  # ... and its cap is reached
         _, _, d = self.ask()
         self.press(self.ok(d))
-        self.s.lock_key()
-        self.s.auto.cycle()
-        self.s.unlock(PASS)
-        with self.s.lock:
-            self.s.db.execute('UPDATE requests SET tg_at = ?', (int(time.time()) - 80 * 3600,))
+        self.s.lock_key()                              # the owner said yes, but the key is locked
         seen = []
         for _ in range(3):
             out = self.s.auto.cycle()
-            seen.append((self.s.requests()[0]['held'], self.s.requests()[0]['tg_decision'], out['held']))
-        self.assertEqual(seen, [('daily_cap', 'expired', 0)] * 3, seen)
+            seen.append((self.s.requests()[0]['held'], out['held']))
+        self.assertEqual(seen, [('locked', 1), ('locked', 0), ('locked', 0)], seen)
+        self.assertEqual([m for m in self.messages() if '⏳' in m], [], 'nobody says "waiting for your decision" to an owner who already decided')
+        self.s.unlock(PASS)
+        self.assertEqual(self.s.auto.cycle()['issued'], 1, 'and the approval still goes through, cap or no cap')
+
+    def test_a_relay_that_cannot_answer_the_states_call_never_stops_the_round(self):
+        """An older relay answers 404 to /licence/states (and has no buttons): the policy still signs. A relay in trouble (500): the round
+        still runs, but nothing is signed on a guess that the request is still open."""
+        self.s.set_setting('auto_trials', True)
+        _, _, old = self.ask(pc='pc-old', install='i-old')
+        real = self.s.relay.states
+
+        def answers(code):
+            def f(ids):
+                raise relay_mod.RelayError('relay.http', f'The relay answered {code}.', code)
+            return f
+        try:
+            self.s.relay.states = answers(500)
+            out = self.s.auto.cycle()
+            self.assertEqual((out['ok'], out['issued']), (True, 0))
+            self.assertEqual(self.status(old)['status'], 'pending', 'it could not be confirmed open, so nothing is signed this round')
+            self.s.relay.states = answers(404)
+            self.assertEqual(self.s.auto.cycle()['issued'], 1, 'an older relay has nothing to confirm: the policy works as in 1.1')
+        finally:
+            self.s.relay.states = real
+        self.assertEqual(self.status(old)['status'], 'issued')
+
+    def test_a_refuse_between_the_pull_and_the_signature_stops_the_signature(self):
+        _, _, d = self.ask()
+        self.s.auto.cycle()
+        self.press(self.ok(d))
+        real = self.s.relay.pending_all
+
+        def pull_then_refuse(*a, **k):
+            items = real(*a, **k)
+            self.press(self.no(d))                     # the owner changes their mind right after the pull
+            return items
+        self.s.relay.pending_all = pull_then_refuse
+        try:
+            out = self.s.auto.cycle()
+        finally:
+            self.s.relay.pending_all = real
+        self.assertEqual(out['issued'], 0)
+        self.assertEqual(self.s.one('SELECT COUNT(*) AS n FROM codes')['n'], 0, 'no code and no trial-ledger row for a request the owner refused')
+        self.assertEqual(self.s.one('SELECT COUNT(*) AS n FROM trial_ledger')['n'], 0)
+        self.assertEqual(self.status(d)['status'], 'refused')
+
+    def test_the_audit_says_who_pressed_even_when_the_press_came_before_the_first_pull(self):
+        _, _, d = self.ask()
+        self.press(self.ok(d))                        # the studio was off
+        self.s.auto.cycle()
+        self.assertEqual(self.s.one("SELECT COUNT(*) AS n FROM audit WHERE action = 'request.owner_pressed_approve'")['n'], 1)
+        # a signed request that the relay still lists (delivery keeps failing) adds nothing every round
+        self.relay_proc.terminate()
+        self.relay_proc.wait(10)
+        for _ in range(3):
+            self.s.auto.cycle()
+        self.assertEqual(self.s.one("SELECT COUNT(*) AS n FROM audit WHERE action = 'request.owner_pressed_approve'")['n'], 1)
+
+    def test_a_copy_is_only_ever_sent_to_the_owners_private_chat(self):
+        os.environ['TELEGRAM_OWNER_CHAT_ID'] = '-1001234567'          # a group: every member would read the codes
+        self.assertFalse(relay_mod.telegram_configured())
+        self.assertFalse(relay_mod.telegram('hello'))
+        _, _, d = self.ask()
+        self.press(self.ok(d))
+        self.s.auto.cycle()
+        self.assertEqual(self.status(d)['status'], 'issued', 'the shop is served')
+        self.assertEqual(TelegramStub.messages, [], 'nothing went to the group')
+        self.assertEqual(self.s.one('SELECT code_sent FROM requests')['code_sent'], 0)
 
     def test_html_in_what_the_relay_sends_cannot_break_the_copy_to_the_owner(self):
         _, _, d = self.ask()
@@ -319,9 +414,6 @@ class Buttons(Harness):
         self.assertEqual(body['allowed_updates'], ['callback_query'], 'only button presses are wanted')
         self.assertTrue(body['drop_pending_updates'])
 
-
-if __name__ == '__main__':
-    unittest.main()
 
 
 class Upgrade(unittest.TestCase):

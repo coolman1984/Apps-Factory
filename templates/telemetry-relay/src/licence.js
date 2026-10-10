@@ -19,7 +19,7 @@
 //
 // The owner's buttons (POST /telegram, the bot's webhook): every alert carries «✅ موافق» and «❌ رفض». The webhook is trusted only when
 // it carries the secret token Telegram was told to send AND the press comes from the owner's own private chat. «رفض» closes the request
-// at once (the shop sees the refusal). «موافق» only RECORDS the owner's decision (`owner_decision`); it is not a licence: the owner's
+// at once (the shop sees the refusal). «موافق» only RECORDS the owner's decision (table `licence_owner`); it is not a licence: the owner's
 // trusted PC (Licence Studio) still has to sign, and a paid kind still needs proof of payment there. The owner may take an approval
 // back (press «رفض») until the code has been signed. A denial is final. Nothing about the code or the key is ever in a button.
 //
@@ -80,7 +80,11 @@ export const alertText = (row, buttons = true) => `🔔 طلب ${KIND_AR[row.kin
   + (!buttons ? (row.kind === 'trial' ? 'برنامج التراخيص هيراجعه ويصدر الكود لو السياسة تسمح.' : 'محتاج تأكيد الدفع وموافقتك في برنامج التراخيص.')
     : row.kind === 'trial' ? 'دوس ✅ موافق عشان برنامج التراخيص على جهازك يصدر الكود، أو ❌ رفض.'
       : 'الموافقة هنا بتسجل قرارك بس: الكود محتاج تأكيد الدفع في برنامج التراخيص.');
-const buttonsOn = (env) => !!env.TELEGRAM_WEBHOOK_SECRET;
+// The buttons are on only when the webhook can really answer them: its secret, the bot, and a private chat (a positive number; a group is refused).
+// One predicate for the alert (shows buttons) and the webhook (accepts presses), so an alert never carries buttons that cannot work.
+export const buttonsReady = (env) => !!env.TELEGRAM_WEBHOOK_SECRET && !!env.TELEGRAM_BOT_TOKEN && /^\d{1,20}$/.test(String(env.TELEGRAM_OWNER_CHAT_ID || ''));
+// How long an approval counts (hours). The relay is the only judge of it: the owner's PC is told `expired` and never uses its own clock.
+const approvalSeconds = (env) => Math.max(1, num(env.LICENCE_APPROVAL_HOURS, 72)) * 3600;
 
 // The owner's two buttons. The data is only an action and the opaque request id (39 bytes, Telegram allows 64). After an approval the
 // only button left is «سحب الموافقة»: the owner can change their mind until the code is signed.
@@ -164,7 +168,7 @@ async function create(request, env, ctx, now) {
   if (pending.n >= num(env.LICENCE_PENDING_MAX, 300)) return reply({error: 'full'}, 503, now);
   if (!(await storeWithinLimits()).meta.changes) return reply({error: 'rate'}, 429, now);  // another request took the last place meanwhile
   await note(env, now, row.id, 'created', `${row.kind} src ${src.slice(0, 6)}`);
-  const told = telegram(env, alertText(row, buttonsOn(env)), buttonsOn(env) ? {reply_markup: keyboard(row.id)} : {});
+  const told = telegram(env, alertText(row, buttonsReady(env)), buttonsReady(env) ? {reply_markup: keyboard(row.id)} : {});
   if (ctx && typeof ctx.waitUntil === 'function') ctx.waitUntil(told); else await told;
   return reply({id: row.id, poll_token: pollToken, status: 'pending'}, 202, now);
 }
@@ -173,7 +177,8 @@ async function create(request, env, ctx, now) {
 async function ownRequest(request, env, id) {
   const token = bearer(request.headers);
   if (!UUID.test(id || '') || token.length < 20 || token.length > 200) return null;
-  const r = await env.DB.prepare('SELECT id, status, reason, code, poll_hash, owner_decision FROM licence_requests WHERE id = ?').bind(id).first();
+  const r = await env.DB.prepare('SELECT r.id, r.status, r.reason, r.code, r.poll_hash, r.kind, o.decision AS owner_decision, o.decided_at AS owner_decided_at '
+    + 'FROM licence_requests r LEFT JOIN licence_owner o ON o.request_id = r.id WHERE r.id = ?').bind(id).first();
   if (!r || !same(r.poll_hash, await sha256hex(token))) return null;
   return r;
 }
@@ -181,8 +186,9 @@ async function ownRequest(request, env, id) {
 async function status(request, env, url, now) {
   const r = await ownRequest(request, env, url.searchParams.get('id'));
   if (!r) return reply({error: 'unauthorised'}, 401, now);
-  // `stage: 'approved'` lets the shop say "the company agreed, the code is on its way"; it is never a licence
-  return reply({status: r.status, reason: r.reason, ...(r.status === 'pending' && r.owner_decision === 'approved' ? {stage: 'approved'} : {}),
+  // `stage: 'approved'` (a trial, while the approval counts) lets the shop say "the company agreed, the code is on its way"; it is never a licence
+  const approved = r.status === 'pending' && r.kind === 'trial' && r.owner_decision === 'approved' && now - r.owner_decided_at <= approvalSeconds(env);
+  return reply({status: r.status, reason: r.reason, ...(approved ? {stage: 'approved'} : {}),
     ...(r.status === 'issued' ? {code: r.code} : {})}, 200, now);
 }
 
@@ -205,9 +211,12 @@ async function pending(env, url, now) {
   // `after=<created_at>:<id>` reads the next page: requests that wait for the owner must not hide newer ones (review of PR #34)
   const [at, aid] = String(url.searchParams.get('after') || '').split(':');
   const afterAt = Number.isFinite(Number(at)) && at !== '' ? Number(at) : -1;
-  const {results} = await env.DB.prepare("SELECT id, product, kind, device, machine, shop, ref, version, src, created_at, owner_decision, owner_decided_at FROM licence_requests "
-    + "WHERE status = 'pending' AND (created_at > ? OR (created_at = ? AND id > ?)) ORDER BY created_at, id LIMIT ?")
-    .bind(afterAt, afterAt, aid || '', limit).all();
+  // `owner_decision` is `expired` once an approval is older than the window: the owner's PC trusts the relay's clock, not its own
+  const {results} = await env.DB.prepare("SELECT r.id, r.product, r.kind, r.device, r.machine, r.shop, r.ref, r.version, r.src, r.created_at, "
+    + "CASE WHEN o.decision = 'approved' AND ? - o.decided_at > ? THEN 'expired' ELSE o.decision END AS owner_decision, o.decided_at AS owner_decided_at "
+    + "FROM licence_requests r LEFT JOIN licence_owner o ON o.request_id = r.id "
+    + "WHERE r.status = 'pending' AND (r.created_at > ? OR (r.created_at = ? AND r.id > ?)) ORDER BY r.created_at, r.id LIMIT ?")
+    .bind(now, approvalSeconds(env), afterAt, afterAt, aid || '', limit).all();
   return reply({requests: results}, 200, now);
 }
 
@@ -236,7 +245,8 @@ async function states(request, env, now) {
   try { d = await request.json(); } catch { return reply({error: 'json'}, 400, now); }
   const ids = d && Array.isArray(d.ids) ? d.ids.filter((x) => typeof x === 'string' && UUID.test(x)).slice(0, 50) : null;
   if (!ids || !ids.length) return reply({error: 'fields'}, 400, now);
-  const {results} = await env.DB.prepare(`SELECT id, status, reason, owner_decision FROM licence_requests WHERE id IN (${ids.map(() => '?').join(',')})`).bind(...ids).all();
+  const {results} = await env.DB.prepare('SELECT r.id, r.status, r.reason, o.decision AS owner_decision FROM licence_requests r LEFT JOIN licence_owner o ON o.request_id = r.id '
+    + `WHERE r.id IN (${ids.map(() => '?').join(',')})`).bind(...ids).all();
   return reply({states: Object.fromEntries(results.map((r) => [r.id, {status: r.status, reason: r.reason, owner_decision: r.owner_decision}]))}, 200, now);
 }
 
@@ -263,11 +273,12 @@ async function pressRefused(env, now, detail) {
 
 export async function handleTelegram(request, env, ctx, now) {
   const wait = (p) => (ctx && typeof ctx.waitUntil === 'function' ? (ctx.waitUntil(p), undefined) : p);   // in the Worker the owner's phone is told after the answer; in a test it is awaited
-  if (request.method !== 'POST' || !env.TELEGRAM_WEBHOOK_SECRET || !env.TELEGRAM_BOT_TOKEN || !/^\d{1,20}$/.test(String(env.TELEGRAM_OWNER_CHAT_ID || ''))) {
+  if (request.method !== 'POST' || !buttonsReady(env)) {
     return reply({error: 'not found'}, 404);   // not switched on (or the owner's chat is a group, whose presses are never accepted)
   }
   if (!same(request.headers.get('x-telegram-bot-api-secret-token') || '', env.TELEGRAM_WEBHOOK_SECRET)) {
-    await pressRefused(env, now, 'bad_secret');
+    // Not written to D1: the address is public, and a flood of wrong secrets must not cost the free plan's quota. (`wrangler tail` shows it.)
+    console.warn('telegram webhook: wrong or missing secret token');
     return reply({error: 'unauthorised'}, 401);
   }
   const declared = Number(request.headers.get('content-length') || 0);
@@ -294,7 +305,8 @@ export async function handleTelegram(request, env, ctx, now) {
     return reply({ok: true});
   }
   const [, action, id] = m;
-  const row = await env.DB.prepare('SELECT id, product, kind, device, status, reason, owner_decision, created_at FROM licence_requests WHERE id = ?').bind(id).first();
+  const row = await env.DB.prepare('SELECT r.id, r.product, r.kind, r.device, r.status, r.reason, r.created_at, o.decision AS owner_decision '
+    + 'FROM licence_requests r LEFT JOIN licence_owner o ON o.request_id = r.id WHERE r.id = ?').bind(id).first();
   const message = cb.message && Number.isInteger(cb.message.message_id) ? cb.message.message_id : null;
   // Show the outcome on the message itself (and drop the buttons it no longer needs). Rebuilt from our own row, never from the
   // message text, so repeated presses cannot make it grow.
@@ -313,9 +325,10 @@ export async function handleTelegram(request, env, ctx, now) {
   };
   if (action === 'no') {
     if (row.status !== 'pending') return closed();
-    const done = await env.DB.prepare("UPDATE licence_requests SET status = 'refused', reason = 'owner_refused', owner_decision = 'denied', owner_decided_at = ?, decided_at = ? "
-      + "WHERE id = ? AND status = 'pending'").bind(now, now, id).run();
+    const done = await env.DB.prepare("UPDATE licence_requests SET status = 'refused', reason = 'owner_refused', decided_at = ? WHERE id = ? AND status = 'pending'").bind(now, id).run();
     if (!done.meta.changes) return closed();      // the owner's program closed it a moment ago
+    await env.DB.prepare("INSERT INTO licence_owner (request_id, decision, decided_at) VALUES (?, 'denied', ?) "
+      + "ON CONFLICT(request_id) DO UPDATE SET decision = 'denied', decided_at = excluded.decided_at").bind(id, now).run();
     await note(env, now, id, 'refused', row.owner_decision === 'approved' ? 'owner_refused telegram (approval withdrawn)' : 'owner_refused telegram');
     await answer('اترفض ❌');
     await show('❌ رفضت الطلب');
@@ -328,14 +341,15 @@ export async function handleTelegram(request, env, ctx, now) {
     await show('✅ وافقت: برنامج التراخيص هيصدر الكود', true);
     return reply({ok: true});
   }
-  if (now - row.created_at > num(env.LICENCE_APPROVAL_HOURS, 72) * 3600) {  // an old button: the shop should ask again
+  if (now - row.created_at > approvalSeconds(env)) {  // an old button: the shop should ask again
     await note(env, now, id, 'tg_refused', 'stale');
     await answer('الطلب قديم: خلي المحل يطلب تاني');
     await show('⌛ الطلب قديم: خلي المحل يطلب تاني');
     return reply({ok: true});
   }
-  const done = await env.DB.prepare("UPDATE licence_requests SET owner_decision = 'approved', owner_decided_at = ? WHERE id = ? AND status = 'pending' AND owner_decision IS NULL")
-    .bind(now, id).run();
+  // one statement: it records the approval only while the request is still waiting, and only once (the key is the request id)
+  const done = await env.DB.prepare("INSERT OR IGNORE INTO licence_owner (request_id, decision, decided_at) "
+    + "SELECT ?, 'approved', ? WHERE EXISTS (SELECT 1 FROM licence_requests WHERE id = ? AND status = 'pending')").bind(id, now, id).run();
   if (!done.meta.changes) return closed();
   await note(env, now, id, 'approved', 'telegram');
   await answer('تمت الموافقة ✅');
@@ -372,5 +386,6 @@ export async function cleanupLicence(env, now) {
   n += (await env.DB.prepare("DELETE FROM licence_requests WHERE status IN ('refused', 'expired') AND created_at < ?").bind(now - MEMORY_DAYS * DAY).run()).meta.changes;
   n += (await env.DB.prepare("DELETE FROM licence_requests WHERE status = 'delivered' AND created_at < ?").bind(now - MEMORY_DAYS * DAY).run()).meta.changes;
   n += (await env.DB.prepare('DELETE FROM licence_events WHERE at < ?').bind(now - EVENT_DAYS * DAY).run()).meta.changes;
+  n += (await env.DB.prepare('DELETE FROM licence_owner WHERE decided_at < ?').bind(now - MEMORY_DAYS * DAY).run()).meta.changes;
   return n;
 }

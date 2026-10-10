@@ -209,7 +209,7 @@ async function codes(page, p) {
     put($('#list'), rows.length ? html`<div class="card pad-0"><div class="table-wrap"><table class="t"><thead><tr><th>العميل</th><th>البرنامج</th><th>النوع</th><th>الجهاز</th>
       <th>لحد</th><th>الحالة</th><th>اتعمل بواسطة</th></tr></thead><tbody>${rows.map((c) => html`<tr class="click" data-s="${c.serial}"><td class="name">${c.customer || '—'}<div class="xs faint mono">${c.serial}</div></td>
       <td>${c.product}</td><td>${EDITION[c.edition]}</td><td class="mono">${c.device || '—'}</td><td class="mono">${until(c)}</td>
-      <td><span class="badge status-${c.status}">${STATUS[c.status]}${c.status === 'active' && c.days_left !== null ? ' · ' + c.days_left + ' يوم' : ''}</span></td><td>${c.issued_by === 'agent' ? 'الإيجنت' : 'صاحب البرنامج'}</td></tr>`)}</tbody></table></div></div>`
+      <td><span class="badge status-${c.status}">${STATUS[c.status]}${c.status === 'active' && c.days_left !== null ? ' · ' + c.days_left + ' يوم' : ''}</span></td><td>${c.issued_by === 'agent' ? 'الإيجنت' : c.issued_by === 'telegram' ? 'موافقتك على تليجرام' : c.issued_by === 'auto-trial' ? 'السياسة التلقائية' : 'صاحب البرنامج'}</td></tr>`)}</tbody></table></div></div>`
       : html`<div class="card"><div class="empty">${icon('receipt')}<h3>مفيش أكواد</h3></div></div>`);
     $$('tr[data-s]').forEach((tr) => tr.addEventListener('click', () => codeFile(rows.find((r) => r.serial === tr.dataset.s))));
   };
@@ -240,7 +240,7 @@ function codeFile(c) {
 
 const KIND = { trial: 'تجربة 14 يوم', monthly: 'اشتراك شهري', permanent: 'تفعيل دائم' };
 const HELD = { locked: 'البرنامج مقفول: افتحه وهيتعمل لوحده', daily_cap: 'عدد التجارب النهاردة وصل الحد', review_src: 'طلبات كتير من نفس المكان: راجعها', payment_needed: 'مستني تأكيد الدفع',
-  already_used: 'الكمبيوتر ده خد تجربة قبل كده', owner_refused: 'إنت رفضت', approval_old: 'موافقتك على تليجرام قديمة: وافق من هنا بنفسك', expired: 'الطلب انتهى عند الوسيط', closed_elsewhere: 'الطلب اتقفل عند الوسيط', bad_device: 'رقم الجهاز مش مظبوط', bad_machine: 'بصمة الكمبيوتر مش مظبوطة', unknown_product: 'البرنامج مش معروف' };
+  already_used: 'الكمبيوتر ده خد تجربة قبل كده', owner_refused: 'إنت رفضت', expired: 'الطلب انتهى عند الوسيط', closed_elsewhere: 'الطلب اتقفل عند الوسيط', bad_device: 'رقم الجهاز مش مظبوط', bad_machine: 'بصمة الكمبيوتر مش مظبوطة', unknown_product: 'البرنامج مش معروف' };
 const POLICY_SAYS = { issue: 'السياسة هتصدّره لوحدها', reissue: 'السياسة هتبعت نفس الكود تاني', refuse: 'السياسة هترفضه', hold: 'السياسة هتسيبه لك' };
 
 async function relayPanel(page) {

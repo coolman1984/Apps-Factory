@@ -14,7 +14,7 @@ Dated owner decisions, newest first. Only decisions recorded in the repository a
 ### 2026-10-10 — The owner's Telegram buttons: design choices taken while building them (awaiting the owner's confirmation)
 - «✅ موافق» signs a **trial** on the owner's PC even when the automatic policy is off (the owner chose that request by hand); the daily cap and the flood check, which are the owner's own limits, do not hold it back. Every hard rule still does (one trial per PC, well-formed device, key unlocked).
 - For **monthly and permanent** the button records intent only. Signing still needs the payment tick and reference in the Studio: the bot never moves a paid code forward alone.
-- «❌ رفض» is final; «سحب الموافقة» works until the code is signed. An approval is acted on for **72 hours**.
+- «❌ رفض» is final; «سحب الموافقة» works until the code is signed. An approval counts for **72 hours** by default (the relay judges it).
 - The owner's chat gets **a copy of every signed code** (the manual way for an offline shop). The chat must be the owner's private chat with the bot; a group is refused.
 - **Proposed, not decided:** a one-use challenge for a brand-new install (today: nonce, address/device/list limits and one trial per machine tag; a determined person with a new identity can still get another trial).
 

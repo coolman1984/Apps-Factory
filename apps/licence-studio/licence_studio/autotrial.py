@@ -14,7 +14,8 @@ The owner's buttons (Telegram «✅ موافق» / «❌ رفض», handled by th
 only learns of it (`sync_closed`). «موافق» is recorded on the relay and read here (`tg_decision`): for a TRIAL it stands in for the
 policy even when the policy is off (the owner decided this one request by hand), so the owner's own caps do not hold it back; every hard
 rule still does: key unlocked, well-formed device and PC tag, known product, one trial per PC. For monthly / permanent it records
-the owner's intent only: signing still needs the payment tick and reference in this program. An approval is acted on for 72 hours.
+the owner's intent only: signing still needs the payment tick and reference in this program. How long an approval counts is the relay's
+decision (it answers `expired`): this program never judges it by its own clock.
 Whatever way a code is signed for a shop's request, the owner's phone gets a copy of it (the manual way when the shop is offline).
 Every step is in the append-only audit. What a shop typed (its name, a payment reference) is shown to the owner as text only.
 """
@@ -25,9 +26,10 @@ import time
 import uuid
 from html import escape as html_escape
 
-from .relay import APPROVAL_MAX_AGE_HOURS, DEVICE, KIND_AR, KIND_EDITION, MACHINE, REASON_AR, UUID, RelayError, telegram, telegram_configured
-from .service import MONTHLY_DAYS, StudioError, now_iso
+from .relay import DEVICE, KIND_AR, KIND_EDITION, MACHINE, REASON_AR, UUID, RelayError, telegram, telegram_configured
+from .service import MONTHLY_DAYS, UNATTENDED, StudioError, now_iso
 
+CLAIM_SECONDS = 300  # a copy to the owner being sent for longer than this is taken to have died
 BUTTON = 'telegram'  # who signed when the owner's «✅ موافق» on Telegram was the decision (the owner's own press, not the policy)
 
 SAME_SOURCE_LIMIT = 5  # more than this many requests from one address in a day are held for the owner to look at (shops share addresses: held, never refused)
@@ -41,11 +43,6 @@ class AutoTrial:
         self._told: set[tuple[str, str]] = set()
 
     # ------------------------------------------------------------------ the policy
-    @staticmethod
-    def approval_fresh(r: dict) -> bool:
-        """The owner pressed «✅ موافق» on Telegram, and not too long ago."""
-        return r.get('tg_decision') == 'approved' and bool(r.get('tg_at')) and time.time() - r['tg_at'] <= APPROVAL_MAX_AGE_HOURS * 3600
-
     def verdict(self, r: dict, approved: bool = False) -> tuple[str, str, dict | None]:
         """('issue' | 'reissue' | 'refuse' | 'hold', reason, existing code row). Pure: it changes nothing. `approved`: the owner pressed
         «✅ موافق» for this very request, so the day's cap and the flood check (the owner's own limits) do not hold it back."""
@@ -98,21 +95,34 @@ class AutoTrial:
                'note': ('الدفع: ' + str(item.get('ref') or '')[:60]) if item.get('ref') else '', 'requested_by': 'shop', 'requested_at': now_iso(),
                'status': 'pending', 'source': 'relay', 'relay_id': rid, 'machine': item.get('machine') if isinstance(item.get('machine'), str) else None,
                'src': str(item.get('src') or '')[:16] or None, 'kind': kind, 'payment_ref': str(item.get('ref') or '')[:60]}
-        if item.get('owner_decision') == 'approved' and isinstance(item.get('owner_decided_at'), int):
-            row.update(tg_decision='approved', tg_at=item['owner_decided_at'])
+        decision = item.get('owner_decision') if item.get('owner_decision') in ('approved', 'expired') and isinstance(item.get('owner_decided_at'), int) else ''
+        if decision:
+            row.update(tg_decision=decision, tg_at=item['owner_decided_at'])
         cols = ','.join(row)
         with s.lock:
             s.db.execute(f'INSERT INTO requests({cols}) VALUES ({",".join("?" * len(row))})', list(row.values()))
         s.audit('shop', 'request.relay', {'id': row['id'], 'relay': rid[:8], 'kind': kind, 'device': row['device'], 'machine': (row['machine'] or '')[:8]})
+        if decision == 'approved':  # the owner pressed «✅ موافق» while this program was away
+            s.audit('telegram', 'request.owner_pressed_approve', {'id': row['id'], 'relay': rid[:8]})
         return s.one('SELECT * FROM requests WHERE id = ?', row['id'])
 
     def note_decision(self, known: dict, item: dict):
-        """The owner's «✅ موافق» arrived after the request was first pulled (or was taken back): remember it, once, in the audit."""
-        approved = item.get('owner_decision') == 'approved' and isinstance(item.get('owner_decided_at'), int)
-        if approved and known['tg_decision'] == '':   # an expired approval stays expired (the relay still lists it as approved)
-            with self.s.lock:
-                self.s.db.execute("UPDATE requests SET tg_decision = 'approved', tg_at = ? WHERE id = ? AND status = 'pending'", (item['owner_decided_at'], known['id']))
-            self.s.audit('telegram', 'request.owner_pressed_approve', {'id': known['id'], 'relay': str(item.get('id'))[:8]})
+        """The owner's «✅ موافق» arrived after the request was first pulled, or the relay says it is too old now. Audited once, when it changes.
+        An expired approval stays expired (the relay still lists the press)."""
+        s = self.s
+        decision = item.get('owner_decision')
+        at = item.get('owner_decided_at') if isinstance(item.get('owner_decided_at'), int) else None
+        if decision == 'approved' and known['tg_decision'] == '':
+            with s.lock:
+                done = s.db.execute("UPDATE requests SET tg_decision = 'approved', tg_at = ? WHERE id = ? AND status = 'pending' AND tg_decision = ''", (at, known['id'])).rowcount
+            if done:
+                s.audit('telegram', 'request.owner_pressed_approve', {'id': known['id'], 'relay': str(item.get('id'))[:8]})
+        elif decision == 'expired' and known['tg_decision'] in ('', 'approved'):
+            with s.lock:
+                done = s.db.execute("UPDATE requests SET tg_decision = 'expired', tg_at = ? WHERE id = ? AND status = 'pending' AND tg_decision IN ('', 'approved')", (at, known['id'])).rowcount
+            if done:
+                s.audit('studio', 'request.approval_expired', {'id': known['id']})
+                self.tell('approval_old', known['id'], '⌛ موافقتك على طلب تجربة بقالها وقت طويل ومابقتش تنفع: وافق من برنامج التراخيص بنفسك.')
 
     def tell(self, key: str, rid: str, text: str):
         """One Telegram message per request and event (a retry loop never repeats it)."""
@@ -164,18 +174,21 @@ class AutoTrial:
                     seen.add(item.get('id'))
                     if self.ingest(item):
                         self.last['pulled'] += 1
-                self.sync_closed(seen)
             except RelayError as e:
                 self.last.update(ok=False, error=e.key)
                 return dict(self.last)
+            try:
+                self.sync_closed(seen)
+            except RelayError as e:  # an older relay without /licence/states, or a hiccup: everything else in this round still runs
+                self.last.update(error='sync.' + e.key)
             # 1. the owner's own «✅ موافق»: it stands in for the policy for that one request (even when the policy is off)
             for r in s.rows("SELECT * FROM requests WHERE source = 'relay' AND status = 'pending' AND tg_decision = 'approved' AND kind = 'trial' ORDER BY requested_at"):
                 self.decide_auto(r, BUTTON)   # (a paid kind is never signed by a button: it waits for the payment proof in this program)
             # 2. the policy the owner switched on, for the rest
             pol = s.policy()
             if pol['auto_trials']:
-                for r in s.rows("SELECT * FROM requests WHERE source = 'relay' AND status = 'pending' ORDER BY requested_at"):
-                    self.decide_auto(r, 'auto-trial')
+                for r in s.rows("SELECT * FROM requests WHERE source = 'relay' AND status = 'pending' AND NOT (kind = 'trial' AND tg_decision = 'approved') ORDER BY requested_at"):
+                    self.decide_auto(r, 'auto-trial')   # (a trial the owner approved on the phone was handled above: this loop must not hold or re-word it)
             for r in s.rows("SELECT * FROM requests WHERE source = 'relay' AND status IN ('approved', 'refused') AND relayed = 0 ORDER BY requested_at"):
                 self.deliver(r)
             self.send_copies()
@@ -219,15 +232,6 @@ class AutoTrial:
         own «✅ موافق» for this request). Everything that can refuse or hold a request still does."""
         s = self.s
         approved = by == BUTTON
-        if approved and not self.approval_fresh(r):
-            # too old to act on: the decision is marked expired once (so it is not looked at again, and nothing flips each round) and the
-            # owner is told. The request itself is untouched: the owner can still approve it here, by hand.
-            with s.lock:
-                done = s.db.execute("UPDATE requests SET tg_decision = 'expired' WHERE id = ? AND tg_decision = 'approved'", (r['id'],)).rowcount
-            if done:
-                s.audit('studio', 'request.approval_expired', {'id': r['id']})
-                self.tell('approval_old', r['id'], f'⌛ موافقتك على طلب الجهاز {r["device"]} بقالها أكتر من {APPROVAL_MAX_AGE_HOURS} ساعة: وافق من برنامج التراخيص بنفسك.')
-            return
         kind, reason, existing = self.verdict(r, approved=approved)
         if kind == 'refuse':
             self._close(r, 'refused', reason, by)
@@ -249,6 +253,12 @@ class AutoTrial:
                 self.last['held'] += 1
                 self.tell('locked', r['id'], f'🔒 فيه طلب تجربة {"وافقت عليه" if approved else "مستني"} والبرنامج مقفول\nالجهاز: {r["device"]}\nافتح برنامج التراخيص واكتب كلمة السر.')
             return
+        try:  # the owner may have refused it on the phone since this round pulled it: ask the relay once more, right before signing
+            if self.refresh_one(r):
+                return
+        except RelayError as e:
+            if e.status != 404:  # (404: a relay older than 0.14 has no such call and no buttons either: nothing to re-check)
+                return  # the relay cannot confirm that the request is still open: do not sign now, the next round tries again
         if not s.claim(r['id']):  # the owner decided it a moment ago
             return
         try:
@@ -280,12 +290,15 @@ class AutoTrial:
         s = self.s
         if not telegram_configured():
             return
-        for r in s.rows("SELECT * FROM requests WHERE source = 'relay' AND status = 'approved' AND code_sent = 0 ORDER BY requested_at"):
+        stale = int(time.time()) - CLAIM_SECONDS  # a claim older than this was left by a send that died (PC shut down): it is taken again
+        for r in s.rows("SELECT * FROM requests WHERE source = 'relay' AND status = 'approved' AND (code_sent = 0 OR (code_sent = 2 AND COALESCE(code_claim, 0) < ?)) "
+                        "ORDER BY requested_at", stale):
             row = s.one('SELECT code, serial FROM codes WHERE serial = ?', r['serial'])
             if not row:
                 continue
             with s.lock:  # one sender per request: the round and the owner's own click can both get here at once
-                claimed = s.db.execute('UPDATE requests SET code_sent = 2 WHERE id = ? AND code_sent = 0', (r['id'],)).rowcount == 1
+                claimed = s.db.execute('UPDATE requests SET code_sent = 2, code_claim = ? WHERE id = ? AND (code_sent = 0 OR (code_sent = 2 AND COALESCE(code_claim, 0) < ?))',
+                                       (int(time.time()), r['id'], stale)).rowcount == 1
             if not claimed:
                 continue
             esc = html_escape
@@ -295,6 +308,8 @@ class AutoTrial:
                 s.db.execute('UPDATE requests SET code_sent = ? WHERE id = ?', (1 if ok else 0, r['id']))
             if ok:
                 s.audit('studio', 'request.copy_to_owner', {'id': r['id'], 'serial': row['serial']})
+            else:
+                break  # Telegram cannot be reached: one try per round, not one slow try per request
 
     def _close(self, r: dict, status: str, reason: str, by: str = 'auto-trial'):
         s = self.s

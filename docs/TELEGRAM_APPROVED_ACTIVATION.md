@@ -56,8 +56,8 @@ Source docs: [Factory current protection](PROTECTION_UPDATES_AND_SUPPORT.md), [p
 | Step in the design | Where | How it is checked |
 |---|---|---|
 | Alert with **✅ موافق / ❌ رفض** (button data = action + opaque request id only) | `templates/telemetry-relay/src/licence.js` (`alertText`, `keyboard`) | `test/telegram.test.mjs` |
-| Webhook `POST /telegram`: secret token **and** allow-listed owner chat **and** callback actor; stale buttons refused; idempotent; refusals logged without secrets (capped) | `handleTelegram` | 14 relay tests: wrong/missing secret, other person, group chat, copied message, junk body/data, double click, old button, log cap |
-| **رفض** closes the request at once; a denial is final; **موافق** only records the owner's decision (`owner_decision`); the owner may withdraw it until the code is signed | relay + `schema.sql` (`owner_decision`, `owner_decided_at`) | same |
+| Webhook `POST /telegram`: secret token **and** allow-listed owner chat **and** callback actor; stale buttons refused; idempotent; refusals logged without secrets (capped; a wrong secret costs no database query) | `handleTelegram` | 19 relay tests: wrong/missing secret, other person, group chat, copied message, junk body/data, double click, old button, log cap |
+| **رفض** closes the request at once; a denial is final; **موافق** only records the owner's decision (table `licence_owner`); the owner may withdraw it until the code is signed | relay + `schema.sql` (a new table: re-running the file is the upgrade) | same |
 | Trusted signer: only the Licence Studio on the owner's PC, key unlocked, signs; the relay and the bot never hold a key or a signing endpoint | `apps/licence-studio` `autotrial.py` (`decide_auto` with `by='telegram'`) | `tests/test_telegram_buttons.py` (real Worker over HTTP) |
 | Hard rules still hold after «موافق»: one trial per PC (append-only ledger), well-formed device and PC tag, known product; the owner's own daily cap and flood check do not hold back a request the owner chose by hand | `verdict(approved=True)` | button tests |
 | Monthly / permanent: the button records intent only; signing needs the payment tick and reference in the Studio | `verdict` (`payment_needed`) + `decide` | button tests (paid) |
@@ -69,7 +69,8 @@ Source docs: [Factory current protection](PROTECTION_UPDATES_AND_SUPPORT.md), [p
 
 **Differences from the design, on purpose.**
 - The relay edits the owner's message to show the outcome and, after an approval, leaves one button «❌ سحب الموافقة» (revocation before signing).
-- An approval is acted on for 72 hours (`LICENCE_APPROVAL_HOURS` on the relay, `APPROVAL_MAX_AGE_HOURS` in the Studio); after that the owner approves again in the Studio.
+- An approval counts for 72 hours by default (`LICENCE_APPROVAL_HOURS` on the relay, at least 1). The **relay** judges it (it answers `expired`), never the owner's PC clock; after that the owner approves again in the Studio.
+- Before the Studio signs without the owner at the keyboard it asks the relay once more whether the request is still open (an owner who refused a second ago gets no code); if the relay cannot confirm, nothing is signed that round. A relay older than 0.14 (no such call) is simply not asked.
 - The signer **pulls** (it never listens): nothing reaches the owner's PC from the internet. The round is every 60 seconds while the Studio runs, so «instant» means about a minute plus the shop's 20-second look, and only while the Studio is open and unlocked.
 - No fresh-install one-use challenge was added. The admission rules are the existing ones (nonce, per-address / per-device / waiting-list limits, one trial per machine tag); spoofing by a determined person with a new identity remains possible and is stated in the threat model of `LICENCE_ACTIVATION.md`.
 

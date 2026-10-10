@@ -23,7 +23,7 @@ CREATE TABLE IF NOT EXISTS installs (
   gen TEXT NOT NULL
 );
 
--- Licence mailbox (Apps-Factory 0.13.0). A shop asks for a trial or a paid code; the owner's trusted licensing program (Licence
+-- Licence mailbox (Apps-Factory 0.13.0; the owner's buttons 0.14.0). A shop asks for a trial or a paid code; the owner's trusted licensing program (Licence
 -- Studio, the only place a signing key exists) pulls the request, decides, and hands the signed code back; the shop's program
 -- collects it. The relay never holds a signing key and never opens a code.
 -- machine = sha256 tag of the PC (never the raw machine id); used only to refuse a second trial on the same PC.
@@ -45,9 +45,7 @@ CREATE TABLE IF NOT EXISTS licence_requests (
   code TEXT,                       -- the signed code while it waits for the shop (a public artefact bound to the device)
   created_at INTEGER NOT NULL,
   decided_at INTEGER,
-  delivered_at INTEGER,
-  owner_decision TEXT,             -- NULL | approved | denied: the owner's button on Telegram. Never a licence by itself.
-  owner_decided_at INTEGER
+  delivered_at INTEGER
 );
 CREATE UNIQUE INDEX IF NOT EXISTS licence_nonce ON licence_requests (product, device, nonce);
 CREATE INDEX IF NOT EXISTS licence_status ON licence_requests (status, created_at);
@@ -63,6 +61,11 @@ CREATE TABLE IF NOT EXISTS licence_events (
   detail TEXT NOT NULL DEFAULT ''
 );
 CREATE INDEX IF NOT EXISTS licence_events_at ON licence_events (at);
--- An existing deployment (before Apps-Factory 0.14.0) adds the two columns once; a new one needs nothing:
---   ALTER TABLE licence_requests ADD COLUMN owner_decision TEXT;
---   ALTER TABLE licence_requests ADD COLUMN owner_decided_at INTEGER;
+-- The owner's button on Telegram (Apps-Factory 0.14.0), one row per request: approved | denied. Never a licence by itself: the owner's
+-- trusted PC still has to sign. A separate table, so re-running this file on an existing database is the whole upgrade (no ALTER).
+CREATE TABLE IF NOT EXISTS licence_owner (
+  request_id TEXT PRIMARY KEY,
+  decision TEXT NOT NULL,
+  decided_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS licence_owner_at ON licence_owner (decided_at);

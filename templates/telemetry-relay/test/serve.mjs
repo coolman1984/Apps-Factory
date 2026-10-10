@@ -1,7 +1,8 @@
 // TEST ONLY. Runs the real Worker (src/worker.js) behind a plain HTTP server on 127.0.0.1, with the node:sqlite D1 shim and a recording
 // Telegram stub, so that other programs' tests (the Licence Studio's, Al-Store's) can talk to the real code over real HTTP.
 //   node --experimental-sqlite test/serve.mjs [port]      prints {"port": N} when ready
-// Extra test-only paths (never part of the Worker): GET /__test/telegram → the calls the Worker made to Telegram (sendMessage, editMessageText, …).
+// Extra test-only paths (never part of the Worker): GET /__test/telegram → the calls the Worker made to Telegram (sendMessage, editMessageText, …);
+// GET /__test/skew?seconds=N → the Worker's clock runs N seconds ahead.
 import http from 'node:http';
 import {d1} from './d1.mjs';
 import worker from '../src/worker.js';
@@ -17,10 +18,15 @@ const env = {
   LICENCE_PER_DEVICE_DAY: process.env.LICENCE_PER_DEVICE_DAY || '20',
 };
 const pending = [];
+let skew = 0;   // test only: seconds added to the Worker's clock (GET /__test/skew?seconds=N), to age an approval without waiting
 const server = http.createServer(async (req, res) => {
   if (req.url === '/__test/telegram') {
     res.setHeader('content-type', 'application/json');
     return res.end(JSON.stringify(sent));
+  }
+  if (req.url.startsWith('/__test/skew')) {
+    skew = Number(new URL(req.url, 'http://x').searchParams.get('seconds') || 0);
+    return res.end('{}');
   }
   const chunks = [];
   for await (const c of req) chunks.push(c);
@@ -28,7 +34,7 @@ const server = http.createServer(async (req, res) => {
   const headers = {...req.headers, 'cf-connecting-ip': req.headers['x-test-ip'] || '203.0.113.9'};
   const request = new Request('http://relay.test' + req.url, {method: req.method, headers, body: ['GET', 'HEAD'].includes(req.method) ? undefined : body});
   const ctx = {waitUntil: (p) => { pending.push(p); }};
-  const r = await worker.fetch(request, env, ctx);
+  const r = await worker.fetch(request, env, ctx, Math.floor(Date.now() / 1000) + skew);
   await Promise.all(pending.splice(0));
   res.writeHead(r.status, Object.fromEntries(r.headers));
   res.end(Buffer.from(await r.arrayBuffer()));

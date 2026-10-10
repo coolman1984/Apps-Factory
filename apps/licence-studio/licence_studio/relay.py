@@ -34,11 +34,9 @@ REASON_AR = {
     'locked': 'برنامج التراخيص مقفول (اكتب كلمة السر)',
     'review_src': 'طلبات كتير من نفس المكان: راجعها بنفسك',
     'relay_down': 'مفيش اتصال بالوسيط',
-    'approval_old': 'موافقتك على تليجرام قديمة: وافق من هنا بنفسك',
     'expired': 'الطلب انتهى عند الوسيط',
     'closed_elsewhere': 'الطلب اتقفل عند الوسيط',
 }
-APPROVAL_MAX_AGE_HOURS = 72   # a «✅ موافق» older than this is not acted on: the owner confirms again (the relay refuses old ones too)
 
 
 class RelayError(Exception):
@@ -146,13 +144,24 @@ class Relay:
         return self._call('GET', f'/licence/events?limit={int(limit)}').get('events') or []
 
 
+def bot_token() -> str:
+    return os.environ.get('TELEGRAM_BOT_TOKEN') or os.environ.get('CC_TG_BOT_TOKEN') or ''
+
+
+def owner_chat() -> str:
+    """The owner's chat id, only if it is the owner's own private chat (a positive number). A group or channel id is refused: signed codes are
+    sent to this chat, and everybody in a group would read them."""
+    chat = os.environ.get('TELEGRAM_OWNER_CHAT_ID') or os.environ.get('CC_TG_CHAT_ID') or ''
+    return chat if re.fullmatch(r'\d{1,20}', chat) else ''
+
+
 def telegram_configured() -> bool:
-    return bool((os.environ.get('TELEGRAM_BOT_TOKEN') or os.environ.get('CC_TG_BOT_TOKEN')) and (os.environ.get('TELEGRAM_OWNER_CHAT_ID') or os.environ.get('CC_TG_CHAT_ID')))
+    return bool(bot_token() and owner_chat())
 
 
 def _tg_call(method: str, payload: dict):
     """One call to the Telegram Bot API with this PC's bot token. Returns the decoded answer or None; never raises."""
-    token = os.environ.get('TELEGRAM_BOT_TOKEN') or os.environ.get('CC_TG_BOT_TOKEN')
+    token = bot_token()
     if not token:
         return None
     api = 'https://api.telegram.org'
@@ -169,7 +178,7 @@ def _tg_call(method: str, payload: dict):
 
 def telegram(text: str, html: bool = False) -> bool:
     """Tell the owner's phone. Returns False (never raises) when Telegram is not set up or not reachable. `html` lets the text carry <code>."""
-    chat = os.environ.get('TELEGRAM_OWNER_CHAT_ID') or os.environ.get('CC_TG_CHAT_ID')
+    chat = owner_chat()
     if not chat:
         return False
     return _tg_call('sendMessage', {'chat_id': chat, 'text': text, 'disable_web_page_preview': True, **({'parse_mode': 'HTML'} if html else {})}) is not None

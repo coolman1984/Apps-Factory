@@ -23,12 +23,12 @@ def telegram_webhook(studio, a):
     """Tell Telegram to send the owner's button presses to the relay, with the secret the relay checks. The bot token comes from the
     environment (TELEGRAM_BOT_TOKEN), the secret from TELEGRAM_WEBHOOK_SECRET or --make-secret. Nothing is stored by this command."""
     import secrets
-    from .relay import RelayError, set_webhook
+    from .relay import RelayError, bot_token, set_webhook
     secret = os.environ.get('TELEGRAM_WEBHOOK_SECRET', '')
     made = False
     if a.make_secret:
         secret, made = secrets.token_urlsafe(32), True
-    if not os.environ.get('TELEGRAM_BOT_TOKEN'):
+    if not bot_token():
         print('TELEGRAM_BOT_TOKEN is not set on this PC (the bot token from BotFather).')
         return 2
     if not secret:
