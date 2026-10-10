@@ -122,6 +122,22 @@ class Studio:
         self.auto = AutoTrial(self)
         self._unlock_lock = threading.Lock()
         self._unlock_failures, self._unlock_blocked_until = 0, 0.0
+        self._recover_deciding()
+
+    def _recover_deciding(self):
+        """A request is moved to `deciding` before the code is signed and to approved/refused after. A studio that was shut down in between
+        (power cut, killed) would leave it there for ever: not waiting, not decided, never delivered. At start nothing can be in flight, so each such
+        request is put right: with a code already signed for it (codes are append-only and tied to the request) it is approved with that code and
+        delivered by the next round; without one it waits again for the owner or the policy."""
+        for r in self.rows("SELECT id FROM requests WHERE status = 'deciding'"):
+            code = self.one('SELECT serial FROM codes WHERE request_id = ?', r['id'])
+            with self.lock:
+                if code:
+                    self.db.execute("UPDATE requests SET status = 'approved', decided_at = COALESCE(decided_at, ?), decided_by = COALESCE(NULLIF(decided_by, ''), 'studio'), "
+                                    "serial = ?, held = '' WHERE id = ? AND status = 'deciding'", (now_iso(), code['serial'], r['id']))
+                else:
+                    self.db.execute("UPDATE requests SET status = 'pending' WHERE id = ? AND status = 'deciding'", (r['id'],))
+            self.audit('studio', 'request.recovered', {'id': r['id'], 'serial': code['serial'] if code else None})
 
     # ------------------------------------------------------------------ helpers
     def rows(self, sql, *args):

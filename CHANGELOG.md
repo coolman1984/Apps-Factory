@@ -7,6 +7,7 @@ Found by looking at the real screens of Al-Store in a browser, not by any test: 
 - **af-guide 0.1.3:** the coach and the panel only receive real nodes. `testing/walk_guides.py` now fails any step whose coach prints `null`, `undefined`, `NaN` or `[object` (the walker never read the text before), and `tests/test_browser.py` has a regression for it; both fail on 0.1.2.
 - **af-consent 0.1.1:** same fix in the settings block; `tests/core.test.mjs` (node, a DOM stub that follows the real `replaceChildren` rule) fails on 0.1.0 and runs in CI.
 - Al-Store vendors both (byte-identical below the header).
+- **Licence Studio:** a request moved to `deciding` and left there by a shut-down PC (power cut, killed between signing and saving) was neither waiting, nor decided, nor delivered: the shop never got its code. At start the Studio now puts each such request right: approved with the code already signed for it (delivered by the next round, no second code), or waiting again. Found by asking «what if the PC is switched off at every step»; the test fails without the fix.
 
 ## 0.14.0 (2026-10-10)
 The owner's buttons on Telegram, end to end. Relay template and Licence Studio change; `af-license` and the catalogue do not.

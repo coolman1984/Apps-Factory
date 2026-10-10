@@ -219,6 +219,43 @@ class Buttons(Harness):
         self.s.decide(self.s.requests()[0]['id'], True)
         self.assertEqual(self.status(d)['status'], 'issued', 'the owner can still approve it by hand')
 
+    def test_a_studio_killed_between_signing_and_saving_the_decision_puts_it_right_on_restart(self):
+        """Found by asking «what if the PC is switched off in every step»: the request stayed in `deciding` for ever (not waiting, not decided, never
+        delivered) and the shop never got its code."""
+        from licence_studio.service import Studio
+        device, _, d = self.ask()
+        self.press(self.ok(d))
+        out = self.s.relay.pending_all()
+        self.s.auto.ingest(out[0])
+        [req] = self.s.requests()
+        self.assertTrue(self.s.claim(req['id']))                      # the owner's PC took the request ...
+        code = self.s.issue('al-store', 'trial', req['device'], req['customer'], '', 14, actor='telegram', request_id=req['id'], machine=req['machine'])
+        self.assertEqual(self.s.one('SELECT status FROM requests')['status'], 'deciding')   # ... signed ... and was switched off before saving
+        self.s.db.close()
+        again = Studio(self.dir)                                       # the owner starts the studio again
+        try:
+            again.unlock(PASS)
+            again.relay.save(self.base, ADMIN)
+            row = again.one('SELECT status, serial, decided_by FROM requests')
+            self.assertEqual((row['status'], row['serial']), ('approved', code['serial']))
+            self.assertIn('request.recovered', [a['action'] for a in again.audit_log()])
+            self.assertEqual(again.auto.cycle()['delivered'], 1)
+            self.assertEqual(self.status(d)['status'], 'issued', 'the shop gets the code it was signed')
+            self.assertEqual(again.one('SELECT COUNT(*) AS n FROM codes')['n'], 1, 'no second code was made')
+        finally:
+            again.db.close()
+        # a request taken but not yet signed simply waits again
+        self.s = Studio(self.dir)
+        self.s.unlock(PASS)
+        self.s.relay.save(self.base, ADMIN)
+        device2, _, d2 = self.ask(pc='pc-2', install='i2')
+        self.s.auto.ingest(self.s.relay.pending_all()[0])
+        rid = self.s.one("SELECT id FROM requests WHERE status = 'pending'")['id']
+        self.assertTrue(self.s.claim(rid))
+        self.s.db.close()
+        self.s = Studio(self.dir)
+        self.assertEqual(self.s.one('SELECT status FROM requests WHERE id = ?', rid)['status'], 'pending')
+
     def test_a_copy_whose_sender_died_is_sent_again_after_a_while(self):
         _, _, d = self.ask()
         self.press(self.ok(d))
