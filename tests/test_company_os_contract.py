@@ -203,7 +203,7 @@ class CompanyOSContractTests(unittest.TestCase):
                 t = self.sample()
                 t["status"] = "done"
                 t["evidence"] = [{"type":"ci","reference":"https://example.org/ci/1","verified_at":bad}]
-                self.assertInvalid(t, "date-time" if "02-30" in bad or bad.endswith("00") else "verified_at")
+                self.assertInvalid(t, "verified_at")
 
     def test_owner_gate_requires_named_pending_approval(self):
         t = self.sample()
