@@ -27,9 +27,9 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.11.1'
-      - name: Test pure demo business rules and compile Android app
+      - name: Test demo business rules and compile Android APK
         run: gradle --no-daemon --stacktrace :app:testDebugUnitTest :app:assembleDebug
-      - name: Upload demo-only APK (no licence signer and no customer data)
+      - name: Upload demo APK (no signer and no customer data)
         uses: actions/upload-artifact@v4
         with:
           name: pixel-plus-owner-demo-apk
