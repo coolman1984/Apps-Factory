@@ -66,74 +66,7 @@ def _check(value, rule, where="$"):
             problems.append(f"{where}: too long")
         if "pattern" in rule:
             pattern = rule["pattern"]
-            # For exact fields, never let a final newline sneak past a `"""Fail-closed, offline validator for Pixel Plus cross-session task handoffs.
-
-Supports precisely the JSON Schema keywords used by task.schema.json. This is
-not a full JSON Schema library, and task metadata never authenticates actions.
-Run: python3 company-os/validate_task.py company-os/examples.json
-"""
-import argparse
-from datetime import datetime
-import json
-import math
-from pathlib import Path
-import re
-import sys
-
-HERE = Path(__file__).resolve().parent
-DEFAULT_SCHEMA = HERE / "task.schema.json"
-
-
-def _matches_type(value, kind):
-    if kind == "object":
-        return isinstance(value, dict)
-    if kind == "array":
-        return isinstance(value, list)
-    if kind == "string":
-        return isinstance(value, str)
-    if kind == "null":
-        return value is None
-    if kind == "integer":
-        return type(value) is int
-    if kind == "number":
-        return type(value) in (int, float) and math.isfinite(value)
-    if kind == "boolean":
-        return type(value) is bool
-    raise ValueError("unsupported JSON Schema type: " + str(kind))
-
-
-def _check(value, rule, where="$"):
-    """Validate the subset of draft 2020-12 used by the checked-in contract."""
-    problems = []
-    kinds = rule.get("type")
-    if kinds is not None:
-        kinds = kinds if isinstance(kinds, list) else [kinds]
-        if not any(_matches_type(value, kind) for kind in kinds):
-            return [f"{where}: expected {' or '.join(kinds)}"]
-
-    if "const" in rule and value != rule["const"]:
-        problems.append(f"{where}: unexpected constant")
-    if "enum" in rule and value not in rule["enum"]:
-        problems.append(f"{where}: not an allowed value")
-
-    if isinstance(value, dict):
-        properties = rule.get("properties", {})
-        for key in rule.get("required", []):
-            if key not in value:
-                problems.append(f"{where}.{key}: required")
-        for key, item in value.items():
-            if key in properties:
-                problems.extend(_check(item, properties[key], f"{where}.{key}"))
-            elif rule.get("additionalProperties") is False:
-                problems.append(f"{where}.{key}: unexpected field")
-
-    if isinstance(value, str):
-        if len(value) < rule.get("minLength", 0):
-            problems.append(f"{where}: too short")
-        if len(value) > rule.get("maxLength", float("inf")):
-            problems.append(f"{where}: too long")
- anchor.
-            # Unanchored substring rules intentionally keep re.search semantics.
+            # Anchored exact patterns use full matching; substring patterns use search.
             exact = pattern.startswith("^") and (pattern.endswith("$") or pattern.endswith(r"$(?![\s\S])"))
             match = re.fullmatch(pattern, value) if exact else re.search(pattern, value)
             if match is None:
