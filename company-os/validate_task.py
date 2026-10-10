@@ -123,7 +123,7 @@ def validate_task(task, schema=None):
         allowed = task.get("allowed_actions")
         approvals = task.get("requires_owner_approval")
         if isinstance(allowed, list) and isinstance(approvals, list):
-            overlap = {v for v in allowed if isinstance(v, str)} & {v for v in approvals if isinstance(v, str)}
+            overlap = {normalize(v) for v in allowed if isinstance(v, str)} & {normalize(v) for v in approvals if isinstance(v, str)}
             if overlap:
                 errors.append("$.allowed_actions: must not overlap requires_owner_approval: " + ", ".join(sorted(overlap)))
 
