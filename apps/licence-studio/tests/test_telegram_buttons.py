@@ -378,6 +378,36 @@ class Buttons(Harness):
         self.assertIn('&lt;b&gt;x&lt;/b&gt;&amp;', m['text'])
 
     # ---- setting the webhook up
+    def test_a_button_always_gives_the_14_days_the_shop_asked_for_whatever_the_policy_term_is(self):
+        self.s.set_setting('auto_trial_days', 3)       # the owner's automatic policy is stricter
+        device, _, d = self.ask()
+        self.press(self.ok(d))
+        self.s.auto.cycle()
+        read = codes.read_code(self.status(d)['code'], [self.public], 'al-store', device)
+        self.assertEqual(read.terms['days_left'], 14)
+
+    def test_the_command_that_sets_the_webhook_never_prints_the_secret(self):
+        import io
+        import contextlib
+        from licence_studio.__main__ import main
+        os.environ['TELEGRAM_BOT_TOKEN'] = '999:STUDIO-BOT-SECRET'
+        os.environ['TELEGRAM_WEBHOOK_SECRET'] = WEBHOOK
+        os.environ['LS_TELEGRAM_API'] = f'http://127.0.0.1:{self.tg.server_port}'
+        out = io.StringIO()
+        try:
+            with contextlib.redirect_stdout(out):
+                code = main(['telegram-webhook', '--url', 'https://relay.example.workers.dev', '--home', self.dir])
+        finally:
+            os.environ.pop('TELEGRAM_WEBHOOK_SECRET', None)
+        self.assertEqual(code, 0)
+        self.assertNotIn(WEBHOOK, out.getvalue())
+        self.assertNotIn('STUDIO-BOT-SECRET', out.getvalue())
+        self.assertIn('https://relay.example.workers.dev/telegram', out.getvalue())
+        os.environ.pop('TELEGRAM_WEBHOOK_SECRET', None)
+        with contextlib.redirect_stdout(io.StringIO()) as quiet:
+            self.assertEqual(main(['telegram-webhook', '--url', 'https://relay.example.workers.dev', '--home', self.dir]), 2)
+        self.assertNotIn(WEBHOOK, quiet.getvalue())
+
     def test_the_webhook_is_set_to_the_relay_with_only_the_buttons_and_a_secret(self):
         os.environ['TELEGRAM_BOT_TOKEN'] = '999:STUDIO-BOT-SECRET'
         with self.assertRaises(relay_mod.RelayError):

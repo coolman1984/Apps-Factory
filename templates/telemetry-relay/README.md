@@ -63,7 +63,7 @@ shop --POST /licence/ack------------------> relay (the code leaves the relay onc
 wrangler secret put LICENCE_ADMIN_TOKEN      # long random value; the Licence Studio's relay token
 wrangler secret put TELEGRAM_BOT_TOKEN       # optional
 wrangler secret put TELEGRAM_OWNER_CHAT_ID   # optional: the owner's PRIVATE chat with the bot (a group is refused)
-wrangler secret put TELEGRAM_WEBHOOK_SECRET  # optional: switches the «✅ موافق / ❌ رفض» buttons on; then run `python -m licence_studio telegram-webhook`
+wrangler secret put TELEGRAM_WEBHOOK_SECRET  # optional: switches the «✅ موافق / ❌ رفض» buttons on (the same value goes in the Studio PC's TELEGRAM_WEBHOOK_SECRET); then run `python -m licence_studio telegram-webhook`
 wrangler d1 execute af-telemetry-relay --remote --file=schema.sql   # adds licence_requests and licence_events
 # re-running schema.sql is also the whole upgrade from 0.13 (it adds the table licence_owner; nothing to ALTER)
 ```

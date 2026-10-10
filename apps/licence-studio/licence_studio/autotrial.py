@@ -29,6 +29,7 @@ from html import escape as html_escape
 from .relay import DEVICE, KIND_AR, KIND_EDITION, MACHINE, REASON_AR, UUID, RelayError, telegram, telegram_configured
 from .service import MONTHLY_DAYS, UNATTENDED, StudioError, now_iso
 
+TRIAL_DAYS = 14      # the trial a shop asks for, and the one an owner's button gives
 CLAIM_SECONDS = 300  # a copy to the owner being sent for longer than this is taken to have died
 BUTTON = 'telegram'  # who signed when the owner's «✅ موافق» on Telegram was the decision (the owner's own press, not the policy)
 
@@ -265,7 +266,9 @@ class AutoTrial:
             if kind == 'reissue':
                 serial = existing['serial']
             else:
-                code = s.issue(r['product'], 'trial', r['device'], r['customer'], '', s.policy()['auto_trial_days'],
+                # a button is the owner's decision on THIS request, which asked for (and the alert offered) the standard 14-day trial;
+                # the shorter term the owner may have set for the automatic policy applies to the policy only
+                code = s.issue(r['product'], 'trial', r['device'], r['customer'], '', TRIAL_DAYS if approved else s.policy()['auto_trial_days'],
                                note='تجربة بموافقتك على تليجرام' if approved else 'تجربة تلقائية بسياسة المالك',
                                actor=by, request_id=r['id'], machine=r['machine'])
                 serial = code['serial']

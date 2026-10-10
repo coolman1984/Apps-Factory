@@ -4,7 +4,7 @@
   python -m licence_studio mcp                                                MCP bridge for an AI agent (stdio)
   python -m licence_studio doctor                                             check this machine
   python -m licence_studio verify CODE --product al-store [--device XXXXX-XXXXX]
-  python -m licence_studio telegram-webhook [--url https://relay] [--make-secret]   point the bot's «✅ موافق / ❌ رفض» buttons at the relay
+  python -m licence_studio telegram-webhook [--url https://relay]    point the bot's «✅ موافق / ❌ رفض» buttons at the relay
 """
 import argparse
 import json
@@ -20,19 +20,17 @@ def home_dir(arg=None):
 
 
 def telegram_webhook(studio, a):
-    """Tell Telegram to send the owner's button presses to the relay, with the secret the relay checks. The bot token comes from the
-    environment (TELEGRAM_BOT_TOKEN), the secret from TELEGRAM_WEBHOOK_SECRET or --make-secret. Nothing is stored by this command."""
-    import secrets
+    """Tell Telegram to send the owner's button presses to the relay, with the secret the relay checks. The bot token (TELEGRAM_BOT_TOKEN) and
+    the secret (TELEGRAM_WEBHOOK_SECRET, the same value the relay holds) come from the environment. This command never prints, stores or logs
+    a secret. To make one: python -c "import secrets; print(secrets.token_urlsafe(32))" and put it in both places."""
     from .relay import RelayError, bot_token, set_webhook
     secret = os.environ.get('TELEGRAM_WEBHOOK_SECRET', '')
-    made = False
-    if a.make_secret:
-        secret, made = secrets.token_urlsafe(32), True
     if not bot_token():
         print('TELEGRAM_BOT_TOKEN is not set on this PC (the bot token from BotFather).')
         return 2
     if not secret:
-        print('No webhook secret: set TELEGRAM_WEBHOOK_SECRET, or add --make-secret to make one.')
+        print('TELEGRAM_WEBHOOK_SECRET is not set. Make a long random value, set it here AND in the relay (wrangler secret put TELEGRAM_WEBHOOK_SECRET):')
+        print('  python -c "import secrets; print(secrets.token_urlsafe(32))"')
         return 2
     url = a.url or studio.relay.config()['url']
     try:
@@ -44,10 +42,6 @@ def telegram_webhook(studio, a):
         print('Telegram did not accept the webhook. Check the bot token and that the relay address is a public https one.')
         return 1
     print(f'Done: the buttons now go to {url.rstrip("/")}/telegram')
-    if made:
-        print('Put this secret in the relay now (it is shown only this once, and the relay refuses every press without it):')
-        print(f'  {secret}')
-        print('  wrangler secret put TELEGRAM_WEBHOOK_SECRET')
     return 0
 
 
@@ -67,7 +61,6 @@ def main(argv=None):
     v.add_argument('--home')
     w = sub.add_parser('telegram-webhook')
     w.add_argument('--url', help='the relay address; defaults to the one saved in the studio')
-    w.add_argument('--make-secret', action='store_true', help='make a new webhook secret and show it once, to put in the relay (wrangler secret put TELEGRAM_WEBHOOK_SECRET)')
     w.add_argument('--home')
     a = p.parse_args(argv)
     if a.cmd == 'mcp':
