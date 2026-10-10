@@ -177,7 +177,7 @@ class CompanyOSContractTests(unittest.TestCase):
 
     def test_blank_actor_identities_rejected(self):
         for field in ("assignee", "reviewer"):
-            for value in ("  ", "\\t", "  \\n  "):
+            for value in ("  ", chr(9), "  " + chr(10) + "  "):
                 with self.subTest(field=field, value=value):
                     t = self.sample()
                     t[field] = value
