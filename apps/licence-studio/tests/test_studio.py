@@ -276,6 +276,8 @@ class WebAndMcpTests(unittest.TestCase):
         """The full chain: studio key → code for a shop PC's device code → that shop's Al-Store accepts it, another PC refuses it."""
         store = Path(os.environ.get('AF_STORE_REPO', HERE.parents[2] / 'Store'))
         if not (store / 'server' / 'licence.py').exists():
+            if os.environ.get('AF_REQUIRE_STORE'):  # CI checks Al-Store out beside the factory: a missing checkout there is a failure, not a skip
+                self.fail('AF_REQUIRE_STORE is set but no Al-Store checkout was found at ' + str(store))
             self.skipTest('Al-Store checkout not found next to Apps-Factory')
         public = self.studio.public_key().split(':', 1)[1]
         script = (

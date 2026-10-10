@@ -69,10 +69,17 @@ jobs:
           node --test packages/af-telemetry/tests/core.test.mjs
       - name: Telemetry relay tests (Cloudflare Worker + D1 shim)
         run: node --experimental-sqlite --test templates/telemetry-relay/test/relay.test.mjs templates/telemetry-relay/test/licence.test.mjs templates/telemetry-relay/test/telegram.test.mjs
-      - name: Licence Studio tests
+      - name: Check out Al-Store beside the factory (the chain test needs its real licence verifier)
+        uses: actions/checkout@v7
+        with:
+          repository: coolman1984/Store
+          path: store-checkout
+      - name: Licence Studio tests (including the chain test, a Studio code unlocks the real Al-Store and another PC refuses it)
         working-directory: apps/licence-studio
         env:
           PYTHONPATH: ../../packages/af-license
+          AF_STORE_REPO: ${{ github.workspace }}/store-checkout
+          AF_REQUIRE_STORE: '1'
         run: |
           python -m pip install -r requirements.txt
           python -m unittest discover -s tests -v
