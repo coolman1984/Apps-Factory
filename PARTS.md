@@ -53,7 +53,7 @@ Product use below was read from the product clones on 2026-10-09 (Store, Teacher
 - **Used by:** the owner. Store sends its heartbeat to it (contract-tested in `tests/test_product_heartbeat.py`).
 
 ### apps/licence-studio — the owner's licence-code program (UI + MCP)
-- **Version:** 1.2.0 (`licence_studio/__init__.py`): also pulls shop requests from the relay's licence mailbox, applies the owner's policy and follows the owner's «✅ موافق / ❌ رفض» buttons on Telegram, then sends the owner a copy of the code (see `docs/LICENCE_ACTIVATION.md`).
+- **Version:** 1.2.1 (`licence_studio/__init__.py`; 1.2.1: chat ids trimmed and alerts to groups, stale copies skipped, requests the relay does not know are kept for the owner, the click's delivery runs on its own thread): also pulls shop requests from the relay's licence mailbox, applies the owner's policy and follows the owner's «✅ موافق / ❌ رفض» buttons on Telegram, then sends the owner a copy of the code (see `docs/LICENCE_ACTIVATION.md`).
 - **Run:** `pip install -r requirements.txt`, then `python3 -m licence_studio serve` (loopback only). MCP: `python3 -m licence_studio mcp`. Skill: `.claude/skills/licence-codes`.
 - **Spec:** `apps/licence-studio/README.md`; codes format in `packages/af-license`.
 - **Used by:** the owner issues the codes that Store verifies.

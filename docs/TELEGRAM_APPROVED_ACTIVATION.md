@@ -75,3 +75,10 @@ Source docs: [Factory current protection](PROTECTION_UPDATES_AND_SUPPORT.md), [p
 - No fresh-install one-use challenge was added. The admission rules are the existing ones (nonce, per-address / per-device / waiting-list limits, one trial per machine tag); spoofing by a determined person with a new identity remains possible and is stated in the threat model of `LICENCE_ACTIVATION.md`.
 
 **Still not done (needs the owner):** create the bot and the Worker secrets; run `telegram-webhook`; a live approval on a real phone; a Windows clean-PC trial with real secrets; the owner's decision on a fresh-install challenge.
+
+## Hardening (0.15.1)
+- Codes go only to the owner's **private** chat (a positive id). Plain alerts (no code in them) may also go to a group (a negative id). A pasted id is trimmed.
+- An approval that nobody used for longer than `LICENCE_APPROVAL_HOURS` is stale: a repeated «✅ موافق» says so and signs nothing.
+- A copy of a code is sent only while the code is under two days old; older unsent copies are settled as skipped.
+- A waiting request the relay does not know is kept and marked `relay_gone` for the owner (never signed automatically); closed as expired after three days.
+- The Studio's click returns when the decision is saved; delivery and the copy run on their own thread and are retried each round.

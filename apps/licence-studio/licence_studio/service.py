@@ -443,10 +443,10 @@ class Studio:
         for r in rows:
             if r['source'] == 'relay' and r['status'] == 'pending':  # what the owner-approved policy would do with it (a hint, nothing is changed)
                 kind, reason, _ = self.auto.verdict(r, approved=r['tg_decision'] == 'approved')
-                r['policy'] = {'verdict': kind, 'reason': reason}
+                r['policy'] = {'verdict': 'hold', 'reason': 'relay_gone'} if r['held'] == 'relay_gone' else {'verdict': kind, 'reason': reason}  # (no automatic round signs a request the relay lost)
         return rows
 
-    def decide(self, rid, approve, actor='owner', payment_confirmed=False, payment_ref=''):
+    def decide(self, rid, approve, actor='owner', payment_confirmed=False, payment_ref='', defer=False):
         r = self.one('SELECT * FROM requests WHERE id = ?', rid)
         if not r or r['status'] != 'pending':
             raise StudioError('request.closed', 'This request is not pending.', 409)
@@ -470,7 +470,7 @@ class Studio:
             self.release(rid, token)
             raise
         if relay:
-            self.auto.owner_decided(rid)
+            self.auto.owner_decided(rid, defer=defer)
         return self.one('SELECT * FROM requests WHERE id = ?', rid)
 
     def claim(self, rid, payment_ref=None):

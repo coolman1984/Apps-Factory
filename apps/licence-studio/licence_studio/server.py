@@ -192,7 +192,7 @@ def make_handler(app: App):
                     return self.send(200, {'id': S.add_product(d.get('id'), d.get('name'), d.get('trial_days', 14))})
                 if path == '/api/request/decide':
                     return self.send(200, S.decide(d.get('id'), bool(d.get('approve')), payment_confirmed=d.get('payment_confirmed') is True,
-                                                   payment_ref=str(d.get('payment_ref') or '')))
+                                                   payment_ref=str(d.get('payment_ref') or ''), defer=True))
                 if path == '/api/policy':
                     if 'agent_may_issue_trials' in d:
                         S.set_setting('agent_may_issue_trials', bool(d['agent_may_issue_trials']))
