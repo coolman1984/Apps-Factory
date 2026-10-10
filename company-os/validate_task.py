@@ -112,9 +112,10 @@ def validate_task(task, schema=None):
             normalize = lambda s: " ".join(s.split()).casefold()
             if normalize(actor) == normalize(reviewer):
                 errors.append("$.reviewer: independent reviewer must differ from assignee")
-        if task.get("status") == "done" and not any(
+        evidence = task.get("evidence")
+        if task.get("status") == "done" and isinstance(evidence, list) and not any(
             isinstance(e, dict) and isinstance(e.get("verified_at"), str)
-            for e in task.get("evidence", []) if isinstance(task.get("evidence"), list)
+            for e in evidence
         ):
             errors.append("$.evidence: completed tasks need dated verification")
     return errors
