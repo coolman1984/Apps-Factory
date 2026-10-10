@@ -403,6 +403,21 @@ class Buttons(Harness):
             again.db.close()
             self.s = Studio(self.dir)
 
+    def test_a_decision_stamped_by_a_clock_that_was_put_back_is_still_recovered(self):
+        """Review of PR #40: after a power cut a PC with a dead clock battery starts with an old date, so the stamp of the abandoned decision lies in the
+        future and the lease would not end until the clock caught up: the request stayed stuck."""
+        _, _, d = self.ask()
+        self.press(self.ok(d))
+        self.s.auto.ingest(self.s.relay.pending_all()[0])
+        [req] = self.s.requests()
+        self.assertTrue(self.s.claim(req['id']))
+        self.s.db.execute('UPDATE requests SET decide_claim = ?', (time.time_ns() + 30 * 10**9,))   # the clock was stepped back by half a minute: still live
+        self.s._recover_deciding()
+        self.assertEqual(self.s.one('SELECT status FROM requests')['status'], 'deciding')
+        self.s.db.execute('UPDATE requests SET decide_claim = ?', (time.time_ns() + 3600 * 10**9,))  # stamped an hour (or years) ahead of this clock
+        self.s._recover_deciding()
+        self.assertEqual(self.s.one('SELECT status FROM requests')['status'], 'pending')
+
     def test_two_windows_signing_the_same_request_make_one_code(self):
         """Review of PR #40: the check «is there a code for this request» ran before the write transaction, and `codes.request_id` is not unique, so two
         windows that passed it together signed two append-only codes for one request."""
