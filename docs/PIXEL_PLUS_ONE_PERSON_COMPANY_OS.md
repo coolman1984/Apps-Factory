@@ -135,26 +135,45 @@ Council outputs exactly: options, evidence, disagreements, worst-case loss, 7-da
 7. **Founder bottleneck:** prioritize three decisions per day in owner's inbox; never require human review of every harmless step. Escalate real exceptions.
 
 ## Task object: contract all agents must use
-The **canonical** machine-readable contract is [`company-os/task.schema.json`](../company-os/task.schema.json). Every handoff MUST pass `python3 company-os/validate_task.py <task-file.json>`. The local checker also enforces **different reviewer and assignee identities**, which portable JSON Schema cannot compare by itself. A valid handoff is NEVER permission to deploy, contact customers, charge money or approve expenses.
+The **canonical** machine-readable contract is [`company-os/task.schema.json`](../company-os/task.schema.json). Every handoff MUST pass `python3 company-os/validate_task.py <task-file.json>`. Every cross-account handoff carries `branch`, `current_commit`, `open_prs`, `known_errors`, `tests_run`, `tests_skipped`, `next_action` and `decision_ref` (use explicit `null` or an empty list when not applicable, never fabricate evidence). The local checker also enforces **different reviewer and assignee identities**, which portable JSON Schema cannot compare by itself. A valid handoff is NEVER permission to deploy, contact customers, charge money or approve expenses.
 
 ```json
 {
   "task_id": "PX-001",
-  "goal": "Review the latest Windows Store installer with independent proof",
+  "goal": "Review Al-Store 1.7 end-to-end cash-sale and installer acceptance, with independent proof",
   "project": "Store",
   "department": "qa-security",
-  "assignee": "qa-builder-session",
-  "reviewer": "independent-reviewer-session",
-  "branch": "review/store-windows",
+  "assignee": "reviewer-session-A",
+  "reviewer": "reviewer-session-B",
   "risk": "medium",
   "status": "ready",
   "budget_usd": 0,
-  "allowed_actions": ["read_repo", "run_synthetic_tests", "draft_report"],
-  "requires_owner_approval": ["merge_main", "production_deploy"],
-  "acceptance": ["installer starts", "sales persist after upgrade", "CI link attached"],
+  "time_cap_minutes": 120,
+  "allowed_actions": [
+    "read_repo",
+    "run_synthetic_tests",
+    "draft_report"
+  ],
+  "requires_owner_approval": [
+    "merge_main",
+    "production_deploy"
+  ],
+  "acceptance": [
+    "All required CI on exact commit green",
+    "Store UI actual click-to-db traces captured",
+    "No skipped browser tests counted as green"
+  ],
   "evidence": [],
   "customer_data_policy": "synthetic_only",
-  "decision_ref": "docs/PIXEL_PLUS_EXECUTION_ROADMAP_2026.md"
+  "decision_ref": "docs/PIXEL_PLUS_EXECUTION_ROADMAP_2026.md",
+  "blocker": null,
+  "next_action": "inspect latest main, reproduce 1 sale and produce review bundle",
+  "current_commit": null,
+  "branch": null,
+  "open_prs": [],
+  "known_errors": [],
+  "tests_run": [],
+  "tests_skipped": []
 }
 ```
 
