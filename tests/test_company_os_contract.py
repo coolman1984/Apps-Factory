@@ -184,7 +184,7 @@ class CompanyOSContractTests(unittest.TestCase):
                     self.assertInvalid(t, field)
 
     def test_decision_link_requires_actual_path(self):
-        for bad in ("https://", "https://example.com", "DECISIONS.mdgarbage", "docs/", "docs/no-extension", "docs/../", "https:// "):
+        for bad in ("https://", "https://example.com", "DECISIONS.mdgarbage", "docs/", "docs/no-extension", "docs/../", "docs/../SECRET.md", "https:// ", "https://../fake"):
             with self.subTest(bad=bad):
                 t = self.sample()
                 t["decision_ref"] = bad
@@ -209,6 +209,12 @@ class CompanyOSContractTests(unittest.TestCase):
         t = self.sample()
         t["status"] = "owner_gate"
         t["requires_owner_approval"] = []
+        self.assertInvalid(t, "requires_owner_approval")
+
+    def test_owner_gate_refuses_blank_approval_name(self):
+        t = self.sample()
+        t["status"] = "owner_gate"
+        t["requires_owner_approval"] = ["    "]
         self.assertInvalid(t, "requires_owner_approval")
 
     def test_cross_session_handoff_fields_are_required(self):
