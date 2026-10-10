@@ -144,7 +144,7 @@
           "reference": {
             "type": "string",
             "minLength": 6,
-            "pattern": "^(?=(?:\\s*\\S){6,})"
+            "pattern": "^(?=(?:\\s*\\S){6,})(?=.*[A-Za-z0-9])"
           },
           "verified_at": {
             "type": [
