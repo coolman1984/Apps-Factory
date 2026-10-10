@@ -16,6 +16,9 @@
 //   - `machine` is sha256 of the PC's identity (never the identity itself); a second trial for the same machine or device is
 //     refused here (`already_used`) without waking the owner. The Licence Studio keeps the permanent record and decides again.
 // Owner side: Authorization: Bearer <LICENCE_ADMIN_TOKEN> (a different secret from RELAY_PULL_TOKEN: a leak of one never opens the other).
+//   POST /licence/decide {id, action:'approve'} records the same decision as the Telegram «موافق» (table licence_owner). It never
+//   accepts a code and never changes the request away from pending: Licence Studio on the owner's PC still signs.
+//   {id, action:'issue', code} is that PC only, after it has signed. {id, action:'refuse', reason?} closes the request.
 //
 // The owner's buttons (POST /telegram, the bot's webhook): every alert carries «✅ موافق» and «❌ رفض». The webhook is trusted only when
 // it carries the secret token Telegram was told to send AND the press comes from the owner's own private chat. «رفض» closes the request
@@ -28,7 +31,8 @@
 //   TELEGRAM_WEBHOOK_SECRET (required for the buttons: the same value is given to Telegram's setWebhook as secret_token).
 // Vars: LICENCE_PRODUCTS, LICENCE_PER_SOURCE_DAY, LICENCE_PER_DEVICE_DAY, LICENCE_PENDING_MAX, LICENCE_APPROVAL_HOURS.
 //
-// D1 Free plan: a request uses at most 9 queries, a status poll 1, a decision 2, a button 3, clean-up 5. No query reads the whole table.
+// D1 Free plan: a request uses at most 9 queries, a status poll 1, an issue or a refusal at most 3, an approval at most 4,
+// a button 3, clean-up 5. No query reads the whole table. An approval writes no code.
 
 import {bearer, num, reply, same, sha256hex} from './common.js';
 
@@ -223,10 +227,37 @@ async function pending(env, url, now) {
   return reply({requests: results}, 200, now);
 }
 
+// The phone records a decision the way the Telegram «موافق» button does. It must not be able to drop a code in the same call:
+// a non-empty `code` is refused, and the request stays pending so only Licence Studio can sign it.
+async function approveOnly(env, d, now) {
+  if (d.code != null && d.code !== '') return reply({error: 'code'}, 400, now);
+  const row = await env.DB.prepare('SELECT r.status, r.created_at, o.decision AS owner_decision, o.decided_at AS owner_decided_at '
+    + 'FROM licence_requests r LEFT JOIN licence_owner o ON o.request_id = r.id WHERE r.id = ?').bind(d.id).first();
+  if (!row) return reply({error: 'not found'}, 404, now);
+  if (row.status !== 'pending' || row.owner_decision === 'denied') return reply({error: 'closed', status: row.status}, 409, now);
+  if (row.owner_decision === 'approved') {
+    if (now - row.owner_decided_at > approvalSeconds(env)) return reply({error: 'expired', status: 'pending'}, 409, now);
+    return reply({status: 'pending', owner_decision: 'approved', repeat: true}, 200, now);
+  }
+  if (now - row.created_at > approvalSeconds(env)) return reply({error: 'stale', status: 'pending'}, 409, now);
+  const done = await env.DB.prepare("INSERT OR IGNORE INTO licence_owner (request_id, decision, decided_at) "
+    + "SELECT ?, 'approved', ? WHERE EXISTS (SELECT 1 FROM licence_requests WHERE id = ? AND status = 'pending')").bind(d.id, now, d.id).run();
+  if (!done.meta.changes) {
+    const again = await env.DB.prepare('SELECT decision, decided_at FROM licence_owner WHERE request_id = ?').bind(d.id).first();
+    if (again && again.decision === 'approved' && now - again.decided_at <= approvalSeconds(env)) {
+      return reply({status: 'pending', owner_decision: 'approved', repeat: true}, 200, now);
+    }
+    return reply({error: 'closed', status: 'pending'}, 409, now);
+  }
+  await note(env, now, d.id, 'approved', 'admin');
+  return reply({status: 'pending', owner_decision: 'approved'}, 200, now);
+}
+
 async function decide(request, env, now) {
   let d;
   try { d = await request.json(); } catch { return reply({error: 'json'}, 400, now); }
-  if (!d || !UUID.test(d.id || '') || !['issue', 'refuse'].includes(d.action)) return reply({error: 'fields'}, 400, now);
+  if (!d || !UUID.test(d.id || '') || !['issue', 'refuse', 'approve'].includes(d.action)) return reply({error: 'fields'}, 400, now);
+  if (d.action === 'approve') return approveOnly(env, d, now);
   if (d.action === 'issue' && !CODE.test(d.code || '')) return reply({error: 'code'}, 400, now);
   const reason = d.action === 'refuse' ? (REASON.test(d.reason || '') ? d.reason : 'owner_refused') : '';
   const cur = await env.DB.prepare('SELECT status, code FROM licence_requests WHERE id = ?').bind(d.id).first();
