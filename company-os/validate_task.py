@@ -107,11 +107,17 @@ def validate_task(task, schema=None):
     if isinstance(task, dict):
         actor = task.get("assignee")
         reviewer = task.get("reviewer")
+        # Whitespace-only actor names are NOT identities; comparisons are case/space-insensitive.
+        normalize = lambda value: " ".join(value.split()).casefold()
+        for field in ("assignee", "reviewer"):
+            candidate = task.get(field)
+            if isinstance(candidate, str) and not normalize(candidate):
+                errors.append(f"$.{field}: blank actor identity")
         if isinstance(actor, str) and isinstance(reviewer, str):
-            # No self-review under differing case or harmless whitespace changes.
-            normalize = lambda s: " ".join(s.split()).casefold()
-            if normalize(actor) == normalize(reviewer):
+            if normalize(actor) and normalize(actor) == normalize(reviewer):
                 errors.append("$.reviewer: independent reviewer must differ from assignee")
+        if task.get("status") == "owner_gate" and isinstance(task.get("requires_owner_approval"), list) and not task["requires_owner_approval"]:
+            errors.append("$.requires_owner_approval: owner_gate must identify the requested approval")
         evidence = task.get("evidence")
         if task.get("status") == "done" and isinstance(evidence, list) and not any(
             isinstance(e, dict) and isinstance(e.get("verified_at"), str)
