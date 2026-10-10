@@ -17,11 +17,18 @@
 //     refused here (`already_used`) without waking the owner. The Licence Studio keeps the permanent record and decides again.
 // Owner side: Authorization: Bearer <LICENCE_ADMIN_TOKEN> (a different secret from RELAY_PULL_TOKEN: a leak of one never opens the other).
 //
-// Secrets (wrangler secret put, never in git): LICENCE_ADMIN_TOKEN (required for the owner's side),
-//   TELEGRAM_BOT_TOKEN and TELEGRAM_OWNER_CHAT_ID (optional: the owner's phone is told about every new request).
-// Vars: LICENCE_PRODUCTS, LICENCE_PER_SOURCE_DAY, LICENCE_PER_DEVICE_DAY, LICENCE_PENDING_MAX.
+// The owner's buttons (POST /telegram, the bot's webhook): every alert carries «✅ موافق» and «❌ رفض». The webhook is trusted only when
+// it carries the secret token Telegram was told to send AND the press comes from the owner's own private chat. «رفض» closes the request
+// at once (the shop sees the refusal). «موافق» only RECORDS the owner's decision (`owner_decision`); it is not a licence: the owner's
+// trusted PC (Licence Studio) still has to sign, and a paid kind still needs proof of payment there. The owner may take an approval
+// back (press «رفض») until the code has been signed. A denial is final. Nothing about the code or the key is ever in a button.
 //
-// D1 Free plan: a request uses at most 9 queries, a status poll 1, a decision 2, clean-up 5. No query reads the whole table.
+// Secrets (wrangler secret put, never in git): LICENCE_ADMIN_TOKEN (required for the owner's side),
+//   TELEGRAM_BOT_TOKEN and TELEGRAM_OWNER_CHAT_ID (optional: the owner's phone is told about every new request),
+//   TELEGRAM_WEBHOOK_SECRET (required for the buttons: the same value is given to Telegram's setWebhook as secret_token).
+// Vars: LICENCE_PRODUCTS, LICENCE_PER_SOURCE_DAY, LICENCE_PER_DEVICE_DAY, LICENCE_PENDING_MAX, LICENCE_APPROVAL_HOURS.
+//
+// D1 Free plan: a request uses at most 9 queries, a status poll 1, a decision 2, a button 3, clean-up 5. No query reads the whole table.
 
 import {bearer, num, reply, same, sha256hex} from './common.js';
 
@@ -51,21 +58,35 @@ async function note(env, now, requestId, event, detail = '') {
 
 // The owner's phone. The text carries only the kind, the product, the first 8 characters of the request id and the device code:
 // never what the shop typed. A failing Telegram never fails the request.
-export async function telegram(env, text) {
-  if (!env.TELEGRAM_BOT_TOKEN || !env.TELEGRAM_OWNER_CHAT_ID) return false;
+export async function tgCall(env, method, payload) {
+  if (!env.TELEGRAM_BOT_TOKEN) return null;
   try {
-    const r = await fetch(`https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
-      method: 'POST', headers: {'content-type': 'application/json'},
-      body: JSON.stringify({chat_id: env.TELEGRAM_OWNER_CHAT_ID, text, disable_web_page_preview: true}),
+    const r = await fetch(`https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/${method}`, {
+      method: 'POST', headers: {'content-type': 'application/json'}, body: JSON.stringify(payload),
     });
-    return r.ok;
+    return r.ok ? await r.json().catch(() => ({ok: true})) : null;
   } catch {
-    return false;
+    return null;
   }
 }
 
-export const alertText = (row) => `🔔 طلب ${KIND_AR[row.kind]} جديد (${row.product})\nالجهاز: ${row.device}\nرقم الطلب: ${row.id.slice(0, 8)}\n`
-  + (row.kind === 'trial' ? 'برنامج التراخيص هيراجعه ويصدر الكود لو السياسة تسمح.' : 'محتاج تأكيد الدفع وموافقتك في برنامج التراخيص.');
+export async function telegram(env, text, extra = {}) {
+  if (!env.TELEGRAM_BOT_TOKEN || !env.TELEGRAM_OWNER_CHAT_ID) return false;
+  return !!(await tgCall(env, 'sendMessage', {chat_id: env.TELEGRAM_OWNER_CHAT_ID, text, disable_web_page_preview: true, ...extra}));
+}
+
+// `buttons`: the owner's buttons are switched on (TELEGRAM_WEBHOOK_SECRET is set). Without them the alert says what the Studio will do.
+export const alertText = (row, buttons = true) => `🔔 طلب ${KIND_AR[row.kind]} جديد (${row.product})\nالجهاز: ${row.device}\nرقم الطلب: ${row.id.slice(0, 8)}\n`
+  + (!buttons ? (row.kind === 'trial' ? 'برنامج التراخيص هيراجعه ويصدر الكود لو السياسة تسمح.' : 'محتاج تأكيد الدفع وموافقتك في برنامج التراخيص.')
+    : row.kind === 'trial' ? 'دوس ✅ موافق عشان برنامج التراخيص على جهازك يصدر الكود، أو ❌ رفض.'
+      : 'الموافقة هنا بتسجل قرارك بس: الكود محتاج تأكيد الدفع في برنامج التراخيص.');
+const buttonsOn = (env) => !!env.TELEGRAM_WEBHOOK_SECRET;
+
+// The owner's two buttons. The data is only an action and the opaque request id (39 bytes, Telegram allows 64). After an approval the
+// only button left is «سحب الموافقة»: the owner can change their mind until the code is signed.
+export const keyboard = (id, approved = false) => ({inline_keyboard: [approved
+  ? [{text: '❌ سحب الموافقة', callback_data: `no:${id}`}]
+  : [{text: '✅ موافق', callback_data: `ok:${id}`}, {text: '❌ رفض', callback_data: `no:${id}`}]]});
 
 async function create(request, env, ctx, now) {
   const declared = Number(request.headers.get('content-length') || 0);
@@ -143,7 +164,7 @@ async function create(request, env, ctx, now) {
   if (pending.n >= num(env.LICENCE_PENDING_MAX, 300)) return reply({error: 'full'}, 503, now);
   if (!(await storeWithinLimits()).meta.changes) return reply({error: 'rate'}, 429, now);  // another request took the last place meanwhile
   await note(env, now, row.id, 'created', `${row.kind} src ${src.slice(0, 6)}`);
-  const told = telegram(env, alertText(row));
+  const told = telegram(env, alertText(row, buttonsOn(env)), buttonsOn(env) ? {reply_markup: keyboard(row.id)} : {});
   if (ctx && typeof ctx.waitUntil === 'function') ctx.waitUntil(told); else await told;
   return reply({id: row.id, poll_token: pollToken, status: 'pending'}, 202, now);
 }
@@ -152,7 +173,7 @@ async function create(request, env, ctx, now) {
 async function ownRequest(request, env, id) {
   const token = bearer(request.headers);
   if (!UUID.test(id || '') || token.length < 20 || token.length > 200) return null;
-  const r = await env.DB.prepare('SELECT id, status, reason, code, poll_hash FROM licence_requests WHERE id = ?').bind(id).first();
+  const r = await env.DB.prepare('SELECT id, status, reason, code, poll_hash, owner_decision FROM licence_requests WHERE id = ?').bind(id).first();
   if (!r || !same(r.poll_hash, await sha256hex(token))) return null;
   return r;
 }
@@ -160,7 +181,9 @@ async function ownRequest(request, env, id) {
 async function status(request, env, url, now) {
   const r = await ownRequest(request, env, url.searchParams.get('id'));
   if (!r) return reply({error: 'unauthorised'}, 401, now);
-  return reply({status: r.status, reason: r.reason, ...(r.status === 'issued' ? {code: r.code} : {})}, 200, now);
+  // `stage: 'approved'` lets the shop say "the company agreed, the code is on its way"; it is never a licence
+  return reply({status: r.status, reason: r.reason, ...(r.status === 'pending' && r.owner_decision === 'approved' ? {stage: 'approved'} : {}),
+    ...(r.status === 'issued' ? {code: r.code} : {})}, 200, now);
 }
 
 async function ack(request, env, now) {
@@ -182,7 +205,7 @@ async function pending(env, url, now) {
   // `after=<created_at>:<id>` reads the next page: requests that wait for the owner must not hide newer ones (review of PR #34)
   const [at, aid] = String(url.searchParams.get('after') || '').split(':');
   const afterAt = Number.isFinite(Number(at)) && at !== '' ? Number(at) : -1;
-  const {results} = await env.DB.prepare("SELECT id, product, kind, device, machine, shop, ref, version, src, created_at FROM licence_requests "
+  const {results} = await env.DB.prepare("SELECT id, product, kind, device, machine, shop, ref, version, src, created_at, owner_decision, owner_decided_at FROM licence_requests "
     + "WHERE status = 'pending' AND (created_at > ? OR (created_at = ? AND id > ?)) ORDER BY created_at, id LIMIT ?")
     .bind(afterAt, afterAt, aid || '', limit).all();
   return reply({requests: results}, 200, now);
@@ -207,10 +230,118 @@ async function decide(request, env, now) {
   return reply({status: target}, 200, now);
 }
 
+// What became of requests the owner's program still holds as waiting (a button closed them while it was away): at most 50 ids, one query.
+async function states(request, env, now) {
+  let d;
+  try { d = await request.json(); } catch { return reply({error: 'json'}, 400, now); }
+  const ids = d && Array.isArray(d.ids) ? d.ids.filter((x) => typeof x === 'string' && UUID.test(x)).slice(0, 50) : null;
+  if (!ids || !ids.length) return reply({error: 'fields'}, 400, now);
+  const {results} = await env.DB.prepare(`SELECT id, status, reason, owner_decision FROM licence_requests WHERE id IN (${ids.map(() => '?').join(',')})`).bind(...ids).all();
+  return reply({states: Object.fromEntries(results.map((r) => [r.id, {status: r.status, reason: r.reason, owner_decision: r.owner_decision}]))}, 200, now);
+}
+
 async function events(env, url, now) {
   const limit = Math.min(200, Math.max(1, Math.floor(num(url.searchParams.get('limit'), 100)) || 100));
   const {results} = await env.DB.prepare('SELECT id, at, request_id, event, detail FROM licence_events ORDER BY id DESC LIMIT ?').bind(limit).all();
   return reply({events: results}, 200, now);
+}
+
+// ---------------------------------------------------------------------------------------------------------------------------------
+// The bot's webhook: the owner's two buttons. Telegram is told (setWebhook) to send `X-Telegram-Bot-Api-Secret-Token: <secret>` with
+// every update. Anything else is refused. Even with the secret, only a press by the owner's own private chat counts: the press must
+// come FROM the owner's id and be made on a message IN the owner's chat (a forwarded or copied message in some other chat never
+// works). The button data is only `ok:<request id>` or `no:<request id>`; the server decides what it means, not the label.
+const BUTTON = /^(ok|no):([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/;
+const MAX_UPDATE_BODY = 8192;
+const WRONG_PRESSES_PER_HOUR = 50;   // the log of refused presses is capped: strangers cannot fill the database
+
+async function pressRefused(env, now, detail) {
+  // one statement: writes nothing once the hour's cap is reached
+  await env.DB.prepare("INSERT INTO licence_events (at, request_id, event, detail) SELECT ?, NULL, 'tg_refused', ? WHERE "
+    + "(SELECT COUNT(*) FROM licence_events WHERE event = 'tg_refused' AND at > ?) < ?").bind(now, String(detail).slice(0, 60), now - 3600, WRONG_PRESSES_PER_HOUR).run();
+}
+
+export async function handleTelegram(request, env, ctx, now) {
+  const wait = (p) => (ctx && typeof ctx.waitUntil === 'function' ? (ctx.waitUntil(p), undefined) : p);   // in the Worker the owner's phone is told after the answer; in a test it is awaited
+  if (request.method !== 'POST' || !env.TELEGRAM_WEBHOOK_SECRET || !env.TELEGRAM_BOT_TOKEN || !/^\d{1,20}$/.test(String(env.TELEGRAM_OWNER_CHAT_ID || ''))) {
+    return reply({error: 'not found'}, 404);   // not switched on (or the owner's chat is a group, whose presses are never accepted)
+  }
+  if (!same(request.headers.get('x-telegram-bot-api-secret-token') || '', env.TELEGRAM_WEBHOOK_SECRET)) {
+    await pressRefused(env, now, 'bad_secret');
+    return reply({error: 'unauthorised'}, 401);
+  }
+  const declared = Number(request.headers.get('content-length') || 0);
+  const raw = declared > MAX_UPDATE_BODY ? '' : await request.text();
+  let update;
+  try { update = JSON.parse(raw); } catch { update = null; }
+  if (!raw || raw.length > MAX_UPDATE_BODY || !update || typeof update !== 'object') {
+    await pressRefused(env, now, 'bad_body');
+    return reply({ok: true});                  // authentic but not ours: Telegram must not retry it
+  }
+  const cb = update.callback_query;
+  if (!cb || typeof cb !== 'object') return reply({ok: true});    // ordinary messages, edits and so on are ignored
+  const owner = String(env.TELEGRAM_OWNER_CHAT_ID);
+  const answer = (text) => wait(tgCall(env, 'answerCallbackQuery', {callback_query_id: String(cb.id || '').slice(0, 64), text, show_alert: false}));
+  if (String(cb.from && cb.from.id) !== owner || String(cb.message && cb.message.chat && cb.message.chat.id) !== owner) {
+    await pressRefused(env, now, 'not_owner');
+    await answer('مش مسموح');
+    return reply({ok: true});
+  }
+  const m = BUTTON.exec(typeof cb.data === 'string' ? cb.data : '');
+  if (!m) {
+    await pressRefused(env, now, 'bad_data');
+    await answer('الزرار ده مش مفهوم');
+    return reply({ok: true});
+  }
+  const [, action, id] = m;
+  const row = await env.DB.prepare('SELECT id, product, kind, device, status, reason, owner_decision, created_at FROM licence_requests WHERE id = ?').bind(id).first();
+  const message = cb.message && Number.isInteger(cb.message.message_id) ? cb.message.message_id : null;
+  // Show the outcome on the message itself (and drop the buttons it no longer needs). Rebuilt from our own row, never from the
+  // message text, so repeated presses cannot make it grow.
+  const show = (label, approved = false) => (message === null || !row ? null : wait(tgCall(env, 'editMessageText', {
+    chat_id: owner, message_id: message, text: `${alertText(row, true)}\n\n${label}`, disable_web_page_preview: true,
+    reply_markup: approved ? keyboard(row.id, true) : {inline_keyboard: []},
+  })));
+  if (!row) {
+    await answer('الطلب ده مش موجود');
+    return reply({ok: true});
+  }
+  const closed = async () => {
+    await answer(row.status === 'refused' ? 'الطلب اترفض قبل كده' : 'الطلب اتقفل خلاص');
+    await show(row.status === 'refused' ? '❌ الطلب اترفض' : `ℹ️ الطلب اتقفل (${row.status})`);
+    return reply({ok: true});
+  };
+  if (action === 'no') {
+    if (row.status !== 'pending') return closed();
+    const done = await env.DB.prepare("UPDATE licence_requests SET status = 'refused', reason = 'owner_refused', owner_decision = 'denied', owner_decided_at = ?, decided_at = ? "
+      + "WHERE id = ? AND status = 'pending'").bind(now, now, id).run();
+    if (!done.meta.changes) return closed();      // the owner's program closed it a moment ago
+    await note(env, now, id, 'refused', row.owner_decision === 'approved' ? 'owner_refused telegram (approval withdrawn)' : 'owner_refused telegram');
+    await answer('اترفض ❌');
+    await show('❌ رفضت الطلب');
+    return reply({ok: true});
+  }
+  // action === 'ok'
+  if (row.status !== 'pending') return closed();
+  if (row.owner_decision === 'approved') {
+    await answer('وافقت قبل كده ✅');
+    await show('✅ وافقت: برنامج التراخيص هيصدر الكود', true);
+    return reply({ok: true});
+  }
+  if (now - row.created_at > num(env.LICENCE_APPROVAL_HOURS, 72) * 3600) {  // an old button: the shop should ask again
+    await note(env, now, id, 'tg_refused', 'stale');
+    await answer('الطلب قديم: خلي المحل يطلب تاني');
+    await show('⌛ الطلب قديم: خلي المحل يطلب تاني');
+    return reply({ok: true});
+  }
+  const done = await env.DB.prepare("UPDATE licence_requests SET owner_decision = 'approved', owner_decided_at = ? WHERE id = ? AND status = 'pending' AND owner_decision IS NULL")
+    .bind(now, id).run();
+  if (!done.meta.changes) return closed();
+  await note(env, now, id, 'approved', 'telegram');
+  await answer('تمت الموافقة ✅');
+  await show(row.kind === 'trial' ? '✅ وافقت: برنامج التراخيص هيصدر الكود لما يكون مفتوح'
+    : '✅ وافقت: ناقص تأكيد الدفع في برنامج التراخيص', true);
+  return reply({ok: true});
 }
 
 // Returns a Response for /licence/* paths, or null for everything else.
@@ -220,10 +351,11 @@ export async function handleLicence(request, env, ctx, now, url) {
   if (route === 'POST /licence/request') return create(request, env, ctx, now);
   if (route === 'GET /licence/status') return status(request, env, url, now);
   if (route === 'POST /licence/ack') return ack(request, env, now);
-  if (['GET /licence/pending', 'POST /licence/decide', 'GET /licence/events'].includes(route)) {
+  if (['GET /licence/pending', 'POST /licence/decide', 'POST /licence/states', 'GET /licence/events'].includes(route)) {
     if (!adminOk(request, env)) return reply({error: 'unauthorised'}, 401);
     if (route === 'GET /licence/pending') return pending(env, url, now);
     if (route === 'POST /licence/decide') return decide(request, env, now);
+    if (route === 'POST /licence/states') return states(request, env, now);
     return events(env, url, now);
   }
   return reply({error: 'not found'}, 404);

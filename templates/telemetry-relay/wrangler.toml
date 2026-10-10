@@ -2,7 +2,8 @@
 #   wrangler secret put RELAY_PULL_TOKEN      (required; the Control Center's CC_RELAY_TOKEN)
 #   wrangler secret put LICENCE_ADMIN_TOKEN   (licence mailbox; the Licence Studio's relay token. A different value from RELAY_PULL_TOKEN)
 #   wrangler secret put TELEGRAM_BOT_TOKEN    (optional: the owner's phone is told about every new licence request)
-#   wrangler secret put TELEGRAM_OWNER_CHAT_ID
+#   wrangler secret put TELEGRAM_OWNER_CHAT_ID  (the owner's PRIVATE chat with the bot; a group is refused)
+#   wrangler secret put TELEGRAM_WEBHOOK_SECRET (the owner's «✅ موافق / ❌ رفض» buttons; the same value goes to Telegram's setWebhook)
 # There is NO signing key anywhere in this Worker, in its secrets or in its database. Licence codes are signed on the owner's PC only.
 name = "af-telemetry-relay"
 main = "src/worker.js"
@@ -30,3 +31,4 @@ LICENCE_PRODUCTS = "al-store"       # product ids that may ask for a code (comma
 LICENCE_PER_SOURCE_DAY = "10"       # requests per network address per day (stored only as a salted hash)
 LICENCE_PER_DEVICE_DAY = "3"        # requests per device code per day
 LICENCE_PENDING_MAX = "300"         # waiting requests in total (then 503)
+LICENCE_APPROVAL_HOURS = "72"      # a «✅ موافق» on a request older than this is refused: the shop must ask again

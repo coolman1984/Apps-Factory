@@ -59,7 +59,7 @@ test('a request becomes pending, the owner is told on Telegram, and the poll tok
   assert.equal(stored.poll_hash, createHash('sha256').update(a.poll_token).digest('hex'));
   assert.equal(JSON.stringify(a).includes('BOT-SECRET'), false);
   const [p] = await pendingList(e);
-  assert.deepEqual(Object.keys(p).sort(), ['created_at', 'device', 'id', 'kind', 'machine', 'product', 'ref', 'shop', 'src', 'version']);
+  assert.deepEqual(Object.keys(p).sort(), ['created_at', 'device', 'id', 'kind', 'machine', 'owner_decided_at', 'owner_decision', 'product', 'ref', 'shop', 'src', 'version']);
   assert.equal(p.src.length, 16, 'the sender address is only a daily-salted hash');
 });
 

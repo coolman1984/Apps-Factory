@@ -240,7 +240,7 @@ function codeFile(c) {
 
 const KIND = { trial: 'تجربة 14 يوم', monthly: 'اشتراك شهري', permanent: 'تفعيل دائم' };
 const HELD = { locked: 'البرنامج مقفول: افتحه وهيتعمل لوحده', daily_cap: 'عدد التجارب النهاردة وصل الحد', review_src: 'طلبات كتير من نفس المكان: راجعها', payment_needed: 'مستني تأكيد الدفع',
-  already_used: 'الكمبيوتر ده خد تجربة قبل كده', owner_refused: 'إنت رفضت', bad_device: 'رقم الجهاز مش مظبوط', bad_machine: 'بصمة الكمبيوتر مش مظبوطة', unknown_product: 'البرنامج مش معروف' };
+  already_used: 'الكمبيوتر ده خد تجربة قبل كده', owner_refused: 'إنت رفضت', approval_old: 'موافقتك على تليجرام قديمة: وافق من هنا بنفسك', expired: 'الطلب انتهى عند الوسيط', closed_elsewhere: 'الطلب اتقفل عند الوسيط', bad_device: 'رقم الجهاز مش مظبوط', bad_machine: 'بصمة الكمبيوتر مش مظبوطة', unknown_product: 'البرنامج مش معروف' };
 const POLICY_SAYS = { issue: 'السياسة هتصدّره لوحدها', reissue: 'السياسة هتبعت نفس الكود تاني', refuse: 'السياسة هترفضه', hold: 'السياسة هتسيبه لك' };
 
 async function relayPanel(page) {
@@ -250,7 +250,7 @@ async function relayPanel(page) {
   const state = !r.configured ? 'الوسيط لسه مش متظبط' : last.ok === false ? 'مفيش اتصال بالوسيط (' + (last.error || '') + ')' : last.at ? 'آخر سحب ' + last.at.replace('T', ' ').slice(0, 19) : 'لسه ماسحبش';
   put($('#relay-box'), html`<div class="card"><div class="card-head"><h2>طلبات المحلات (التجربة التلقائية)</h2>
       <span class="badge ${r.configured && last.ok !== false ? 'ok' : 'warn'}">${state}</span></div>
-    <p class="small muted">المحل بيطلب تجربة من برنامجه، وإشعار بيوصلك على تليجرام. هنا بتسحب الطلب، وبالسياسة اللي إنت وافقت عليها بيطلع الكود لوحده ويرجع للمحل ويتفعّل من غير نسخ ولصق. المفتاح السري بيفضل على الجهاز ده بس.</p>
+    <p class="small muted">المحل بيطلب تجربة من برنامجه، وإشعار بيوصلك على تليجرام بزرارين: «✅ موافق» و«❌ رفض». لو وافقت، البرنامج ده (على جهازك) هو اللي بيصدر الكود ويرجّعه للمحل ويتفعّل من غير نسخ ولصق، وبيتبعتلك نسخة من الكود على تليجرام. المفتاح السري بيفضل على الجهاز ده بس.</p>
     <div class="two"><form class="form" id="rf"><div class="field"><label for="ru">عنوان الوسيط (https://…)</label><input id="ru" class="input mono" value="${r.url || ''}" placeholder="https://xxxx.workers.dev" autocomplete="off"></div>
       <div class="field"><label for="rt">مفتاح الوسيط ${r.has_token ? '(محفوظ، اكتب جديد لو عايز تغيّره)' : ''}</label><input id="rt" type="password" class="input mono" autocomplete="off"></div>
       <p class="err small" id="re"></p><div class="row wrap"><button class="btn primary">${icon('check')}احفظ</button><button type="button" class="btn" id="pull" ${r.configured ? '' : raw('disabled')}>${icon('refresh')}اسحب الطلبات دلوقتي</button></div></form>
@@ -280,6 +280,9 @@ async function requests(page) {
       <div><b>${r.customer}</b> · ${r.product} · ${r.source === 'relay' ? KIND[r.kind] : EDITION[r.edition] + ' · ' + r.days + ' يوم'} ${r.device ? html`· <span class="mono">${r.device}</span>` : ''}
         <span class="badge">${r.source === 'relay' ? 'من المحل' : 'من الإيجنت'}</span>
         <div class="small muted">${r.note} · ${r.requested_at}${r.machine ? html` · جهاز <span class="mono">${r.machine.slice(0, 8)}</span>` : ''}</div>
+        ${r.status === 'pending' && r.tg_decision === 'approved' ? html`<div class="small"><span class="badge ok">وافقت من تليجرام${r.kind && r.kind !== 'trial' ? ': ناقص إثبات الدفع' : ''}</span></div>` : ''}
+        ${r.status === 'pending' && r.tg_decision === 'expired' ? html`<div class="small"><span class="badge warn">موافقتك على تليجرام قديمة: وافق من هنا بنفسك</span></div>` : ''}
+        ${r.status !== 'pending' && r.decided_by === 'telegram' ? html`<div class="small"><span class="badge">القرار من تليجرام</span></div>` : ''}
         ${r.status === 'pending' && r.held ? html`<div class="small"><span class="badge warn">${HELD[r.held] || r.held}</span></div>` : ''}
         ${r.status === 'pending' && r.policy ? html`<div class="xs faint">${POLICY_SAYS[r.policy.verdict]}${r.policy.reason ? ' (' + (HELD[r.policy.reason] || r.policy.reason) + ')' : ''}</div>` : ''}
         ${r.status === 'pending' && r.source === 'relay' && r.kind !== 'trial' ? html`<div class="row wrap"><label class="check"><input type="checkbox" data-paid="${r.id}">الدفع وصل</label>

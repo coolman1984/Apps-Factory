@@ -2,6 +2,13 @@
 
 Factory versions (the `README.md` version line). The control catalogue has its own `catalog_version` in `factory/controls.json`.
 
+## 0.14.0 (2026-10-10)
+The owner's buttons on Telegram, end to end. Relay template and Licence Studio change; `af-license` and the catalogue do not.
+- **Relay (`templates/telemetry-relay`):** every alert has «✅ موافق» / «❌ رفض»; new `POST /telegram` webhook trusted only with the secret token **and** a press from the owner's private chat. «رفض» closes the request at once (final; «سحب الموافقة» after an approval until the code is signed); «موافق» only records `owner_decision` and makes the shop's status `stage: approved`. 72-hour limit on approvals, capped log of refused presses, `POST /licence/states` for the Studio. New columns `owner_decision`, `owner_decided_at` (an existing deployment adds them once; see `schema.sql`). `test/telegram.test.mjs`: 14 tests.
+- **Licence Studio 1.2.0:** follows the owner's buttons: «موافق» signs that one trial on the next round even with the policy off (every hard rule still holds; the owner's own cap and flood check do not hold it back); «رفض» is closed here too; the owner's click on a request refused on the phone is refused; paid kinds still need the payment tick and reference. **A copy of every signed code goes to the owner's own Telegram chat** (claimed atomically, once, retried, never in the audit). `python -m licence_studio telegram-webhook` sets the webhook. Signing for a button never extends the key's unlock time. `tests/test_telegram_buttons.py` (14, real Worker over HTTP) and a browser test.
+- `docs/TELEGRAM_APPROVED_ACTIVATION.md` and `docs/LICENCE_ACTIVATION.md`: status, what was built, where it differs from the design on purpose, threat-model rows.
+- **Not done / not claimed:** nothing is deployed; no real bot or chat was used; no fresh-install challenge; the Windows clean-PC trial and a live approval on a phone are the owner's.
+
 ## 0.13.0 (2026-10-09)
 Records for the activation chain and the practice shop. No code, package or catalogue change in this entry (the code is in the stacked PRs for the relay and the Studio).
 - **Licence mailbox on `templates/telemetry-relay`:** a shop asks for a trial or a paid code, the owner's phone is told on **Telegram** (not WhatsApp), the owner's trusted PC signs, the shop checks the code with the public key and switches itself on. The signing key is never in the bot or the cloud. Spec and threat model: `docs/LICENCE_ACTIVATION.md`.

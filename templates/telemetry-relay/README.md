@@ -57,12 +57,16 @@ shop --POST /licence/ack------------------> relay (the code leaves the relay onc
 - **Limits:** `LICENCE_PER_SOURCE_DAY` (10, per salted address hash), `LICENCE_PER_DEVICE_DAY` (3), `LICENCE_PENDING_MAX` (300). A request uses at most 9 D1 queries, a poll 1, a decision 2 (tested).
 - **Owner side** needs `LICENCE_ADMIN_TOKEN` (a different secret from `RELAY_PULL_TOKEN`). **Telegram** (`TELEGRAM_BOT_TOKEN`, `TELEGRAM_OWNER_CHAT_ID`, optional): the alert carries only the kind, the product, the first 8 characters of the request id and the device code, never what the shop typed.
 - `GET /licence/events` is the relay's own log of each step (never a code, never a shop text).
+- **The owner's buttons (`POST /telegram`):** every alert carries «✅ موافق» / «❌ رفض». The webhook is trusted only with the secret token (`TELEGRAM_WEBHOOK_SECRET`, the same value given to Telegram's `setWebhook`) **and** a press from the owner's private chat (`TELEGRAM_OWNER_CHAT_ID`). «رفض» closes the request at once and is final; «موافق» only records `owner_decision = approved` (the shop sees `stage: approved`) and the owner's PC still has to sign; a paid kind still needs proof of payment in the Studio. Approvals older than `LICENCE_APPROVAL_HOURS` (72) are refused. `POST /licence/states` (admin token) tells the Studio what became of requests it still holds. A press touches D1 at most three times. Tests: `test/telegram.test.mjs`.
 
 ```bash
 wrangler secret put LICENCE_ADMIN_TOKEN      # long random value; the Licence Studio's relay token
 wrangler secret put TELEGRAM_BOT_TOKEN       # optional
-wrangler secret put TELEGRAM_OWNER_CHAT_ID   # optional
+wrangler secret put TELEGRAM_OWNER_CHAT_ID   # optional: the owner's PRIVATE chat with the bot (a group is refused)
+wrangler secret put TELEGRAM_WEBHOOK_SECRET  # optional: switches the «✅ موافق / ❌ رفض» buttons on; then run `python -m licence_studio telegram-webhook`
 wrangler d1 execute af-telemetry-relay --remote --file=schema.sql   # adds licence_requests and licence_events
+# an existing deployment (before 0.14.0) adds two columns once:
+#   wrangler d1 execute af-telemetry-relay --remote --command "ALTER TABLE licence_requests ADD COLUMN owner_decision TEXT; ALTER TABLE licence_requests ADD COLUMN owner_decided_at INTEGER;"
 ```
 Not deployed. `test/serve.mjs` runs the real Worker over plain HTTP for other programs' tests (the Licence Studio's chain test).
 
@@ -101,7 +105,7 @@ Rough load per installation: one batch per hour, plus one for each urgent error.
 - **Compression:** products send `Content-Encoding: gzip`, and the Worker reads the raw body. The Worker refuses a
   body that does not start with the gzip magic bytes (400). If a proxy in front ever decompresses request bodies,
   batches are refused, not stored wrongly. Check this on the first real deployment.
-- **Planned (design only):** the Telegram webhook (customer bot and owner `/status`/`/incidents`, owner chat id only) and the signed `/latest` update endpoint. See
+- **Planned (design only):** the customer bot and the owner's `/status`/`/incidents` commands (the webhook for the licence buttons exists, see above) and the signed `/latest` update endpoint. See
   `docs/CUSTOMER_PATCH_PIPELINE.md`.
 
 ## Test
@@ -109,5 +113,5 @@ Rough load per installation: one batch per hour, plus one for each urgent error.
 The tests need Node 22 or newer. They use a D1 shim over `node:sqlite`.
 
 ```bash
-node --experimental-sqlite --test test/relay.test.mjs test/licence.test.mjs
+node --experimental-sqlite --test test/relay.test.mjs test/licence.test.mjs test/telegram.test.mjs
 ```
