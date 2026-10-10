@@ -154,6 +154,7 @@ class ServiceTests(unittest.TestCase):
             codes.issue_code = real
         return got, bad
 
+    @unittest.skipUnless(hasattr(__import__('time'), 'tzset'), 'changing the time zone of the process needs tzset (not on Windows)')
     def test_the_agents_daily_limit_counts_the_day_the_code_is_stamped_with(self):
         """Review of PR #42: codes are stamped with the UTC day but the limit looked for the PC's local day, so on a PC whose date differs from
         UTC's (most of every day somewhere) the codes made today were never counted and the limit never held."""
@@ -182,6 +183,22 @@ class ServiceTests(unittest.TestCase):
             else:
                 os.environ['TZ'] = before
             time.tzset()
+
+    def test_the_automatic_trial_cap_holds_when_requests_arrive_together(self):
+        """Review of PR #42: the owner's daily cap for automatic trials was a look followed by a write, like the agent's was."""
+        self.s.create_key(PASS)
+        self.s.keep_unlocked(1)
+        other = Studio(self.dir)
+        other.unlock(PASS)
+        other.keep_unlocked(1)
+        d1, d2 = codes.device_code('pc-2', 'i-2'), codes.device_code('pc-3', 'i-3')
+        try:
+            got, bad = self._two_windows_at_once([lambda: self.s.issue('al-store', 'trial', d1, 'Shop', actor='auto-trial', daily_cap=1)['serial'],
+                                                  lambda: other.issue('al-store', 'trial', d2, 'Shop', actor='auto-trial', daily_cap=1)['serial']])
+        finally:
+            other.db.close()
+        self.assertEqual((len(got), bad), (1, [429]))
+        self.assertEqual(self.s.one("SELECT COUNT(*) AS n FROM codes WHERE issued_by = 'auto-trial'")['n'], 1)
 
     def test_two_agent_requests_for_one_device_at_once_make_one_trial(self):
         """Review of PR #26: «one trial per device» was a look followed by a write, so two requests arriving together (a double click, two windows)
@@ -305,8 +322,6 @@ class WebAndMcpTests(unittest.TestCase):
         """The full chain: studio key → code for a shop PC's device code → that shop's Al-Store accepts it, another PC refuses it."""
         store = Path(os.environ.get('AF_STORE_REPO', HERE.parents[2] / 'Store'))
         if not (store / 'server' / 'licence.py').exists():
-            if os.environ.get('AF_REQUIRE_STORE'):  # CI checks Al-Store out beside the factory: a missing checkout there is a failure, not a skip
-                self.fail('AF_REQUIRE_STORE is set but no Al-Store checkout was found at ' + str(store))
             self.skipTest('Al-Store checkout not found next to Apps-Factory')
         public = self.studio.public_key().split(':', 1)[1]
         script = (

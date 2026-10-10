@@ -27,7 +27,7 @@ import uuid
 from html import escape as html_escape
 
 from .relay import DEVICE, KIND_AR, KIND_EDITION, MACHINE, REASON_AR, UUID, RelayError, telegram, telegram_configured
-from .service import MONTHLY_DAYS, UNATTENDED, StudioError, now_iso
+from .service import MONTHLY_DAYS, UNATTENDED, StudioError, now_iso, utc_today
 
 TRIAL_DAYS = 14      # the trial a shop asks for, and the one an owner's button gives
 CLAIM_SECONDS = 300  # a copy to the owner being sent for longer than this is taken to have died
@@ -70,7 +70,7 @@ class AutoTrial:
             return 'issue', '', None
         pol = s.policy()
         # issued_at is stored in UTC, so the day is counted in UTC too: one reset a day, never two (review of PR #34)
-        done = s.one("SELECT COUNT(*) AS n FROM codes WHERE issued_by = 'auto-trial' AND substr(issued_at, 1, 10) = ?", time.strftime('%Y-%m-%d', time.gmtime()))['n']
+        done = s.one("SELECT COUNT(*) AS n FROM codes WHERE issued_by = 'auto-trial' AND substr(issued_at, 1, 10) = ?", utc_today())['n']
         if done >= pol['auto_trial_daily_cap']:
             return 'hold', 'daily_cap', None
         if r.get('src') and s.one("SELECT COUNT(*) AS n FROM requests WHERE source = 'relay' AND src = ? AND requested_at >= ?", r['src'],
@@ -272,11 +272,15 @@ class AutoTrial:
                 # the shorter term the owner may have set for the automatic policy applies to the policy only
                 code = s.issue(r['product'], 'trial', r['device'], r['customer'], '', TRIAL_DAYS if approved else s.policy()['auto_trial_days'],
                                note='تجربة بموافقتك على تليجرام' if approved else 'تجربة تلقائية بسياسة المالك',
-                               actor=by, request_id=r['id'], machine=r['machine'], claim=token)
+                               actor=by, request_id=r['id'], machine=r['machine'], claim=token,
+                               daily_cap=None if approved else s.policy()['auto_trial_daily_cap'])  # (the owner's own «✅» is not held back by the cap)
                 serial = code['serial']
         except StudioError as e:
             s.release(r['id'], token)
             if e.key in ('key.locked', 'request.closed'):  # (closed: this decision was taken over by another window: that one stands)
+                return
+            if e.key == 'daily_cap':  # two rounds or windows passed the first look together: the one that lost waits for tomorrow, it is not refused
+                self.last['held'] += 1
                 return
             self._close(r, 'refused', 'already_used' if e.key == 'trial.repeat' else 'bad_device', by)
             self.last['refused'] += 1

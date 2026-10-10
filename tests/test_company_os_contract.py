@@ -441,10 +441,11 @@ class CompanyOSSafetyTests(unittest.TestCase):
                        "read_customer_data", "export_customer_records", "contact_customer", "call_client", "upload_backup", "read_real_database",
                        "issue_paid_license", "grant_licence", "activate_trial_license", "revoke_code"):
             problems = self.validate(self.sample(allowed_actions=["read_repo", action]))
-            self.assertTrue(any("is sensitive" in p and action in p for p in problems), (action, problems))
+            self.assertTrue(any("not on the allowlist" in p and action in p for p in problems), (action, problems))
 
     def test_only_actions_on_the_allowlist_are_granted_and_anything_else_is_refused(self):
-        for action in ("read_repo", "run_synthetic_tests", "draft_report", "comment_on_pr", "push_branch", "write_tests", "  Read_Repo  "):
+        for action in ("read_repo", "run_synthetic_tests", "draft_report", "comment_on_pr", "push_branch", "write_tests", "  Read_Repo  ",
+                       "edit_files", "commit_changes", "run_linter", "write_code", "create_branch"):   # ordinary coding work needs no owner approval
             self.assertEqual([p for p in self.validate(self.sample(allowed_actions=[action])) if "allowed_actions" in p], [], action)
         for action in ("inspect_payload", "frobnicate", "read_synthetic_data", "do_anything", "shell"):   # unknown is refused too: a word list is never complete
             self.assertTrue(any("not on the allowlist" in p for p in self.validate(self.sample(allowed_actions=[action]))), action)
@@ -467,7 +468,8 @@ class CompanyOSSafetyTests(unittest.TestCase):
             self.assertTrue(any("records a failure" in p for p in self.validate(self.done(tests_run=[line]))), line)
         for line in ("ran the tests", "tests were run on the branch"):                       # no stated result is not a pass
             self.assertTrue(any("does not say the tests passed" in p for p in self.validate(self.done(tests_run=[line]))), line)
-        for line in ("python -m unittest discover -s tests: 113 passed, 0 failed, 0 skipped", "node --test: 34 passed", "Ran 304 tests OK", "all green, no failures"):
+        for line in ("python -m unittest discover -s tests: 113 passed, 0 failed, 0 skipped", "node --test: 34 passed", "Ran 304 tests OK", "all green, no failures",
+                     "# pass 34\n# fail 0\n# skipped 0", "unittest OK (failures=0)", "Failed: 0, Passed: 12"):   # the zero may come after the word as well as before
             self.assertEqual(self.validate(self.done(tests_run=[line])), [], line)
 
     def test_the_same_work_cannot_be_carried_twice(self):
@@ -510,6 +512,11 @@ class CompanyOSSafetyTests(unittest.TestCase):
         self.assertEqual(self.stale([fresh, old, never, waiting], now, 24), ["PX-302", "PX-303"])
         self.assertEqual(self.validate(fresh), [])
         self.assertTrue(self.validate(self.sample(updated_at="yesterday")), "the stamp is as strict as every other date")
+        future = self.sample(task_id="PX-305", status="working", updated_at="2099-01-01T00:00:00Z")
+        self.assertEqual(self.stale([future], now, 24), ["PX-305"], "a stamp in the future never makes work look fresh")
+        odd = self.sample(task_id="PX-306", status="working", updated_at="2026-10-10T11:30:00.5Z")   # a one-digit fraction parses on every Python
+        self.assertEqual(self.validate(odd), [])
+        self.assertEqual(self.stale([odd], now, 24), [])
         with tempfile.TemporaryDirectory() as d:
             f = Path(d, "t.json")
             f.write_text(json.dumps([fresh, old]), encoding="utf-8")
@@ -517,6 +524,11 @@ class CompanyOSSafetyTests(unittest.TestCase):
             self.assertEqual(run.returncode, 3, run.stdout)
             self.assertIn("STALE: PX-302", run.stdout)
             self.assertNotIn("STALE: PX-301", run.stdout)
+            messy = Path(d, "m.json")        # one invalid task must not hide the takeover signal of another
+            messy.write_text(json.dumps([old, self.sample(task_id="PX-307", goal="x")]), encoding="utf-8")
+            both = subprocess.run([sys.executable, str(VALIDATOR), str(messy), "--stale-hours", "24", "--now", "2026-10-10T12:00:00Z"], capture_output=True, text=True)
+            self.assertEqual(both.returncode, 1, both.stdout)
+            self.assertIn("STALE: PX-302", both.stdout)
             naive = subprocess.run([sys.executable, str(VALIDATOR), str(f), "--stale-hours", "24", "--now", "2026-10-10T12:00:00"], capture_output=True, text=True)
             self.assertEqual(naive.returncode, 2, naive.stdout + naive.stderr)
             self.assertIn("timezone", naive.stderr)

@@ -324,7 +324,7 @@ class Studio:
             raise StudioError('device.required', 'A trial or perpetual code must be tied to the customer\'s device code (so it cannot be passed on).')
 
     def issue(self, product, edition, device, customer='', phone='', days=None, first_day=None, grace_days=0, seats=1, note='',
-              actor='owner', request_id=None, machine=None, claim=None, agent_limits=None):
+              actor='owner', request_id=None, machine=None, claim=None, once_per_device=False, daily_cap=None):
         if request_id:  # the same request asked twice (a retry after a crash) gives the same code, never a second one
             done = self.one('SELECT serial FROM codes WHERE request_id = ?', request_id)
             if done:
@@ -345,12 +345,12 @@ class Studio:
             try:
                 if claim and not self.db.execute("SELECT 1 FROM requests WHERE id = ? AND status = 'deciding' AND decide_claim = ?", (request_id, claim)).fetchone():
                     raise StudioError('request.closed', 'This decision was taken over (it waited more than two minutes) and is not yours any more.', 409)
-                if agent_limits:  # the agent's two limits are counted under the write lock too: two requests together cannot both pass a look taken before either wrote
-                    if device and self.db.execute('SELECT 1 FROM codes WHERE product = ? AND device = ?', (product, device)).fetchone():
-                        raise StudioError('agent.repeat', 'This device already had a code. A new or longer code is the owner\'s decision.', 409)
-                    used = self.db.execute("SELECT COUNT(*) AS n FROM codes WHERE issued_by = 'agent' AND substr(issued_at, 1, 10) = ?", (utc_today(),)).fetchone()['n']
-                    if used >= agent_limits['daily']:
-                        raise StudioError('agent.limit', 'The agent reached today\'s limit of trial codes. The owner can raise it.', 429)
+                if once_per_device and device and self.db.execute('SELECT 1 FROM codes WHERE product = ? AND device = ?', (product, device)).fetchone():
+                    raise StudioError('agent.repeat', 'This device already had a code. A new or longer code is the owner\'s decision.', 409)
+                if daily_cap is not None:  # the daily limits are counted under the write lock too: two requests together cannot both pass a look taken before either wrote
+                    used = self.db.execute("SELECT COUNT(*) AS n FROM codes WHERE issued_by = ? AND substr(issued_at, 1, 10) = ?", (actor, utc_today())).fetchone()['n']
+                    if used >= daily_cap:
+                        raise StudioError('agent.limit' if actor == 'agent' else 'daily_cap', 'Today\'s limit of automatic trial codes was reached. The owner can raise it.', 429)
                 if request_id:  # asked again under the file's write lock: another window on this folder may have signed it since the check above
                     done = self.db.execute('SELECT serial FROM codes WHERE request_id = ?', (request_id,)).fetchone()
                     if done:
@@ -532,7 +532,7 @@ class Studio:
         if used >= pol['agent_daily_limit']:
             raise StudioError('agent.limit', 'The agent reached today\'s limit of trial codes. The owner can raise it.', 429)
         return {'status': 'issued', 'code': self.issue(product, 'trial', device, customer, phone, days, note=note, actor='agent',
-                                                       agent_limits={'daily': pol['agent_daily_limit']})}
+                                                       once_per_device=True, daily_cap=pol['agent_daily_limit'])}
 
     # ------------------------------------------------------------------ agent tokens
     def new_agent_token(self, name='AI agent'):

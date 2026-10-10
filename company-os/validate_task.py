@@ -16,55 +16,36 @@ HERE = Path(__file__).resolve().parent
 DEFAULT_SCHEMA = HERE / "task.schema.json"
 
 # What a handoff MAY grant by itself: a short allowlist of actions that touch nothing real. Anything else is refused (fail closed): a word
-# list can never be complete (review of PR #42 found customer, licence, export... in turn), so the list below is the rule and the words
-# further down only make the message say why. To grant a new kind of action, add it here in a reviewed change.
+# list can never be complete (the review of PR #42 found customer, licence, export... in turn). An action that touches money, customers,
+# licences, production, real data or secrets is never on this list: it goes in requires_owner_approval. To grant a new kind of harmless
+# action, add it here in a reviewed change.
 SAFE_ACTIONS = {
     "read_repo", "read_docs", "read_ci_logs", "research_public",
-    "run_synthetic_tests", "run_unit_tests", "write_tests", "review_diff",
-    "draft_report", "draft_copy", "draft_docs", "comment_on_pr", "push_branch", "open_pr",
+    "run_synthetic_tests", "run_unit_tests", "run_tests", "run_linter", "write_tests", "review_diff",
+    "edit_files", "write_code", "create_branch", "commit_changes", "push_branch", "open_pr", "comment_on_pr",
+    "draft_report", "draft_copy", "draft_docs",
 }
-
-# Why an action that is not on the allowlist is refused. A handoff may never PRE-GRANT an action that spends money, reaches customers, touches production or real data, or handles secrets:
-# such an action belongs in requires_owner_approval (fail closed). Words, not substrings: «payload» is not «pay».
-SENSITIVE_WORDS = {
-    "pay", "payment", "payments", "charge", "refund", "invoice", "spend", "purchase", "transfer", "wire",
-    "send", "message", "broadcast", "email", "sms", "whatsapp", "telegram", "post", "tweet", "announce",
-    "deploy", "publish", "release", "merge", "force", "production", "prod", "live",
-    "delete", "drop", "wipe", "purge", "truncate", "destroy",
-    "secret", "secrets", "credential", "credentials", "password", "passwords", "token", "tokens", "signing", "private",
-}
-# Real customer data and reaching customers: sensitive unless the action says it is synthetic («read_synthetic_data» is fine, «read_customer_data» is not).
-DATA_WORDS = {"customer", "customers", "client", "clients", "data", "record", "records", "personal", "real", "pii", "database", "db", "backup", "backups"}
-OUTREACH_WORDS = {"contact", "call", "upload", "export", "share", "notify", "submit", "phone", "dm", "reply"}
-WRITE_WORDS = {"push", "write", "commit", "edit", "update", "change", "modify"}
-ZERO_COUNT = re.compile(r"\b(?:0|no|zero)\s+(?:fail\w*|errors?|skipp\w*|xfail\w*)\b", re.I)
+ZERO_COUNT = re.compile(r"\b(?:0|no|zero)\s+(?:fail\w*|errors?|skipp\w*|xfail\w*)\b|\b(?:fail\w*|errors?|skipp\w*|xfail\w*)\s*[:=]?\s*0\b", re.I)
 FAILURE_FORMS = re.compile(r"\b(?:fail\w*|errors?|skipp\w*|xfail\w*|red|aborted|crash\w*|timed?\s*out|not\s+(?:green|passing|passed))\b|exited with (?:code|status) [1-9]|exit code [1-9]", re.I)
-PASS_EVIDENCE = re.compile(r"\b(?:passed|passing|green|succeeded|success)\b|(?-i:\bOK\b)", re.I)
-FAILED_TESTS = re.compile(r"(?<![\d.])[1-9]\d*\s*(?:failed|failures?|errors?|skipped|xfail)\b|(?-i:\b(?:FAILED|FAILURE|ERROR)\b)|\bnot\s+(?:green|passing|passed)\b|\bred\b", re.I)
+PASS_EVIDENCE = re.compile(r"\bpass(?:ed|ing)?\b|\b(?:green|succeeded|success)\b|(?-i:\bOK\b)", re.I)
 ACTIVE = {"ready", "working", "review", "owner_gate"}  # statuses in which a person or agent is expected to be doing the task
 
 
-def _words(action):
-    return set(re.findall(r"[a-z0-9]+", action.casefold()))
+def _parse_time(stamp):
+    """An RFC 3339 time with a zone, or None. Fractions of any length and «Z» are read the same on every Python (before 3.11 only 3 or 6 digits parsed)."""
+    if not isinstance(stamp, str):
+        return None
+    text = re.sub(r"\.(\d+)", lambda m: "." + (m.group(1) + "000000")[:6], stamp.replace("Z", "+00:00"), count=1)
+    try:
+        at = datetime.fromisoformat(text)
+    except (ValueError, OverflowError):
+        return None
+    return at if at.tzinfo is not None and at.utcoffset() is not None else None
 
 
-def sensitive_actions(allowed):
-    """The entries of allowed_actions that a handoff is not allowed to grant by itself: everything that is not on SAFE_ACTIONS.
-    Returns (action, why) pairs; `why` is "sensitive" when its words name money, customers, production, real data or secrets."""
-    found = []
-    for action in allowed:
-        if not isinstance(action, str):
-            continue
-        if " ".join(action.split()).casefold() in SAFE_ACTIONS:
-            continue
-        words = _words(action)
-        if (words & SENSITIVE_WORDS or ("main" in words and words & WRITE_WORDS)
-                or ((words & DATA_WORDS or words & OUTREACH_WORDS) and "synthetic" not in words)
-                or words & {"license", "licence", "licenses", "licences", "activate", "activation", "grant", "issue", "revoke", "approve"}):
-            found.append((action, "sensitive"))
-        else:
-            found.append((action, "unlisted"))
-    return found
+def unlisted_actions(allowed):
+    """The entries of allowed_actions that are not on SAFE_ACTIONS (spaces and case are ignored, like for approvals)."""
+    return [a for a in allowed if isinstance(a, str) and " ".join(a.split()).casefold() not in SAFE_ACTIONS]
 
 
 def _matches_type(value, kind):
@@ -124,8 +105,7 @@ def _check(value, rule, where="$"):
                 problems.append(f"{where}: invalid format")
         if rule.get("format") == "date-time":
             try:
-                parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
-                if parsed.tzinfo is None or parsed.utcoffset() is None:
+                if _parse_time(value) is None:
                     raise ValueError("timezone required")
             except (ValueError, OverflowError):
                 problems.append(f"{where}: invalid timezone-aware date-time")
@@ -184,13 +164,9 @@ def validate_task(task, schema=None):
                 errors.append("$.allowed_actions: must not overlap requires_owner_approval: " + ", ".join(sorted(overlap)))
 
         if isinstance(allowed, list):
-            for action, why in sensitive_actions(allowed):
-                if why == "sensitive":
-                    errors.append(f"$.allowed_actions: {action!r} is sensitive (money, customers, licences, production, real data, secrets, main): "
-                                  "list it in requires_owner_approval, a handoff cannot grant it")
-                else:
-                    errors.append(f"$.allowed_actions: {action!r} is not on the allowlist ({', '.join(sorted(SAFE_ACTIONS))}): "
-                                  "list it in requires_owner_approval, or add it to SAFE_ACTIONS in a reviewed change")
+            for action in unlisted_actions(allowed):
+                errors.append(f"$.allowed_actions: {action!r} is not on the allowlist ({', '.join(sorted(SAFE_ACTIONS))}): anything that touches money, customers, "
+                              "licences, production, real data or secrets goes in requires_owner_approval; a harmless new kind of action is added to SAFE_ACTIONS in a reviewed change")
 
         # A syntactically valid local path that does not exist cannot restore context.
         # Keep the whole validator offline; HTTPS references must be checked separately.
@@ -236,14 +212,14 @@ def validate_task(task, schema=None):
             for line in task.get("tests_run") if isinstance(task.get("tests_run"), list) else []:
                 if isinstance(line, str):  # free text: green needs a stated pass and no failure, error, skip or non-zero exit in any form
                     rest = ZERO_COUNT.sub("", line)
-                    if FAILURE_FORMS.search(rest) or FAILED_TESTS.search(rest):
+                    if FAILURE_FORMS.search(rest):
                         errors.append(f"$.tests_run: {line!r} records a failure or a skip; a completed task needs a clean run")
                     elif not PASS_EVIDENCE.search(line):
                         errors.append(f"$.tests_run: {line!r} does not say the tests passed (write the result, for example '113 passed, 0 failed')")
     return errors
 
 
-def batch_conflicts(tasks):
+def batch_conflicts(tasks, check_ids=True):
     """Work that would be done twice: the same id in two handoffs, or two ACTIVE tasks on the same branch or the same open PR."""
     problems, ids, branches, prs = [], {}, {}, {}  # a branch name is only unique inside its project (Factory and Store may both have fix/x)
     for index, task in enumerate(tasks):
@@ -251,7 +227,7 @@ def batch_conflicts(tasks):
             continue
         name = task.get("task_id") if isinstance(task.get("task_id"), str) else f"#{index + 1}"
         key = name.strip()
-        if key in ids:
+        if check_ids and key in ids:
             problems.append(f"{name}: duplicate task identifier (also {ids[key]})")
         ids.setdefault(key, name)
         if task.get("status") not in ACTIVE:
@@ -271,18 +247,15 @@ def batch_conflicts(tasks):
 
 
 def stale_tasks(tasks, now, hours):
-    """`working` tasks nobody has touched for `hours` (or that never said when): the work was interrupted, someone else takes over from
-    next_action, current_commit and the open PRs in the handoff."""
+    """`working` tasks nobody has touched for `hours`, or that never said when, or whose stamp lies in the future (a typo or a wrong clock
+    cannot make work look fresh for ever): the work was interrupted, someone else takes over from next_action, current_commit and the open PRs."""
     stale = []
     for task in tasks:
         if not isinstance(task, dict) or task.get("status") != "working":
             continue
-        stamp = task.get("updated_at")
-        try:
-            at = datetime.fromisoformat(stamp.replace("Z", "+00:00")) if isinstance(stamp, str) else None
-        except ValueError:
-            at = None
-        if at is None or at.tzinfo is None or (now - at).total_seconds() > hours * 3600:
+        at = _parse_time(task.get("updated_at"))
+        age = (now - at).total_seconds() if at is not None else None
+        if age is None or age < -300 or age > hours * 3600:
             stale.append(task.get("task_id") or "?")
     return stale
 
@@ -293,14 +266,13 @@ def main(argv=None):
     parser.add_argument("--stale-hours", type=float, default=None, help="report `working` tasks not updated for this long (interrupted work); exit 3 if any")
     parser.add_argument("--now", default=None, help="RFC 3339 time to measure staleness from (default: the clock)")
     args = parser.parse_args(argv)
-    tasks, sources = [], []
+    tasks = []
     try:
         schema = json.loads(DEFAULT_SCHEMA.read_text(encoding="utf-8"))
         for path in args.file:
             data = json.loads(path.read_text(encoding="utf-8"))
             for task in data if isinstance(data, list) else [data]:
                 tasks.append(task)
-                sources.append(path.name)
     except (OSError, UnicodeError, json.JSONDecodeError) as ex:
         print(f"Cannot read task/schema JSON: {ex}", file=sys.stderr)
         return 2
@@ -323,27 +295,21 @@ def main(argv=None):
                 print("  " + issue)
         else:
             print(f"Task {idx + 1}: valid handoff metadata (NOT an authorization)")
-    for problem in batch_conflicts(tasks):
-        if "duplicate task identifier" in problem:
-            continue  # already reported per task above
+    for problem in batch_conflicts(tasks, check_ids=False):  # (a repeated id is reported per task above)
         failed = True
         print("CONFLICT: " + problem)
-    if failed:
-        return 1
-    if args.stale_hours is not None:
-        try:
-            now = datetime.fromisoformat(args.now.replace("Z", "+00:00")) if args.now else datetime.now().astimezone()
-            if now.tzinfo is None or now.utcoffset() is None:
-                raise ValueError("timezone required")
-        except ValueError:
+    stale = []
+    if args.stale_hours is not None:  # reported even when something else is wrong: a messy batch is when the takeover signal is needed most
+        now = _parse_time(args.now) if args.now else datetime.now().astimezone()
+        if now is None:
             print("--now must be an RFC 3339 time with a timezone", file=sys.stderr)
             return 2
         stale = stale_tasks(tasks, now, args.stale_hours)
         for task_id in stale:
             print(f"STALE: {task_id} is `working` but was not updated for {args.stale_hours:g} hours: take it over from its next_action and current_commit")
-        if stale:
-            return 3
-    return 0
+    if failed:
+        return 1
+    return 3 if stale else 0
 
 
 if __name__ == "__main__":
