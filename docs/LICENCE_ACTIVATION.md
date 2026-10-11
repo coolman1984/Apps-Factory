@@ -49,7 +49,7 @@ Duplicated on purpose: a 15-line Telegram sender in the Studio and the Worker (t
 | 200 `{status:'refused', reason:'already_used'}` | this PC or this device already had a trial: refused quietly, the owner is not woken |
 | 429 / 503 / 400 | rate limit, waiting list full, a field named in `field` |
 
-`GET /licence/status?id=` and `POST /licence/ack` need `Authorization: Bearer <poll token>`; an unknown id and a wrong token look the same. Owner side: `GET /licence/pending`, `POST /licence/decide {id, action: issue|refuse, code|reason}`, `GET /licence/events`, with `LICENCE_ADMIN_TOKEN` (never the telemetry token). Decisions are repeatable (a retry after a network error is fine) and a conflicting second decision is 409. An issued trial nobody collected expires as `unacked` and still counts as given.
+`GET /licence/status?id=` and `POST /licence/ack` need `Authorization: Bearer <poll token>`; an unknown id and a wrong token look the same. Owner side: `GET /licence/pending`, `POST /licence/decide {id, action: issue|refuse|approve, code|reason}`, `GET /licence/events`, with `LICENCE_ADMIN_TOKEN` (never the telemetry token). `issue` still needs a signed code and is Licence Studio only. `approve` records `licence_owner` the way the Telegram button does: the request stays `pending`, a non-empty `code` is refused, and the PC still signs. `refuse` closes the request. Decisions are repeatable (a retry after a network error is fine) and a conflicting second decision is 409. An issued trial nobody collected expires as `unacked` and still counts as given.
 
 ## 4. The trial policy (Licence Studio; OFF until the owner switches it on)
 
