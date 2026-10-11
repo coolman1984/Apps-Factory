@@ -23,3 +23,7 @@ export function bearer(h) {
   return auth.slice(0, 7).toLowerCase() === 'bearer ' ? auth.slice(7).trim() : '';
 }
 
+
+// The owner's admin token class (LICENCE_ADMIN_TOKEN): licence owner routes and audit routes. Exact behaviour is shared, never copied:
+// an empty or missing secret refuses everything, and the comparison is constant time. RELAY_PULL_TOKEN never passes here.
+export const adminOk = (request, env) => !!env.LICENCE_ADMIN_TOKEN && same(bearer(request.headers), env.LICENCE_ADMIN_TOKEN);

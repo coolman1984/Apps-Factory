@@ -2,6 +2,12 @@
 
 Factory versions (the `README.md` version line). The control catalogue has its own `catalog_version` in `factory/controls.json`.
 
+## 0.17.1 (2026-10-11)
+**Telemetry relay: read-only owner routes (Pixel Plus Owner M13).** `GET /installs` (ids only, paged), `GET /licence/history` (safe metadata for all states, stable pages), a `beforeId` cursor on `GET /licence/events`, and `GET /owner/capabilities`, all admin token only, one D1 query each, 10 new tests (76 in all). No write path, no change to `POST /installs` or to the pull token. Not deployed.
+
+## 0.17.0 (2026-10-11)
+**Telemetry relay: the owner's phone audit mirror (Pixel Plus Owner M05).** `POST /audit/append` and `GET /audit/recent` (`templates/telemetry-relay/src/audit.js`, table `owner_audit`), admin token only, append-only, hash chain checked on arrival (fork, gap, wrong predecessor and a second device are refused with the current head; an identical retry is a replay), canonical form enforced byte for byte, bounded body/chains/length, no private fields. `adminOk` moved unchanged into `common.js` and is shared with the licence routes. 17 new tests (66 in all), including the phone's golden entry and a chain written by the phone's own Kotlin code. Not deployed; the phone does not call it yet. No signing key, no new secret.
+
 ## 0.16.1 (2026-10-10)
 Integration proof, tests only. `apps/licence-studio/tests/test_studio.py` now signs a 7-day and a 30-day trial from the Studio for a real Al-Store checkout and reads them back with Al-Store's own verifier (state «trial», the right days left): the product's trial length reaches a real shop through the whole chain, and CI (`vendored-drift`) runs it against Al-Store's `main`. Readiness review: the Al-Store manifest still answers **NO-GO** (34 core controls: 30 verified; UX-04, UX-09, DATA-05, A11Y-01 and the field proofs `clean_device_restore`, `core_user_acceptance`, `off_device_cloud_restore` are open); the list of what a machine cannot prove is in Al-Store's `docs/03-ready-to-sell.md`.
 

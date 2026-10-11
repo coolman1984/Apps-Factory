@@ -69,3 +69,34 @@ CREATE TABLE IF NOT EXISTS licence_owner (
   decided_at INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS licence_owner_at ON licence_owner (decided_at);
+
+-- The owner's phone audit mirror (Apps-Factory 0.15, Pixel Plus Owner M05). One row per entry of the phone's hash-chained audit.
+-- canonical_json = the exact canonical bytes the phone hashed (a JSON array, both Arabic and English explanations, no customer text,
+-- no token, no code, no amount). entry_hash = sha256(previous_hash (32 raw bytes) || canonical bytes). The Worker only appends:
+-- there is no UPDATE or DELETE route, and the daily clean-up never touches this table. Re-running this file is the whole upgrade.
+CREATE TABLE IF NOT EXISTS owner_audit (
+  event_id TEXT PRIMARY KEY,
+  chain_id TEXT NOT NULL,
+  sequence INTEGER NOT NULL CHECK (sequence > 0),
+  device_instance_id TEXT NOT NULL,
+  occurred_at_utc_ms INTEGER NOT NULL,
+  received_at INTEGER NOT NULL,
+  screen TEXT NOT NULL,
+  action TEXT NOT NULL,
+  entity_type TEXT NOT NULL,
+  entity_id TEXT,
+  result TEXT NOT NULL,
+  canonical_json TEXT NOT NULL,
+  previous_hash TEXT NOT NULL,
+  entry_hash TEXT NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS owner_audit_chain ON owner_audit (chain_id, sequence);
+CREATE INDEX IF NOT EXISTS owner_audit_received ON owner_audit (received_at, event_id);
+CREATE INDEX IF NOT EXISTS owner_audit_entity ON owner_audit (entity_type, entity_id, received_at);
+CREATE INDEX IF NOT EXISTS owner_audit_genesis ON owner_audit (sequence) WHERE sequence = 1;
+-- The phone mirror is append-only at the database level too (defence in depth; the Worker has no such route).
+CREATE TRIGGER IF NOT EXISTS owner_audit_no_update BEFORE UPDATE ON owner_audit BEGIN SELECT RAISE(ABORT, 'owner_audit is append-only'); END;
+CREATE TRIGGER IF NOT EXISTS owner_audit_no_delete BEFORE DELETE ON owner_audit BEGIN SELECT RAISE(ABORT, 'owner_audit is append-only'); END;
+
+-- M13: the owner's read-only history route pages by (status, created_at, id).
+CREATE INDEX IF NOT EXISTS licence_status_page ON licence_requests (status, created_at, id);

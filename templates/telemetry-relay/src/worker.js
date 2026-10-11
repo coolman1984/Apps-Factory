@@ -22,6 +22,8 @@
 
 import {reply, num, same, sha256hex, bearer} from './common.js';
 import {cleanupLicence, handleLicence, handleTelegram} from './licence.js';
+import {handleAudit} from './audit.js';
+import {handleOwner} from './owner.js';
 export {same, sha256hex};
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
@@ -142,6 +144,8 @@ export default {
     const now = nowOverride ?? Math.floor(Date.now() / 1000);
     const url = new URL(request.url);
     if (request.method === 'POST' && url.pathname === '/ingest') return ingest(request, env, now);
+    const owner = await handleOwner(request, env, now, url);
+    if (owner) return owner;
     if (['/pull', '/ack', '/installs'].includes(url.pathname)) {
       if (!pullAuth(request, env)) return reply({error: 'unauthorised'}, 401);
       if (request.method === 'GET' && url.pathname === '/pull') return pull(url, env);
@@ -149,6 +153,8 @@ export default {
       if (request.method === 'POST' && url.pathname === '/installs') return syncInstalls(request, env);
     }
     if (url.pathname === '/telegram') return handleTelegram(request, env, ctx, now);
+    const audit = await handleAudit(request, env, now, url);
+    if (audit) return audit;
     const licence = await handleLicence(request, env, ctx, now, url);
     if (licence) return licence;
     if (request.method === 'GET' && url.pathname === '/health') return reply({ok: true}, 200, now);
