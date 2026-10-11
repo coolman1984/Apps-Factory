@@ -87,7 +87,7 @@ export const alertText = (row, buttons = true) => `🔔 طلب ${KIND_AR[row.kin
 // One predicate for the alert (shows buttons) and the webhook (accepts presses), so an alert never carries buttons that cannot work.
 export const buttonsReady = (env) => !!env.TELEGRAM_WEBHOOK_SECRET && !!env.TELEGRAM_BOT_TOKEN && /^\d{1,20}$/.test(ownerId(env));
 // How long an approval counts (hours). The relay is the only judge of it: the owner's PC is told `expired` and never uses its own clock.
-const approvalSeconds = (env) => Math.max(1, num(env.LICENCE_APPROVAL_HOURS, 72)) * 3600;
+export const approvalSeconds = (env) => Math.max(1, num(env.LICENCE_APPROVAL_HOURS, 72)) * 3600;
 
 // The owner's two buttons. The data is only an action and the opaque request id (39 bytes, Telegram allows 64). After an approval the
 // only button left is «سحب الموافقة»: the owner can change their mind until the code is signed.
@@ -254,8 +254,13 @@ async function states(request, env, now) {
 
 async function events(env, url, now) {
   const limit = Math.min(200, Math.max(1, Math.floor(num(url.searchParams.get('limit'), 100)) || 100));
-  const {results} = await env.DB.prepare('SELECT id, at, request_id, event, detail FROM licence_events ORDER BY id DESC LIMIT ?').bind(limit).all();
-  return reply({events: results}, 200, now);
+  // `beforeId` reads the next older page (M13). Without it the answer is the latest page, as before; `nextCursor` is the only addition.
+  const raw = url.searchParams.get('beforeId');
+  if (raw !== null && !/^\d{1,15}$/.test(raw)) return reply({error: 'beforeId'}, 400, now);
+  const before = raw === null ? Number.MAX_SAFE_INTEGER : Number(raw);
+  const {results} = await env.DB.prepare('SELECT id, at, request_id, event, detail FROM licence_events WHERE id < ? ORDER BY id DESC LIMIT ?').bind(before, limit + 1).all();
+  const page = results.slice(0, limit);
+  return reply({events: page, nextCursor: results.length > limit ? {beforeId: page[page.length - 1].id} : null}, 200, now);
 }
 
 // ---------------------------------------------------------------------------------------------------------------------------------

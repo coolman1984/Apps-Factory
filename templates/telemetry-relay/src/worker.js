@@ -23,6 +23,7 @@
 import {reply, num, same, sha256hex, bearer} from './common.js';
 import {cleanupLicence, handleLicence, handleTelegram} from './licence.js';
 import {handleAudit} from './audit.js';
+import {handleOwner} from './owner.js';
 export {same, sha256hex};
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
@@ -143,6 +144,8 @@ export default {
     const now = nowOverride ?? Math.floor(Date.now() / 1000);
     const url = new URL(request.url);
     if (request.method === 'POST' && url.pathname === '/ingest') return ingest(request, env, now);
+    const owner = await handleOwner(request, env, now, url);
+    if (owner) return owner;
     if (['/pull', '/ack', '/installs'].includes(url.pathname)) {
       if (!pullAuth(request, env)) return reply({error: 'unauthorised'}, 401);
       if (request.method === 'GET' && url.pathname === '/pull') return pull(url, env);
