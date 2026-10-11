@@ -319,3 +319,15 @@ test('D1 Free plan: an append touches D1 at most 4 times and a read twice', asyn
   assert.equal((await call(e, '/licence/pending', {headers: admin})).status, 200);
   assert.equal((await call(e, '/licence/pending', {headers: {authorization: 'Bearer ' + PULL}})).status, 401);
 });
+
+test('a three-entry chain written by the phone\'s own Kotlin code (quotes, backslash, tab, newline, Arabic, a decomposed accent) is accepted and read back byte for byte', async () => {
+  // test/audit-phone-chain.json was produced by AuditCanonical.link in Mobile-App (the same code the phone runs); regenerate it there, never by hand
+  const links = JSON.parse((await import('node:fs')).readFileSync(new URL('./audit-phone-chain.json', import.meta.url), 'utf8'));
+  const e = env();
+  for (const l of links) assert.equal((await post(e, l)).status, 201);
+  const chainId = JSON.parse(links[0].entry)[2];
+  const page = await (await recent(e, `?chainId=${chainId}`)).json();
+  assert.deepEqual(page.entries.map((x) => x.entry), links.map((l) => l.entry).reverse());
+  assert.equal(page.head.entryHash, links[2].entryHash);
+  assert.ok(JSON.parse(links[2].entry)[20].includes('é'), 'the phone had already composed the accent (NFC)');
+});
