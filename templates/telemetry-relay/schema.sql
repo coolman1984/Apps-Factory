@@ -97,3 +97,6 @@ CREATE INDEX IF NOT EXISTS owner_audit_genesis ON owner_audit (sequence) WHERE s
 -- The phone mirror is append-only at the database level too (defence in depth; the Worker has no such route).
 CREATE TRIGGER IF NOT EXISTS owner_audit_no_update BEFORE UPDATE ON owner_audit BEGIN SELECT RAISE(ABORT, 'owner_audit is append-only'); END;
 CREATE TRIGGER IF NOT EXISTS owner_audit_no_delete BEFORE DELETE ON owner_audit BEGIN SELECT RAISE(ABORT, 'owner_audit is append-only'); END;
+
+-- M13: the owner's read-only history route pages by (status, created_at, id).
+CREATE INDEX IF NOT EXISTS licence_status_page ON licence_requests (status, created_at, id);

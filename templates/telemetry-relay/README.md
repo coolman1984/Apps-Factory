@@ -118,10 +118,14 @@ The Pixel Plus Owner Android app keeps a hash-chained audit of what the owner di
 - A shared admin token is not a cryptographic identity. The mirror shows tampering against a head the phone retains; it cannot prove who wrote it. Not deployed: run `wrangler d1 execute af-telemetry-relay --remote --file=schema.sql` first (creates `owner_audit` and its two triggers; the triggers are not yet confirmed against live D1).
 - The golden entry in `test/audit-golden-v1.json` is a copy of the phone's own golden file: the Worker must accept it byte for byte.
 
+## Read-only routes for the owner's phone (`src/owner.js`, M13)
+
+Admin token only, no writes, nothing private. `GET /installs?afterId=&limit=` lists registered install **ids** (never `token_hash`), 100 per page, with a cursor and `coverage: "registry"` (only what the Control Center pushed; `POST /installs` is unchanged and keeps the pull token). `GET /licence/history?status=&after=<created_at>:<id>&limit=` gives safe metadata for every request state (product, kind, device code, status, reason, the effective owner decision, timestamps) and never a code, poll hash, shop text, payment reference or address; pages are stable across tied timestamps. `GET /licence/events` keeps its latest-page answer and gains `?beforeId=` and a `nextCursor`. `GET /owner/capabilities` returns `{protocol, routes, limits}` so an older Worker (404) is told apart from a broken one. Each route uses one D1 query (capabilities none). Re-run `schema.sql` for the new `licence_status_page` index. Not deployed.
+
 ## Test
 
 The tests need Node 22 or newer. They use a D1 shim over `node:sqlite`.
 
 ```bash
-node --experimental-sqlite --test test/relay.test.mjs test/licence.test.mjs test/telegram.test.mjs test/audit.test.mjs
+node --experimental-sqlite --test test/relay.test.mjs test/licence.test.mjs test/telegram.test.mjs test/audit.test.mjs test/owner.test.mjs
 ```
