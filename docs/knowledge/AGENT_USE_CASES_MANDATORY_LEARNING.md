@@ -14,8 +14,8 @@ Checked: 2026-10-11. Canonical catalogue: https://agentusecases.ai/
 | User job | Research category | What to extract and independently validate |
 |---|---|---|
 | Application features, repositories, testing, releases | https://agentusecases.ai/category/software | Test automation, review loops, rollback, reproducible evidence |
-| Administrative operations, invoices, internal workflows | https://agentusecases.ai/category/work | Human approval boundaries, failure recovery and ROI |
-| Sales, outreach, customer care and marketing | https://agentusecases.ai/category/sales | Source quality, consent, factual claims, policy and spend approval |
+| Administrative operations, invoices, internal workflows | https://agentusecases.ai/category/operations | Human approval boundaries, failure recovery and ROI |
+| Sales, outreach, customer care and marketing | https://agentusecases.ai/category/growth | Source quality, consent, factual claims, policy and spend approval |
 | Research, documents, knowledge retrieval | https://agentusecases.ai/category/research | Grounded citations, stale source detection, explicit uncertainty |
 | Creative media, website design, movies | https://agentusecases.ai/category/creative | Brief-to-artifact workflow and visual review against actual output |
 | Access control, data protection, software supply chain | https://agentusecases.ai/category/science | Responsible security review and reproducible non-sensitive checks |
