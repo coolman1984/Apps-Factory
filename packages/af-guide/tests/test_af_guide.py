@@ -98,6 +98,8 @@ class Style(unittest.TestCase):
         self.assertIn('banned-word', self.lint('اضغط الزر اللي فوق.'))
         self.assertIn('banned-word', self.lint('احفظ عشان البيانات ما تضيعش.'))
         self.assertIn('banned-word', self.lint('ادخل على السيستم.'))
+        self.assertIn('banned-word', self.lint('يُرجى إدخال كلمة المرور.'))          # stiff office Arabic is out too
+        self.assertIn('banned-word', self.lint('نظرًا لانقطاع الشبكة لم يُحفظ شيء.'))
         self.assertEqual(self.lint('اضغط الزر الذي في الأعلى.'), set())
         self.assertEqual(self.lint('ستجد مشكلة مشتركة.'), set(), 'مش inside مشكلة/مشتركة is not the word مش')
 

@@ -2,6 +2,14 @@
 
 Factory versions (the `README.md` version line). The control catalogue has its own `catalog_version` in `factory/controls.json`.
 
+## 0.17.2 (2026-10-11)
+Owner's request: help reads "between formal and Egyptian", not like a government letter.
+- **af-guide 0.1.4:** the lexicon also bans stiff office Arabic (يُرجى، نظرًا، يتعذّر، بموجب، حيث إن، المذكور، آنفًا، لا سيما،
+  تجدر الإشارة، فيما يخص) with simpler replacements, so `check --release` keeps help between street Egyptian and stiff office
+  Arabic. Tested in `test_af_guide.py`. Products re-vendor (`scripts/vendor_guide.py`); until they do, `vendored-drift` reports them.
+- **Standard:** daily-work live states are computed for the person asking (their own shift, their own sale). Setup states stay
+  shop-wide. This was found in the review of Hessa's paths: otherwise a new receptionist skipped "add a student".
+
 ## 0.17.1 (2026-10-11)
 **Telemetry relay: read-only owner routes (Pixel Plus Owner M13).** `GET /installs` (ids only, paged), `GET /licence/history` (safe metadata for all states, stable pages), a `beforeId` cursor on `GET /licence/events`, and `GET /owner/capabilities`, all admin token only, one D1 query each, 10 new tests (76 in all). No write path, no change to `POST /installs` or to the pull token. Not deployed.
 

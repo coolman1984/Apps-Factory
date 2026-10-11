@@ -1,4 +1,4 @@
-# af-guide v0.1.0: role courses, coach, per-page help and the Arabic style lint
+# af-guide v0.1.4: role courses, coach, per-page help and the Arabic style lint
 
 **Status:** `implemented`. Unit-tested and browser-tested here against the demo shop; no product uses it yet.
 
