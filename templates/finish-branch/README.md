@@ -38,5 +38,3 @@ gh workflow run finish-branch.yml -R OWNER/REPO -f branch=BRANCH
 ## حد معروف
 
 الدمج الذي ينفذه `GITHUB_TOKEN` لا يشغّل مسارات الدفع على `main`، ومنها خطوة نشر الإصدار عند الدفع إلى `main`. إذا لزم إصدار بعد دمج تلقائي، ادفع وسمًا `v*` يدويًا.
-
-<!-- finish-branch e2e proof 2026-10-11 -->
