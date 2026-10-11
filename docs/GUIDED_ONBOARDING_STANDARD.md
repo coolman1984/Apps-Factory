@@ -29,7 +29,7 @@
 | Stable hooks | `data-guide="<target id>"` on every control a step names | never select by text or position |
 | Two routes | `GET /api/guide/state`, `POST /api/guide/progress` | `afguide.state(...)`, `afguide.apply(...)`, `afguide.load/save` on the person's id; 400 on `ValueError` |
 | Table | `afguide.SQL` (`guide_progress`) | forward-only migration |
-| Live states | names in `catalogue.states` that are already true (shift open, first sale…) | computed by the server, like Hessa's overview checklist |
+| Live states | names in `catalogue.states` that are already true (shift open, first sale…) | computed by the server, like Hessa's overview checklist. Setup states (shop named, first product) are shop-wide; daily-work states (my shift opened, my first sale) are **for the person asking**, from their own rows, so a new cashier in a busy shop still has the lesson ahead |
 | Signals | `guide.signal('<event>')` after the server confirms an action | drives `until: {"event": …}` steps |
 | Error codes | a list of every error code the server returns | `--errors` for HELP-09 |
 | Tests | `afguide.errors(cat, texts, ui=…, access=auth.catalogue(), error_codes=…)` in unit tests; `walk_guides.walk(page, cat)` in browser tests | HELP-07…12 |
