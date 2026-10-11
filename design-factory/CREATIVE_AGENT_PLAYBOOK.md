@@ -2,6 +2,9 @@
 
 Read root `AGENTS.md`, `design-factory/AGENTS.md`, `design-factory/CREATIVE_ARCHITECTURE.md`, `design-factory/creative-sources.lock.json` and `design-factory/QA_CHECKLIST.md`. If making film, also read the owner `Animation/studio/studio-engine/STUDIO.md` and `Animation/studio/QUALITY_PLAYBOOK.md` from its pinned ref **without moving its engine into the shipped app**.
 
+## Required ManimGX evaluation (every creative assignment)
+Read `docs/knowledge/MANIMGX_MANDATORY_REFERENCE.md` and `docs/knowledge/AGENT_USE_CASES_MANDATORY_LEARNING.md` before selecting a scene engine. Evaluate whether ManimGX is an appropriate optional renderer for precise 2D/3D motion, animated charts, voice-synced explanations or pre-rendered promo sequences. Validate current official docs, Python >=3.13 separate runtime, bundled native-wheel GPL conditions, benchmarks on target hardware, licensing of exported assets, render dimensions, accessibility and mobile/video fallback. A simple hover, scroll or operational dashboard should generally remain CSS/WAAPI, not ManimGX. Owner Animation Studio remains the film integration route. Never install or vendor ManimGX automatically.
+
 ## Agent router
 - "Icon, illustrated symbol": use consistent Lucide style, correct stroke, align baseline; logo/brand art needs bespoke work and legal rights. Iconify is a search layer, each actual icon pack has its own licence.
 - "Hover, entrance, card, list": native CSS/WAAPI for first pass. Use Motion if orchestration, spring or layout transition justifies it.
