@@ -5,24 +5,8 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {gzipSync} from 'node:zlib';
 import {createHash, randomBytes, randomUUID} from 'node:crypto';
-import {DatabaseSync} from 'node:sqlite';
+import {d1} from './d1.mjs';
 import worker, {cleanup, same, sha256hex, MAX_BODY, PENDING_MAX_BODY} from '../src/worker.js';
-
-function d1() {
-  const db = new DatabaseSync(':memory:');
-  db.exec(readFileSync(new URL('../schema.sql', import.meta.url), 'utf8'));
-  const log = [];
-  const stmt = (sql, args = []) => ({
-    bind: (...a) => {
-      assert.ok(a.length <= 100, `D1 allows at most 100 bound parameters (got ${a.length})`);
-      return stmt(sql, a);
-    },
-    first: async () => { log.push(sql); return db.prepare(sql).get(...args) ?? null; },
-    all: async () => { log.push(sql); return {results: db.prepare(sql).all(...args).map((r) => ({...r}))}; },
-    run: async () => { log.push(sql); return {meta: {changes: Number(db.prepare(sql).run(...args).changes)}}; },
-  });
-  return {prepare: (sql) => stmt(sql), log, raw: db};
-}
 
 const NOW = 1_800_000_000;
 const INSTALL = '01a11f49-8c0e-71e2-96f1-4ecf7b7751ca';

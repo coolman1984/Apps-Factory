@@ -16,6 +16,7 @@ uses wait_for_function (Playwright evaluates its string with eval while polling,
 builds JavaScript from strings. It runs three fixed functions through page.evaluate, with the values passed as
 arguments, and polls from Python.
 """
+import re
 import time
 
 # Fixed page functions (no string building, no eval in the page).
@@ -26,6 +27,11 @@ _CALL = """([path, method, args]) => {
     const ctl = String(path).replace(/^window\./, '').split('.').reduce((o, k) => (o == null ? o : o[k]), window);
     if (!ctl || typeof ctl[method] !== 'function') throw new Error('no guide controller at ' + path);
     return ctl[method](...args); }"""
+
+
+# A word that means the page printed a missing value (`replaceChildren(null)` once put «null» into every step of the coach).
+_STRAY = re.compile(r'(?<![A-Za-z])(?:null|undefined|NaN)+(?![A-Za-z])|\[object ')  # (+: «nullnull» too: a \b boundary misses a run)
+_COACH_TEXT = """() => { const c = document.querySelector('[data-afg="coach"]'); return c && !c.hidden ? c.innerText : ''; }"""
 
 
 def _pos(page):
@@ -61,6 +67,9 @@ def walk(page, catalogue, handle='window.__afguide', fill='12', prepare=None, ti
                 failures.append((g['id'], n, f'the coach did not reach step {n} (it is at {_pos(page)})'))
                 break
             k = step['k']
+            stray = _STRAY.search(page.evaluate(_COACH_TEXT) or '')
+            if stray:
+                failures.append((g['id'], n, f'the coach prints «{stray.group(0)}»'))
             try:
                 if k == 'done':
                     page.click('[data-afg="finish"]', timeout=timeout)

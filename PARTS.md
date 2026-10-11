@@ -20,16 +20,16 @@ Product use below was read from the product clones on 2026-10-09 (Store, Teacher
 - **Used by:** Store (vendored codes, 0.3.0: trial, monthly subscription and permanent codes). Teachers, Yousef-Transportation and Mr.Ayman-HR carry their own Ed25519 code and are not on the vendored copy.
 
 ### af-guide — guided onboarding (role courses, coach, "?", problem links, style lint)
-- **Version:** 0.1.2 (`packages/af-guide/af_guide.py`). Checker, Arabic style lint (`style/ar-lexicon.json`), browser walker (`testing/walk_guides.py`), JS engine and CSS.
+- **Version:** 0.1.3 (`packages/af-guide/af_guide.py`). Checker, Arabic style lint (`style/ar-lexicon.json`), browser walker (`testing/walk_guides.py`), JS engine and CSS.
 - **Vendor:** `python3 scripts/vendor_guide.py <product>` → `server/afguide.py`, `server/afguide_ar_lexicon.json`, `<js>/vendor/af-guide.js`, `<css>/af-guide.css`. Check a product's guide with `python3 scripts/factory.py guide <product>/guide --release`.
 - **Spec:** `docs/GUIDED_ONBOARDING_STANDARD.md` and `docs/HELP_AND_GUIDANCE_STANDARD.md` (Arabic register, learning path); package `packages/af-guide/README.md`. Controls HELP-07, HELP-09, HELP-11.
-- **Used by:** Store (vendored 0.1.2 as `server/afguide.py`, byte-identical below its header; checked 2026-10-09). Demo shop in `packages/af-guide/examples/shop`.
+- **Used by:** Store (vendored 0.1.3 as `server/afguide.py`, byte-identical below its header; checked 2026-10-09). Demo shop in `packages/af-guide/examples/shop`.
 
 ### af-consent — two-level consent records
-- **Version:** 0.1.0 (`packages/af-consent/af_consent.py`).
+- **Version:** 0.1.1 (`packages/af-consent/af_consent.py`).
 - **Vendor:** `python3 scripts/vendor_consent.py <product>` → `server/afconsent.py`, `<js>/vendor/af-consent.js`, `<css>/af-consent.css`.
 - **Spec:** `docs/PRIVACY_TELEMETRY_STANDARD.md`; package `packages/af-consent/README.md`. Control PRIV-01.
-- **Used by:** Store (vendored 0.1.0 as `server/afconsent.py`, byte-identical below its header; checked 2026-10-09).
+- **Used by:** Store (vendored 0.1.1 as `server/afconsent.py`, byte-identical below its header; checked 2026-10-09).
 
 ### af-telemetry — ids-and-counts telemetry, offline outbox, problem reports
 - **Version:** 0.2.0 (`packages/af-telemetry/af_telemetry.py`), protocol 2, taxonomy `events.json`.
@@ -53,7 +53,7 @@ Product use below was read from the product clones on 2026-10-09 (Store, Teacher
 - **Used by:** the owner. Store sends its heartbeat to it (contract-tested in `tests/test_product_heartbeat.py`).
 
 ### apps/licence-studio — the owner's licence-code program (UI + MCP)
-- **Version:** 1.0.0 (`licence_studio/__init__.py`).
+- **Version:** 1.3.0 (`licence_studio/__init__.py`; 1.3.0: the trial length is a per-product setting, 14 by default, read when a code is signed; 1.2.1: chat ids trimmed and alerts to groups, stale copies skipped, requests the relay does not know are kept for the owner, the click's delivery runs on its own thread): also pulls shop requests from the relay's licence mailbox, applies the owner's policy and follows the owner's «✅ موافق / ❌ رفض» buttons on Telegram, then sends the owner a copy of the code (see `docs/LICENCE_ACTIVATION.md`).
 - **Run:** `pip install -r requirements.txt`, then `python3 -m licence_studio serve` (loopback only). MCP: `python3 -m licence_studio mcp`. Skill: `.claude/skills/licence-codes`.
 - **Spec:** `apps/licence-studio/README.md`; codes format in `packages/af-license`.
 - **Used by:** the owner issues the codes that Store verifies.
@@ -61,7 +61,7 @@ Product use below was read from the product clones on 2026-10-09 (Store, Teacher
 ## Templates (`templates/`)
 Templates are copied and edited by hand; they are not byte-identical vendored code.
 
-- **templates/telemetry-relay** — Cloudflare Worker + D1 mailbox between products and the Control Center (`/ingest`, `/pull`, `/ack`). Not deployed. Spec: its `README.md`, `docs/PRIVACY_TELEMETRY_STANDARD.md`. Used by: the Control Center pulls from it.
+- **templates/telemetry-relay** — Cloudflare Worker + D1 mailbox between products and the Control Center (`/ingest`, `/pull`, `/ack`) and, for licences, between a shop and the owner's Licence Studio (`/licence/*`, Telegram alert, no signing key). Not deployed. Spec: its `README.md`, `docs/PRIVACY_TELEMETRY_STANDARD.md`. Used by: the Control Center pulls from it.
 - **templates/windows-installer** — Nuitka build, Inno Setup installer, smoke test and Windows workflow, verified in Store. Copy the files and change the marked names (its `README.md`; lessons in `docs/knowledge/LESSONS.md`; ADR-0004 for unsigned builds). Used by: Store; Teachers, Yousef-Transportation and Mr.Ayman-HR have their own installers.
 - **templates/patch-pipeline** — ready but inactive workflows for the customer patch agent and Telegram approval notices. Spec: `docs/CUSTOMER_PATCH_PIPELINE.md`. Used by: no product yet.
 - **templates/\*.md** — `PRODUCT_BRIEF.md`, `MARKET_RESEARCH.md`, `RELEASE_EVIDENCE.md`, `CUSTOMER_INSTALL_GUIDE_AR.md`. Used when starting or releasing a product (skill `new-product`).

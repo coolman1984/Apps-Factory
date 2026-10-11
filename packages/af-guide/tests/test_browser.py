@@ -16,6 +16,8 @@ try:
 except ImportError:  # pragma: no cover
     sync_playwright = None
 
+# a missing value printed as text, also a run of them («nullnull»): a \b boundary would miss that
+STRAY = r'(?<![A-Za-z])(?:null|undefined|NaN)+(?![A-Za-z])|\[object '
 CAT = json.loads((PKG / 'examples' / 'shop' / 'catalogue.json').read_text(encoding='utf-8'))
 
 
@@ -75,6 +77,19 @@ class Browser(unittest.TestCase):
         page = self.page('nobody', role='guest')
         self.assertIsNone(page.query_selector('.afg-badge'))
         self.assertNotIn('null', page.text_content('.afg-fab'))
+        self.assertEqual(page.problems, [])
+
+    def test_the_coach_and_the_panel_never_print_a_missing_value(self):
+        """Regression: every coach step showed «nullnull» (replaceChildren printed the absent paragraphs); the walker now fails on it."""
+        page = self.page('talker', role='cashier')
+        path = next(r['path'] for r in CAT['roles'] if r['id'] == 'cashier')
+        page.click('.afg-fab')
+        self.assertNotRegex(page.inner_text('.afg-panel'), STRAY)
+        page.keyboard.press('Escape')
+        self.walk(page, CAT, only=path[:1])  # the first lesson, step by step
+        page.evaluate('() => window.__afguide.start(%s)' % json.dumps(path[0]))
+        page.wait_for_selector('[data-afg="coach"]:not([hidden])')
+        self.assertNotRegex(page.inner_text('[data-afg="coach"]'), STRAY)
         self.assertEqual(page.problems, [])
 
     def test_walker_needs_no_eval_under_a_strict_csp(self):

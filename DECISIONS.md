@@ -4,6 +4,37 @@ Dated owner decisions, newest first. Only decisions recorded in the repository a
 
 ## Decided
 
+### 2026-10-10 — One-person Pixel Plus operating-company direction
+- The owner wants one accountable human with AI-assisted engineering, marketing, research, management, Council, support, cost analysis and operational execution. **Direction approved; architecture is a staged proposal, not delegated broad credentials or permission to spend.**
+- [Research and operating architecture](docs/PIXEL_PLUS_ONE_PERSON_COMPANY_OS.md) and [first 30-day workflows](docs/PIXEL_PLUS_COMPANY_OS_PLAYBOOK.md): bounded work queue, reviewed handoffs, evidence links, independent QA, low-cost current tools and owner approval for all customer-impacting/financial/external acts.
+- "90% automation" is a **measurement objective for selected repeatable tasks**; current percentage unknown until workflow execution is instrumented. Chat subscriptions must not be assumed to cover API fees.
+- Next approval required: any live connector permissions, data disclosure, Telegram workflow, spend ceilings and production automation. No new customer/deployment/sales feature is shipped by these research docs.
+
+
+### 2026-10-09 — Integrated Pixel Plus execution plan, Telegram approvals and partner modules
+- **Approved direction:** local-first Egyptian small-business software, modular product + four connectivity/packaging plans; no enterprise complexity or automatic cloud spending. [Execution roadmap](docs/PIXEL_PLUS_EXECUTION_ROADMAP_2026.md) gives sequence and honest delivery statuses.
+- **Owner Telegram activation journey requested:** Store sends a minimal consented 14-day trial request; owner approves/denies in a private Telegram chat; local trusted Licence Studio signs device-bound code with its offline encrypted key; only requester receives/verifies code, owner receives the code for manual offline fallback. **Update 2026-10-10: approval buttons, signing on the owner's PC and delivery are implemented (Factory 0.14.0) and tested against a fake Telegram; not deployed.** No remote bot/cloud signing key and no charge/issue of paid code without verified human payment authorization. See [activation design](docs/TELEGRAM_APPROVED_ACTIVATION.md).
+- **Rafaa direction:** included small factual/role-limited radar in suitable products and optional deeper monthly/perpetual growth-finance add-on. It reuses Accounting-sys, and all Egyptian tax-rule updates must cite official current sources plus qualified reviewer sign-off; no misleading promise of replacing accredited advisers. [Proposal](docs/RAFAA_GROWTH_DECISION_ADDON_PROPOSAL.md) merged for research, **no functionality or prices approved as delivered**.
+- **Pixel Plus × Sanad Business Advisory direction:** optional human consulting/coaching service sold separately, with explicit customer opt-in and least-privilege data access. Exact sales/commission/support/privacy terms remain **OPEN** pending owner's Sunday 2026-10-11 briefing. [Partner plan](docs/PIXEL_PLUS_SANAD_PARTNER_OPERATING_MODEL.md).
+- **Priority:** Store pilot and Windows/data field acceptance first; Telegram activation and off-device encrypted backup before broader commercial claims; demo/visual QA, Rafaa and showroom in phased PRs. Independent review agent vs implementation agent; only green tests and evidence permit merge.
+
+### 2026-10-10 — The owner's Telegram buttons: design choices taken while building them (awaiting the owner's confirmation)
+- «✅ موافق» signs a **trial** on the owner's PC even when the automatic policy is off (the owner chose that request by hand); the daily cap and the flood check, which are the owner's own limits, do not hold it back. Every hard rule still does (one trial per PC, well-formed device, key unlocked).
+- For **monthly and permanent** the button records intent only. Signing still needs the payment tick and reference in the Studio: the bot never moves a paid code forward alone.
+- «❌ رفض» is final; «سحب الموافقة» works until the code is signed. An approval counts for **72 hours** by default (the relay judges it).
+- The owner's chat gets **a copy of every signed code** (the manual way for an offline shop). The chat must be the owner's private chat with the bot; a group is refused.
+- **Proposed, not decided:** a one-use challenge for a brand-new install (today: nonce, address/device/list limits and one trial per machine tag; a determined person with a new identity can still get another trial).
+
+### 2026-10-09 — Telegram is the owner's channel for licence requests; trials go out automatically only by a policy the owner switches on
+- The owner's decision: the notification channel is **Telegram**, not WhatsApp. The shop's request reaches the owner's phone through the relay (kind, product, short request id, device code only); the owner's trusted PC signs; the shop checks and activates by itself. **The signing key exists only on the owner's trusted PC**: never in the bot, the relay, a CI job or a repository. WhatsApp to customers stays manual, one at a time (MSG-01).
+- **Automatic trials are OFF until the owner turns them on.** When on, the defaults recorded in the Licence Studio are: 14 days at most, bound to the device code, one trial per PC (an append-only ledger that survives a reinstall), at most 10 automatic trials a day, more than 5 a day from one address is held for the owner (never refused: shops share addresses). These numbers are **proposals awaiting the owner's confirmation**, not business decisions.
+- Monthly and permanent codes are never automatic: the server refuses to sign without a ticked payment confirmation and a payment reference (payment itself is still by hand, see "How customers pay for their licence" below).
+- Evidence: `docs/LICENCE_ACTIVATION.md`, the chain test with the real shop program, the real relay Worker and the real Studio (`apps/licence-studio/tests/test_store_chain.py`).
+
+### 2026-10-09 — The practice shop is the demo; the Pixel Plus website is documented, not built
+- The in-product demo is the existing practice shop, opened from Help and kept apart from the real shop (own folder beside it, own port on 127.0.0.1, never opened as the other kind, never sends anything), with three exercises checked from the shop's own books (Al-Store 1.7.0).
+- The website, a hosted sandbox and the lead form are **requirements only** (`docs/PIXEL_PLUS_WEBSITE_REQUIREMENTS.md`); hosting, domain and spending need the owner's written approval.
+
 ### 2026-10-09 — Al-Store activation kinds
 - The owner asked for three kinds of activation code: a **14-day trial**, a **monthly subscription** and a **permanent activation**. A permanent code is device-bound and never ends. The Studio defaults for a monthly code are 30 days + 3 grace days. The owner can change both in the Studio.
 - Prices are **not** decided here (still open below).
@@ -21,6 +52,13 @@ Dated owner decisions, newest first. Only decisions recorded in the repository a
 - Every Al-Store shop, new or updated, takes **cash only**. Card, mobile wallet, InstaPay, finance companies, on account and shop instalments stay built and tested, hidden and refused by the server until the shop owner ticks them in Settings. They are shown only when a customer asks for them. Store 1.3.0.
 - The road to the first paying shop is `docs/03-ready-to-sell.md` in coolman1984/Store; the per-control status is `control_evidence` in `examples/al-store-product.json`.
 
+### 2026-10-10 (factory 0.16.0, the trial length is a per-product setting)
+- **Owner instruction (task message of 2026-10-10): the trial length is settable per product, and the default stays 14 days.** The 1 to 60 range was already the Studio's rule for a product's trial (no new range was decided); what is new is that the length now reaches the codes made for a shop's request. **Saved settings are respected** (a product never set and a saved automatic cap keep their 14), **a code already signed is never changed**, and repeats and tricks stay closed (one trial per PC and device, the shop's own length is never read). **The lines above that say «14 days» are the defaults, not fixed values.** The automatic policy and the agent keep their own ceilings (the saved `auto_trial_days`, 14 until the owner raises it; the agent 14 always). No price, term or support promise was decided by this change.
+
+### 2026-10-10 (factory 0.15.0, design gates and the Store's name)
+- **Owner instruction (task message of 2026-10-10): visual quality tests are mandatory and fit each class of program.** UX-04 (states, and the no-network behaviour of the product's connectivity tier) and UX-09 (design tokens and the token gate) became **core**, next to UX-08, PERF-01 and A11Y-01: 34 core controls. «Offline operation» is no longer asked of every product: `cloud_only` shows an actionable disconnected state instead. `design-factory/DESIGN.md` is the first file in every UI agent's read list.
+- **The name «Mizan | ميزان» is withdrawn for the Store** (it is the owner's accounting product, `Accounting-sys`). The Store's visible name is الستور / Al-Store, the name its installer, folder and repository already use. This is a working resolution, not a brand decision: the owner chooses any new brand name after a trademark and domain check (EG, SA, AE). The visual identity (mark, navy, ivory, copper) stays.
+
 ### 2026-10-09 (factory 0.11.0)
 - **Docs diet.** Five living docs: `README.md`, `RULES.md`, `PARTS.md`, `PLAYBOOK.md`, `DECISIONS.md`. Agents read three: README → RULES → PARTS. Research and old plans moved to `docs/archive/`. Detailed specs that code, tests or products link to stay in `docs/` as reference specs. (Review item A12.)
 
@@ -28,7 +66,7 @@ Dated owner decisions, newest first. Only decisions recorded in the repository a
 - **Help is written in simple formal Arabic** («العربية الميسّرة»), with a learning path per role; HELP-08 is folded into HELP-07. See ADR-0006.
 
 ### 2026-10-09 (factory 0.10.0, "rules cleanup")
-- **Only 32 core controls block a release.** The other 75 are `reference` advice. 24 ids were merged into survivors and 7 were retired; old ids still resolve with `factory.py controls <ID>`.
+- **Only 32 core controls blocked a release at the time (34 since catalogue 1.11.0, see 2026-10-10).** The other 75 were `reference` advice. 24 ids were merged into survivors and 7 were retired; old ids still resolve with `factory.py controls <ID>`.
 - **Release evidence is two items:** `clean_device_restore` and `core_user_acceptance`. The market, privacy and security review items left the gate.
 - **Competitor count is advice.** Fewer than 5 competitor rows prints a note and no longer fails `--release`.
 - **No outside-review framing.** The gate has no outside-review step and controls state practical outcomes only. What is enforced is consent (PRIV-01) and the never-collect limits (PRIV-03). REG-01 and REG-02 were retired for this reason.
@@ -86,6 +124,9 @@ Nothing below is decided, bought or signed up for. Anything that depends on an o
 | Owner password recovery as an explicit IAM-01 acceptance item for every product | Al-Store now has a paper recovery code (1.4.0); the other products have none yet. |
 | How customers pay for their licence | Manual transfer (InstaPay / wallet) plus a code by hand until about 10 customers; automated payment stays with the Paymob / Fawry item below. |
 | Paymob / Fawry / InstaPay | Merchant onboarding needs company documents; transactions carry fees. |
+| Deploy the licence relay and create the Telegram bot | The owner creates the bot and the Cloudflare Worker secrets; nothing is deployed. Until then only the manual way (device code out, code in) works. |
+| Trial policy numbers (daily cap, per-address limit, trial days) | Recorded as defaults in the Studio; the owner confirms or changes them before switching automatic trials on. |
+| Pixel Plus website: brand files, domain, published contact details, hosting ceiling | See `docs/PIXEL_PLUS_WEBSITE_REQUIREMENTS.md` §9. |
 | Cloud provider, hosting region, monthly ceiling per customer | ADR-0001 open decision 1. |
 | Price of each tier | ADR-0001 open decision 2. |
 | Which mobile actions work offline in version 1 | ADR-0001 open decision 3. |

@@ -1,6 +1,6 @@
 {
-  "catalog_version": "1.10.1",
-  "updated": "2026-10-09",
+  "catalog_version": "1.11.0",
+  "updated": "2026-10-10",
   "policy": "Required-if-applicable, never auto-certifies an implementation. Tiers: `core` controls are the release gate (check --release fails when an applicable core control has no verified proof); `reference` controls are advice and never block a release. `merged_from` lists old ids folded into a control; `retired` lists dropped ids with the reason. Profiles: desktop, lan, saas, paid, ai, regulated, sync, mesh, mobile, multi_site, multi_owner, windows. Connectivity tier cloud_sync activates sync and saas.",
   "references": [
     "https://owasp.org/projects/asvs",
@@ -62,9 +62,9 @@
         "lan",
         "saas"
       ],
-      "tier": "reference",
-      "requirement": "Loading/empty/saving/saved/error/denied/offline/retry states",
-      "acceptance_evidence": "G4 actual browser journey and failure injection",
+      "tier": "core",
+      "requirement": "Loading/empty/saving/saved/error/denied/retry states, and the product's no-network behaviour for its connectivity tier (design-factory/DESIGN.md): standalone works offline; office_server shows a plain main-PC-off state and refuses writes with the way out; office_mesh and cloud_sync work alone and show what is waiting to merge; cloud_only is not asked to work offline but shows an actionable disconnected state that keeps typed input and loses nothing",
+      "acceptance_evidence": "Real-browser journey with the network failure injected for the product's tier, screenshots looked at by a person",
       "required_if_applies": true,
       "implementation_status": "planned"
     },
@@ -1411,9 +1411,9 @@
         "lan",
         "saas"
       ],
-      "tier": "reference",
+      "tier": "core",
       "requirement": "Pages use the factory design system (packages/af-ui): tokens only (no colours or sizes in views), layered surfaces, Readex Pro/Alexandria or a documented brand pair, motion from the motion kit with reduced-motion honoured, logical CSS for RTL; shared navigation, table, form and error-state patterns come from the same system",
-      "acceptance_evidence": "Static page checks (no inline styles, no left/right CSS, no hex colours in views) + screenshot set in light/dark/RTL/LTR",
+      "acceptance_evidence": "design-factory/qa/token_gate.py passes, or the product's own test applies the same thresholds (contrast of every token pair in every theme, base sizes) + static page checks (no inline styles, no left/right CSS, no hex colours in views) + screenshot set in light/dark/RTL/LTR",
       "required_if_applies": true,
       "implementation_status": "implemented",
       "merged_from": [

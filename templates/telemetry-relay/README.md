@@ -41,6 +41,34 @@ instead of being refused forever.
 | 5 million rows read per day | No whole-table `COUNT(*)`. Ingest reads only the sender's own rows (at most `MAX_ROWS_PER_INSTALL`) or the small pending area (at most `PENDING_MAX_ROWS`). |
 | 100,000 rows written per day | One row per batch. The install list is pushed only when it changes, or once a day. |
 
+## The licence mailbox (second job of this Worker, `src/licence.js`)
+
+A shop that wants a trial (or a paid code) asks through the relay; the owner's trusted licensing program (Licence Studio) decides and hands the signed code back. Spec, threat model and the whole chain: [docs/LICENCE_ACTIVATION.md](../../docs/LICENCE_ACTIVATION.md).
+
+```
+shop (Al-Store) --POST /licence/request--> relay (D1) --Telegram "طلب جديد"--> owner's phone
+shop <--GET /licence/status--------------- relay <--GET /licence/pending, POST /licence/decide-- Licence Studio (owner's PC)
+shop --POST /licence/ack------------------> relay (the code leaves the relay once the shop has it)
+```
+
+- **No signing key here, ever.** The Worker never signs and never verifies a signature; it stores finished codes (public, bound to one device code) and passes them on. A leaked relay can refuse service or show who asked; it cannot make a code.
+- **Shop side has no secret.** The answer to a new request carries a one-time `poll_token`; only its hash is stored, and status/ack need it. A replay of the same request (same `nonce`) finds the same request, creates nothing, alerts nobody and never learns the token.
+- **One trial per PC and per device:** the request carries `machine` (sha256 of the PC's identity, never the identity). A second trial for the same machine or device is refused here (`already_used`) without waking the owner. The Licence Studio keeps the permanent record and decides again; the relay remembers 400 days.
+- **Limits:** `LICENCE_PER_SOURCE_DAY` (10, per salted address hash), `LICENCE_PER_DEVICE_DAY` (3), `LICENCE_PENDING_MAX` (300). A request uses at most 9 D1 queries, a poll 1, a decision 2 (tested).
+- **Owner side** needs `LICENCE_ADMIN_TOKEN` (a different secret from `RELAY_PULL_TOKEN`). **Telegram** (`TELEGRAM_BOT_TOKEN`, `TELEGRAM_OWNER_CHAT_ID`, optional): the alert carries only the kind, the product, the first 8 characters of the request id and the device code, never what the shop typed.
+- `GET /licence/events` is the relay's own log of each step (never a code, never a shop text).
+- **The owner's buttons (`POST /telegram`):** every alert carries «✅ موافق» / «❌ رفض». The webhook is trusted only with the secret token (`TELEGRAM_WEBHOOK_SECRET`, the same value given to Telegram's `setWebhook`) **and** a press from the owner's private chat (`TELEGRAM_OWNER_CHAT_ID`). «رفض» closes the request at once and is final; «موافق» only records the approval in `licence_owner` (a trial's shop sees `stage: approved`) and the owner's PC still has to sign; a paid kind still needs proof of payment in the Studio. An approval counts for `LICENCE_APPROVAL_HOURS` (72, at least 1); the relay tells the Studio `expired` after that. `POST /licence/states` (admin token) tells the Studio what became of requests it still holds. A press touches D1 at most three times (four for a refusal); a wrong secret touches it never. Tests: `test/telegram.test.mjs`.
+
+```bash
+wrangler secret put LICENCE_ADMIN_TOKEN      # long random value; the Licence Studio's relay token
+wrangler secret put TELEGRAM_BOT_TOKEN       # optional
+wrangler secret put TELEGRAM_OWNER_CHAT_ID   # optional: the owner's PRIVATE chat with the bot (a group is refused)
+wrangler secret put TELEGRAM_WEBHOOK_SECRET  # optional: switches the «✅ موافق / ❌ رفض» buttons on (the same value goes in the Studio PC's TELEGRAM_WEBHOOK_SECRET); then run `python -m licence_studio telegram-webhook`
+wrangler d1 execute af-telemetry-relay --remote --file=schema.sql   # adds licence_requests and licence_events
+# re-running schema.sql is also the whole upgrade from 0.13 (it adds the table licence_owner; nothing to ALTER)
+```
+Not deployed. `test/serve.mjs` runs the real Worker over plain HTTP for other programs' tests (the Licence Studio's chain test).
+
 ## Deploy
 
 ```bash
@@ -76,13 +104,28 @@ Rough load per installation: one batch per hour, plus one for each urgent error.
 - **Compression:** products send `Content-Encoding: gzip`, and the Worker reads the raw body. The Worker refuses a
   body that does not start with the gzip magic bytes (400). If a proxy in front ever decompresses request bodies,
   batches are refused, not stored wrongly. Check this on the first real deployment.
-- **Planned (design only):** the Telegram webhook (customer bot and owner `/status`/`/incidents`, owner chat id only) and the signed `/latest` update endpoint. See
+- **Planned (design only):** the customer bot and the owner's `/status`/`/incidents` commands (the webhook for the licence buttons exists, see above) and the signed `/latest` update endpoint. See
   `docs/CUSTOMER_PATCH_PIPELINE.md`.
+
+## The owner's phone audit mirror (third job of this Worker, `src/audit.js`)
+
+The Pixel Plus Owner Android app keeps a hash-chained audit of what the owner did (Arabic and English sentence per entry, no customer text, no token, no code, no amount). This is where its mirror lands, so the history survives a lost phone. Admin token only (`LICENCE_ADMIN_TOKEN`; the pull token never opens it). The phone does not call it yet: the client adapter is staged and treats a missing route as "not available".
+
+- `POST /audit/append` `{entry, previousHash, entryHash}`: `entry` is a **string**, the exact canonical bytes the phone hashed (a JSON array of 27 fields). The Worker hashes those bytes (`sha256(previousHash as 32 raw bytes || bytes)`), refuses an entry that is not already in canonical form (spaces, floats, unsorted keys, duplicate keys), checks every field, and appends with one conditional INSERT: sequence 1 needs an empty chain and the zero hash, sequence n needs row n-1 from the same device with `entryHash = previousHash`. `201` new, `200 replay: true` for an identical retry, `409` with the current `head` for a gap, a fork, a wrong predecessor or a reused event id, `400` malformed, `413` too large (entry 16 KiB), `507` when `AUDIT_MAX_CHAINS` (50) or `AUDIT_MAX_SEQUENCE` (200000) is reached.
+- `GET /audit/recent?chainId=&beforeSequence=&limit=`: newest first, 1 to 100 (default 50), the chain `head` and a `nextCursor`. Two D1 queries.
+- **Nothing private:** only allowlisted keys in `beforeSafe`/`afterSafe` (a sensitive key may appear only with the value `[redacted]`), no nested values, no licence-code-, bearer- or key-looking text, no long hex.
+- **Append-only:** no UPDATE or DELETE route, database triggers refuse both, and the daily clean-up never touches `owner_audit`. Growth is bounded only by the two caps above; there is no retention policy yet (it would need an exported anchor first).
+- A shared admin token is not a cryptographic identity. The mirror shows tampering against a head the phone retains; it cannot prove who wrote it. Not deployed: run `wrangler d1 execute af-telemetry-relay --remote --file=schema.sql` first (creates `owner_audit` and its two triggers; the triggers are not yet confirmed against live D1).
+- The golden entry in `test/audit-golden-v1.json` is a copy of the phone's own golden file: the Worker must accept it byte for byte.
+
+## Read-only routes for the owner's phone (`src/owner.js`, M13)
+
+Admin token only, no writes, nothing private. `GET /installs?afterId=&limit=` lists registered install **ids** (never `token_hash`), 100 per page, with a cursor and `coverage: "registry"` (only what the Control Center pushed; `POST /installs` is unchanged and keeps the pull token). `GET /licence/history?status=&after=<created_at>:<id>&limit=` gives safe metadata for every request state (product, kind, device code, status, reason, the effective owner decision, timestamps) and never a code, poll hash, shop text, payment reference or address; pages are stable across tied timestamps. `GET /licence/events` keeps its latest-page answer and gains `?beforeId=` and a `nextCursor`. `GET /owner/capabilities` returns `{protocol, routes, limits}` so an older Worker (404) is told apart from a broken one. Each route uses one D1 query (capabilities none). Re-run `schema.sql` for the new `licence_status_page` index. Not deployed.
 
 ## Test
 
 The tests need Node 22 or newer. They use a D1 shim over `node:sqlite`.
 
 ```bash
-node --experimental-sqlite --test test/relay.test.mjs
+node --experimental-sqlite --test test/relay.test.mjs test/licence.test.mjs test/telegram.test.mjs test/audit.test.mjs test/owner.test.mjs
 ```

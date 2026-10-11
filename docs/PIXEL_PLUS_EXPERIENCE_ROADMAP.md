@@ -1,6 +1,6 @@
 # Pixel Plus: learn-by-doing demos and product showroom
 Owner-approved forward roadmap • 9 October 2026
-Status: PLANNED. No website, hosted sandbox, or role-based challenge engine is claimed to exist.
+Status: PLANNED. No website or hosted sandbox exists. **Phase 1's local pilot is built in Al-Store 1.7.0** (practice shop opened from Help, three exercises checked from the books, rebuild); it awaits independent review and use by a real cashier. Concrete website requirements: [PIXEL_PLUS_WEBSITE_REQUIREMENTS.md](PIXEL_PLUS_WEBSITE_REQUIREMENTS.md).
 
 ## Why
 Small-business buyers in Egypt need to **try before buying**, not read software manuals. Every product should teach each user their own job by using the real product's flows, with realistic synthetic mistakes and guided corrections. Pixel Plus's website should let a buyer experience the product, choose the right of four commercial plans, and contact the company with minimal friction.

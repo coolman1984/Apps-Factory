@@ -21,14 +21,25 @@ unlocked into memory only, and locks itself after 30 minutes. It never enters a 
 The Issue page has three quick buttons. Each one fills the form, and the days and grace stay editable:
 | Button | Edition | Days | Grace | Device |
 |---|---|---|---|---|
-| «تجربة 14 يوم» | `trial` | 14 | 0 | required |
+| «تجربة» | `trial` | the product's trial length (14 until set, 1 to 60) | 0 | required |
 | «اشتراك شهري» | `standard` | 30 | 3 | optional (bind it) |
 | «تفعيل دائم» | `perpetual` | never ends | — | required |
 A permanent code needs af-license 0.3.0 in the product. An older product refuses it as `unknown_edition`, so it is never granted by mistake.
 
 ## Pages
-Issue a code · Codes (search, copy, WhatsApp message, issue the next code) · Requests from agents · Verify · Products · Keys (create, unlock,
+Issue a code · Codes (search, copy, WhatsApp message, issue the next code) · Requests from shops and agents · Verify · Products · Keys (create, unlock,
 export the **public** key for `licence_keys.txt`) · Agent access (tokens, trial policy).
+
+## Shop requests, Telegram buttons and automatic trials (1.2.0; hardened in 1.2.1)
+A shop asks for a trial from its own screen; the owner's phone gets a Telegram message; this program, on the trusted PC, pulls the request through the relay, decides by the policy the owner switched on, signs, and sends the code back; the shop checks it with the public key and switches itself on (no copying). Full chain, threat model and limits: [docs/LICENCE_ACTIVATION.md](../../docs/LICENCE_ACTIVATION.md).
+- **Page «طلبات المحلات»:** connect the relay (address + token, stored only in `relay.json` here with owner-only permissions, or `LS_RELAY_URL` / `LS_RELAY_TOKEN`), pull now, switch the policy on, set the daily cap, and «افضل مفتوح» (the key stays in memory for at most 12 hours so trials go out while you are away; locking or restarting ends it).
+- **Policy (off until you switch it on):** a trial is automatic only for a PC that never had one (permanent `trial_ledger`), within the day's cap, from a sender that is not flooding, with the key unlocked. The same device asking again gets the same code. Everything else waits for you.
+- **Paid kinds never go out alone:** a monthly (30 days + 3 grace) or permanent code needs «الدفع وصل» ticked and a payment reference; the server refuses without them.
+- **Telegram** (environment only, never stored): `TELEGRAM_BOT_TOKEN`, `TELEGRAM_OWNER_CHAT_ID`. One message per event: refused, held, locked, old approval.
+- **The owner's buttons (1.2.0):** the relay's alert has «✅ موافق» / «❌ رفض». «موافق» makes this program sign **that one trial** on its next round even when the policy is off (key unlocked; one trial per PC and every hard rule still apply; the relay says when an approval is too old, 72 hours by default, and it is then not acted on). «رفض» is closed here too, and a click in this program on a request you refused on the phone is refused. For a monthly or permanent request the button records your intent only: you still tick «الدفع وصل» and write the reference here. Whenever a code is signed for a shop's request, **your phone gets a copy of it** (once, retried until Telegram accepts it, never in the audit) for the phone readout when the shop is offline.
+- **Set the buttons up:** make a long random secret (`python -c "import secrets; print(secrets.token_urlsafe(32))"`), give it to the relay (`wrangler secret put TELEGRAM_WEBHOOK_SECRET`) and to this PC (`TELEGRAM_WEBHOOK_SECRET` in the environment), then `python -m licence_studio telegram-webhook`. Telegram is told to send only button presses, over https, with that secret; the command never prints or stores it.
+- A round runs every 60 seconds while `serve` runs (`LS_RELAY_EVERY`, 0 = off) and from the button. A failed delivery is retried each round.
+- Tests: `tests/test_relay_chain.py` and `tests/test_telegram_buttons.py` run the **real relay Worker** (Node 22.13+) over HTTP; `tests/test_ui_relay.py` clicks the page in a real browser.
 
 ## AI agents (MCP)
 Add to Claude Code / any MCP client:
@@ -43,5 +54,16 @@ and a daily limit when the owner turns it on. Paid codes always need the owner. 
 ## Product side (Al-Store example)
 1. Put the public key line from the Keys page in the product's `licence_keys.txt`.
 2. The customer opens the product → Licence card shows the **device code** → sends it to you.
-3. Issue a 14-day trial for that device → paste the code → product unlocks. After the end day it locks to read/export/backup only.
+3. Issue a trial (14 days unless you set another for the product) for that device → paste the code → product unlocks. After the end day it locks to read/export/backup only.
 4. When the customer pays: a monthly code each month («اشتراك شهري»), or one permanent code («تفعيل دائم») for that device.
+
+### 1.2.1
+Chat ids are trimmed and plain alerts also reach a group (a signed code never does: only the owner's private chat). A copy of a code is sent only while it is under two days old. A waiting request the relay does not know is kept and marked for you (never signed automatically; closed as expired after three days). Your click returns when the decision is saved and signed: sending to the shop and the copy to your phone run behind it and are retried each round.
+
+### 1.3.0 — the trial length is the product's own setting
+Set it per product on the Products page (1 to 60 days, 14 until you set it; a value that is not a whole number in range is refused and nothing is saved). It is read **when a code is signed**, so the next code uses your latest setting and **a code already signed is never touched** (it carries its own last day; the audit records the previous value).
+- Your **«✅ موافق» on Telegram** and your own click in this program give the product's full length.
+- The **automatic policy** gives the product's length but never more than «أقصى مدة للتجربة التلقائية» (14 until you raise it; up to 60): an automatic trial can never be longer than the number you saved, whatever a product is set to.
+- The **agent** gets the product's length but never more than **14 days**, and cannot ask for more.
+- The **shop never chooses**: whatever length a request carries is not read.
+- **Nothing about repeats changes:** one trial per PC and per device (a second request from the same device gets the same code back, with the same last day; another install on the same PC is refused), whatever the length is later set to.

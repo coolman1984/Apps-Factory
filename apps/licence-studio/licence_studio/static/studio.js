@@ -7,6 +7,8 @@ const html = (str, ...vals) => raw(str.reduce((a, s, i) => a + s + (i < vals.len
 const put = (el, c) => { el.innerHTML = enc(c); return el; };
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+const latin = (s) => String(s).replace(/[٠-٩]/g, (d) => d.charCodeAt(0) - 0x0660).replace(/[۰-۹]/g, (d) => d.charCodeAt(0) - 0x06f0).trim();   // digits typed on an Arabic keyboard
+const productTrialDays = (id) => (PRODUCTS.find((x) => x.id === id) || {}).trial_days || 14;   // the product's own trial length (14 until the owner sets another)
 const icon = (n) => raw(`<svg class="i" aria-hidden="true"><use href="/af-ui/img/icons.svg#${n}"/></svg>`);
 const CUR = raw('aria-current="page"');
 
@@ -36,7 +38,7 @@ const fmt = (d) => (d ? d.split('-').reverse().join('/') : '');
 const STATUS = { active: 'شغال', grace: 'سماح', expired: 'خلص', not_started: 'لسه مبدأش' };
 const EDITION = { trial: 'تجربة', standard: 'عادي', pro: 'برو', perpetual: 'دائم' };
 // The three kinds a shop buys: [label, edition, days, grace days]. Days and grace stay editable after picking one.
-const PRESETS = [['تجربة 14 يوم', 'trial', 14, 0], ['اشتراك شهري', 'standard', 30, 3], ['تفعيل دائم', 'perpetual', 0, 0]];
+const PRESETS = [['تجربة', 'trial', 0, 0], ['اشتراك شهري', 'standard', 30, 3], ['تفعيل دائم', 'perpetual', 0, 0]];
 const until = (c) => (c.edition === 'perpetual' ? 'دائم، مش بيخلص' : fmt(c.last_day));
 
 let ST = {}, PRODUCTS = [];
@@ -87,7 +89,7 @@ function gateUnlock() {
   });
 }
 
-const PAGES = [['issue', 'key', 'طلّع كود'], ['codes', 'receipt', 'الأكواد'], ['requests', 'message', 'طلبات الإيجنت'], ['verify', 'shield', 'افحص كود'],
+const PAGES = [['issue', 'key', 'طلّع كود'], ['codes', 'receipt', 'الأكواد'], ['requests', 'message', 'طلبات المحلات'], ['verify', 'shield', 'افحص كود'],
   ['products', 'box', 'المنتجات'], ['keys', 'lock', 'المفتاح'], ['agent', 'sparkle', 'الإيجنت والسجل']];
 
 function shell() {
@@ -120,7 +122,7 @@ const head = (title, sub, actions = '') => html`<div class="page-head"><div clas
 
 async function issue(page, p) {
   const prod = PRODUCTS.find((x) => x.id === p.product) || PRODUCTS[0];
-  put(page, html`${head('طلّع كود', 'كود التجربة بيتربط بجهاز العميل ومدته 14 يوم. البرنامج اللي عند العميل بيوريه «رقم الجهاز» في الإعدادات ← الرخصة.')}
+  put(page, html`${head('طلّع كود', 'كود التجربة بيتربط بجهاز العميل ومدته من صفحة المنتجات (14 يوم لحد ما تغيّرها). البرنامج اللي عند العميل بيوريه «رقم الجهاز» في الإعدادات ← الرخصة.')}
     <div class="two"><form class="card form" id="f">
       <div class="cols"><div class="field"><label for="pr">البرنامج</label><select id="pr" class="input">${PRODUCTS.map((x) => html`<option value="${x.id}" ${x.id === prod?.id ? raw('selected') : ''}>${x.name}</option>`)}</select></div>
         <div class="field"><span class="label">النوع</span><div class="seg" id="ed">${Object.entries(EDITION).map(([k, v]) => html`<button type="button" data-v="${k}" aria-pressed="${k === (p.edition || 'trial')}">${v}</button>`)}</div></div></div>
@@ -130,7 +132,7 @@ async function issue(page, p) {
       <div class="cols"><div class="field"><label for="cu">اسم العميل / المحل</label><input id="cu" class="input" value="${p.customer || ''}"></div>
         <div class="field"><label for="ph">الموبايل (للواتساب)</label><input id="ph" class="input mono" value="${p.phone || ''}" inputmode="tel"></div></div>
       <div class="cols"><div class="field"><span class="label">المدة (أيام)</span><div class="row wrap" id="dz">${[14, 30, 90, 365].map((n) => html`<button type="button" class="chip" data-d="${n}">${n}</button>`)}
-        <input id="days" class="input q-in mono" value="${p.days || prod?.trial_days || 14}" inputmode="numeric"></div></div>
+        <input id="days" class="input q-in mono" value="${p.days || productTrialDays(prod?.id)}" inputmode="numeric"></div></div>
         <div class="field"><label for="fd">من يوم</label><input id="fd" type="date" class="input" value="${today()}" min="${today()}"></div>
         <div class="field"><label for="gr">أيام سماح</label><input id="gr" class="input mono" value="0" inputmode="numeric"></div></div>
       <div class="field"><label for="nt">ملاحظة</label><input id="nt" class="input" value="${p.note || ''}"></div>
@@ -154,18 +156,20 @@ async function issue(page, p) {
     put($('#pv'), html`${icon('calendar')}<span>${EDITION[edition]} · <b>${d}</b> يوم · من <span class="mono">${fmt($('#fd').value)}</span> لحد <span class="mono">${fmt(addDays($('#fd').value, d - 1))}</span>
       ${$('#dv').value ? html` · مربوط بجهاز <span class="mono">${$('#dv').value.toUpperCase()}</span>` : html` · <b>مش مربوط بجهاز</b>`}</span>`);
   };
-  $$('#ed button').forEach((b) => b.addEventListener('click', () => { setEdition(b.dataset.v); if (edition !== 'trial' && +$('#days').value === 14) $('#days').value = 365; pv(); }));
+  $$('#ed button').forEach((b) => b.addEventListener('click', () => { setEdition(b.dataset.v); if (!$('#days').dataset.touched) $('#days').value = edition === 'trial' ? productTrialDays($('#pr').value) : 365; pv(); }));
   $$('[data-preset]').forEach((b) => b.addEventListener('click', () => {
     const [, ed, days, grace] = PRESETS[+b.dataset.preset];
     setEdition(ed);
     if (days) $('#days').value = days;
+    else if (ed === 'trial') $('#days').value = productTrialDays($('#pr').value);
     $('#gr').value = grace;
     pv();
   }));
-  $$('[data-d]').forEach((b) => b.addEventListener('click', () => { $('#days').value = b.dataset.d; pv(); }));
+  $$('[data-d]').forEach((b) => b.addEventListener('click', () => { $('#days').value = b.dataset.d; $('#days').dataset.touched = '1'; pv(); }));
   ['#days', '#fd', '#dv'].forEach((s) => $(s).addEventListener('input', pv));
+  $('#days').addEventListener('input', () => { $('#days').dataset.touched = '1'; });   // typed by the owner: switching the kind of code never overwrites it
   $('#dv').addEventListener('input', (e) => { const v = e.target.value.toUpperCase().replace(/[^0-9A-Z]/g, '').slice(0, 10); e.target.value = v.length > 5 ? v.slice(0, 5) + '-' + v.slice(5) : v; pv(); });
-  $('#pr').addEventListener('change', (e) => { const x = PRODUCTS.find((y) => y.id === e.target.value); if (edition === 'trial') $('#days').value = x.trial_days; pv(); });
+  $('#pr').addEventListener('change', (e) => { const x = PRODUCTS.find((y) => y.id === e.target.value); if (edition === 'trial') $('#days').value = productTrialDays(e.target.value); pv(); });
   setEdition(edition);
   pv();
   $('#f').addEventListener('submit', async (ev) => {
@@ -209,7 +213,7 @@ async function codes(page, p) {
     put($('#list'), rows.length ? html`<div class="card pad-0"><div class="table-wrap"><table class="t"><thead><tr><th>العميل</th><th>البرنامج</th><th>النوع</th><th>الجهاز</th>
       <th>لحد</th><th>الحالة</th><th>اتعمل بواسطة</th></tr></thead><tbody>${rows.map((c) => html`<tr class="click" data-s="${c.serial}"><td class="name">${c.customer || '—'}<div class="xs faint mono">${c.serial}</div></td>
       <td>${c.product}</td><td>${EDITION[c.edition]}</td><td class="mono">${c.device || '—'}</td><td class="mono">${until(c)}</td>
-      <td><span class="badge status-${c.status}">${STATUS[c.status]}${c.status === 'active' && c.days_left !== null ? ' · ' + c.days_left + ' يوم' : ''}</span></td><td>${c.issued_by === 'agent' ? 'الإيجنت' : 'صاحب البرنامج'}</td></tr>`)}</tbody></table></div></div>`
+      <td><span class="badge status-${c.status}">${STATUS[c.status]}${c.status === 'active' && c.days_left !== null ? ' · ' + c.days_left + ' يوم' : ''}</span></td><td>${c.issued_by === 'agent' ? 'الإيجنت' : c.issued_by === 'telegram' ? 'موافقتك على تليجرام' : c.issued_by === 'auto-trial' ? 'السياسة التلقائية' : 'صاحب البرنامج'}</td></tr>`)}</tbody></table></div></div>`
       : html`<div class="card"><div class="empty">${icon('receipt')}<h3>مفيش أكواد</h3></div></div>`);
     $$('tr[data-s]').forEach((tr) => tr.addEventListener('click', () => codeFile(rows.find((r) => r.serial === tr.dataset.s))));
   };
@@ -238,16 +242,79 @@ function codeFile(c) {
   $$('a.btn.volt', scrim).forEach((a) => a.addEventListener('click', close));
 }
 
+const KIND = { trial: 'تجربة', monthly: 'اشتراك شهري', permanent: 'تفعيل دائم' };
+const HELD = { locked: 'البرنامج مقفول: افتحه وهيتعمل لوحده', daily_cap: 'عدد التجارب النهاردة وصل الحد', review_src: 'طلبات كتير من نفس المكان: راجعها', payment_needed: 'مستني تأكيد الدفع',
+  already_used: 'الكمبيوتر ده خد تجربة قبل كده', owner_refused: 'إنت رفضت', expired: 'الطلب انتهى عند الوسيط', closed_elsewhere: 'الطلب اتقفل عند الوسيط', relay_gone: 'الوسيط مابقاش يعرف الطلب ده: راجعه بنفسك', bad_device: 'رقم الجهاز مش مظبوط', bad_machine: 'بصمة الكمبيوتر مش مظبوطة', unknown_product: 'البرنامج مش معروف' };
+const POLICY_SAYS = { issue: 'السياسة هتصدّره لوحدها', reissue: 'السياسة هتبعت نفس الكود تاني', refuse: 'السياسة هترفضه', hold: 'السياسة هتسيبه لك' };
+
+async function relayPanel(page) {
+  const r = await get('/api/relay');
+  const pol = r.policy;
+  const last = r.last || {};
+  const state = !r.configured ? 'الوسيط لسه مش متظبط' : last.ok === false ? 'مفيش اتصال بالوسيط (' + (last.error || '') + ')' : last.at ? 'آخر سحب ' + last.at.replace('T', ' ').slice(0, 19) : 'لسه ماسحبش';
+  put($('#relay-box'), html`<div class="card"><div class="card-head"><h2>طلبات المحلات (التجربة التلقائية)</h2>
+      <span class="badge ${r.configured && last.ok !== false ? 'ok' : 'warn'}">${state}</span></div>
+    <p class="small muted">المحل بيطلب تجربة من برنامجه، وإشعار بيوصلك على تليجرام بزرارين: «✅ موافق» و«❌ رفض». لو وافقت، البرنامج ده (على جهازك) هو اللي بيصدر الكود ويرجّعه للمحل ويتفعّل من غير نسخ ولصق، وبيتبعتلك نسخة من الكود على تليجرام. المفتاح السري بيفضل على الجهاز ده بس.</p>
+    <div class="two"><form class="form" id="rf"><div class="field"><label for="ru">عنوان الوسيط (https://…)</label><input id="ru" class="input mono" value="${r.url || ''}" placeholder="https://xxxx.workers.dev" autocomplete="off"></div>
+      <div class="field"><label for="rt">مفتاح الوسيط ${r.has_token ? '(محفوظ، اكتب جديد لو عايز تغيّره)' : ''}</label><input id="rt" type="password" class="input mono" autocomplete="off"></div>
+      <p class="err small" id="re"></p><div class="row wrap"><button class="btn primary">${icon('check')}احفظ</button><button type="button" class="btn" id="pull" ${r.configured ? '' : raw('disabled')}>${icon('refresh')}اسحب الطلبات دلوقتي</button></div></form>
+    <div class="stack tight">
+      <div class="toggle-row"><div><b>اصدر التجارب لوحدك</b><div class="small muted">تجربة بمدة المنتج (14 يوم لحد ما تغيّرها)، مربوطة بالجهاز، وجهاز واحد مايخدش تجربة تانية. المدفوع مايتعملش لوحده أبدًا.</div></div>
+        <label class="check"><input type="checkbox" id="au" ${pol.auto_trials ? raw('checked') : ''}>شغّال</label></div>
+      <div class="toggle-row"><div><b>أقصى تجارب في اليوم</b></div><input id="cap" class="input q-in mono" value="${pol.auto_trial_daily_cap}" inputmode="numeric"></div>
+      <div class="toggle-row"><div><b>أقصى مدة للتجربة التلقائية (أيام)</b><div class="small muted">التلقائي بيدّي مدة المنتج بس مايزيدش عن الرقم ده (14 لحد ما ترفعه). زرار «موافق» على تليجرام بيدّي مدة المنتج كاملة.</div></div><input id="ad" class="input q-in mono" value="${pol.auto_trial_days}" inputmode="numeric"></div>
+      <div class="toggle-row"><div><b>افضل مفتوح عشان يصدّر وإنت مش قدام الجهاز</b><div class="small muted">${pol.keep_unlocked_until ? 'مفتوح لحد ' + pol.keep_unlocked_until.replace('T', ' ').slice(0, 16) : 'مقفول بعد 30 دقيقة من غير استخدام'}. أقصى حاجة 12 ساعة.</div></div>
+        <div class="row"><input id="kh" class="input q-in mono" value="8" inputmode="numeric"><button type="button" class="btn sm" id="keep">افضل مفتوح</button></div></div></div></div></div>`);
+  $('#rf').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    try { await post('/api/relay/save', { url: $('#ru').value, token: $('#rt').value || undefined }); toast('اتحفظ'); relayPanel(page); } catch (err) { $('#re').textContent = err.message; }
+  });
+  $('#pull').addEventListener('click', async () => {
+    try { const o = await post('/api/relay/pull'); toast(o.ok === false ? 'مفيش اتصال' : `اتسحب ${o.pulled} · اتصدّر ${o.issued} · اترفض ${o.refused} · مستني ${o.held}`, o.ok === false); ST = await get('/api/status'); requests(page); } catch (err) { toast(err.message, true); }
+  });
+  $('#au').addEventListener('change', async (e) => { await post('/api/policy', { auto_trials: e.target.checked }); toast('اتحفظ'); });
+  $('#cap').addEventListener('change', async (e) => { await post('/api/policy', { auto_trial_daily_cap: +e.target.value }); toast('اتحفظ'); });
+  $('#ad').addEventListener('change', async (e) => {
+    const v = /^\d{1,3}$/.test(latin(e.target.value)) ? parseInt(latin(e.target.value), 10) : 0;
+    if (v < 1 || v > 60) { e.target.value = pol.auto_trial_days; toast('اكتب رقم من 1 لـ 60.', true); return; }   // an empty or odd box is never saved as «1 day»
+    try { const r = await post('/api/policy', { auto_trial_days: v }); pol.auto_trial_days = r.auto_trial_days; e.target.value = r.auto_trial_days; toast('اتحفظ'); } catch (err) { e.target.value = pol.auto_trial_days; toast(err.message, true); }
+  });
+  $('#keep').addEventListener('click', async () => { try { await post('/api/auto/keep', { hours: +$('#kh').value }); toast('اتحفظ'); relayPanel(page); } catch (err) { toast(err.message, true); } });
+}
+
 async function requests(page) {
   const rows = await get('/api/requests?status=');
-  put(page, html`${head('طلبات الإيجنت', 'الإيجنت مايقدرش يطلّع أكواد مدفوعة: بيطلبها، وإنت توافق أو ترفض.')}
+  put(page, html`${head('طلبات المحلات', 'طلب جاي من محل (عن طريق الوسيط) أو من الإيجنت. التجربة ممكن تتصدّر لوحدها بالسياسة. الاشتراك والتفعيل الدائم بيستنوا موافقتك وتأكيد الدفع.')}
+    <div id="relay-box"></div>
     ${rows.length ? html`<div class="stack">${rows.map((r) => html`<div class="watch-item ${r.status === 'pending' ? 'warn' : ''}"><span class="ic">${icon('message')}</span>
-      <div><b>${r.customer}</b> · ${r.product} · ${EDITION[r.edition]} · ${r.days} يوم ${r.device ? html`· <span class="mono">${r.device}</span>` : ''}<div class="small muted">${r.note} · ${r.requested_at}</div></div>
+      <div><b>${r.customer}</b> · ${r.product} · ${r.source === 'relay' ? KIND[r.kind] + (r.kind === 'trial' ? ' · ' + r.days + ' يوم' : '') : EDITION[r.edition] + ' · ' + r.days + ' يوم'} ${r.device ? html`· <span class="mono">${r.device}</span>` : ''}
+        <span class="badge">${r.source === 'relay' ? 'من المحل' : 'من الإيجنت'}</span>
+        <div class="small muted">${r.note} · ${r.requested_at}${r.machine ? html` · جهاز <span class="mono">${r.machine.slice(0, 8)}</span>` : ''}</div>
+        ${r.status === 'pending' && r.tg_decision === 'approved' ? html`<div class="small"><span class="badge ok">وافقت من تليجرام${r.kind && r.kind !== 'trial' ? ': ناقص إثبات الدفع' : ''}</span></div>` : ''}
+        ${r.status === 'pending' && r.tg_decision === 'expired' ? html`<div class="small"><span class="badge warn">موافقتك على تليجرام قديمة: وافق من هنا بنفسك</span></div>` : ''}
+        ${r.status !== 'pending' && r.decided_by === 'telegram' ? html`<div class="small"><span class="badge">القرار من تليجرام</span></div>` : ''}
+        ${r.status === 'pending' && r.held ? html`<div class="small"><span class="badge warn">${HELD[r.held] || r.held}</span></div>` : ''}
+        ${r.status === 'pending' && r.policy ? html`<div class="xs faint">${POLICY_SAYS[r.policy.verdict]}${r.policy.days && ['issue', 'reissue'].includes(r.policy.verdict) ? ' (' + r.policy.days + ' يوم)' : ''}${r.policy.reason ? ' (' + (HELD[r.policy.reason] || r.policy.reason) + ')' : ''}</div>` : ''}
+        ${r.status === 'pending' && r.source === 'relay' && r.kind !== 'trial' ? html`<div class="row wrap"><label class="check"><input type="checkbox" data-paid="${r.id}">الدفع وصل</label>
+          <input class="input mono" data-ref="${r.id}" placeholder="مرجع الدفع" value="${r.payment_ref || ''}" maxlength="60" autocomplete="off"></div>` : ''}
+        ${r.status !== 'pending' && r.source === 'relay' ? html`<div class="xs faint">${r.relayed === 1 ? 'اتبعت للمحل' : r.relayed === 2 ? 'الوسيط قفل الطلب: ابعت الكود للمحل يدوي' : 'بيتبعت للمحل… لو ماوصلش هيتحاول تاني لوحده'}</div>` : ''}</div>
       <div class="row">${r.status === 'pending' ? html`<button class="btn sm" data-no="${r.id}">ارفض</button><button class="btn sm volt" data-yes="${r.id}">وافق واعمل الكود</button>`
         : html`<span class="badge ${r.status === 'approved' ? 'ok' : 'bad'}">${r.status === 'approved' ? 'اتوافق' : 'اترفض'}</span>`}</div></div>`)}</div>`
       : html`<div class="card"><div class="empty">${icon('message')}<h3>مفيش طلبات</h3></div></div>`}`);
+  relayPanel(page).catch(() => put($('#relay-box'), html``));
   $$('[data-yes],[data-no]').forEach((b) => b.addEventListener('click', async () => {
-    try { await post('/api/request/decide', { id: b.dataset.yes || b.dataset.no, approve: !!b.dataset.yes }); toast('تمام'); ST = await get('/api/status'); shell(); location.hash = '#/requests'; } catch (e) { toast(e.message, true); }
+    const id = b.dataset.yes || b.dataset.no;
+    const paid = $(`[data-paid="${id}"]`);
+    try {
+      await post('/api/request/decide', { id, approve: !!b.dataset.yes, payment_confirmed: paid ? paid.checked : undefined, payment_ref: paid ? $(`[data-ref="${id}"]`).value : undefined });
+      toast('تمام'); ST = await get('/api/status'); shell(); location.hash = '#/requests';
+      // the sending to the shop runs behind the click: look again once so the line says «اتبعت للمحل» without a manual refresh
+      clearTimeout(window.sendTimers);
+      window.sendTimers = setTimeout(() => {   // only when nothing is being typed or ticked: a page rebuilt under the owner's hands loses the payment reference
+        const busy = $$('[data-ref]').some((i) => i.value) || $$('[data-paid]').some((i) => i.checked) || /INPUT|TEXTAREA|SELECT/.test(document.activeElement?.tagName || '');
+        if (location.hash === '#/requests' && !busy) route();
+      }, 3000);
+    } catch (e) { toast(e.key === 'payment.required' ? 'علّم على «الدفع وصل» واكتب مرجع الدفع الأول.' : e.message, true); }
   }));
 }
 
@@ -274,7 +341,7 @@ async function products(page) {
     <form class="card form" id="f"><h2>منتج جديد</h2><div class="field"><label for="pid">الرقم (زي al-store)</label><input id="pid" class="input mono"></div>
     <div class="field"><label for="pn">الاسم</label><input id="pn" class="input"></div><div class="field"><label for="pd">أيام التجربة</label><input id="pd" class="input mono" value="14"></div>
     <button class="btn primary">${icon('plus')}ضيف</button></form></div>`);
-  $('#f').addEventListener('submit', async (e) => { e.preventDefault(); try { await post('/api/product/save', { id: $('#pid').value, name: $('#pn').value, trial_days: +$('#pd').value }); toast('اتضاف'); products(page); } catch (err) { toast(err.message, true); } });
+  $('#f').addEventListener('submit', async (e) => { e.preventDefault(); try { await post('/api/product/save', { id: $('#pid').value, name: $('#pn').value, trial_days: latin($('#pd').value) }); toast('اتضاف'); products(page); } catch (err) { toast(err.message, true); } });
 }
 
 async function keys(page) {
@@ -295,7 +362,7 @@ async function agent(page) {
   const pol = ST.policy;
   put(page, html`${head('الإيجنت والسجل', 'الإيجنت (Claude Code وغيره) بيتوصل بالبرنامج ده عن طريق MCP: بيقرا، ويفحص، ويطلب. وإنت اللي بتحدد يقدر يعمل إيه.')}
     <div class="two"><div class="card"><h2>المسموح للإيجنت</h2>
-      <div class="toggle-row"><div><b>يطلّع أكواد تجربة لوحده</b><div class="small muted">مربوطة بجهاز، و14 يوم بالكتير. والمدفوع دايمًا بيستنى موافقتك.</div></div>
+      <div class="toggle-row"><div><b>يطلّع أكواد تجربة لوحده</b><div class="small muted">مربوطة بجهاز، وبمدة المنتج لكن 14 يوم بالكتير. والمدفوع دايمًا بيستنى موافقتك.</div></div>
         <label class="check"><input type="checkbox" id="ag" ${pol.agent_may_issue_trials ? raw('checked') : ''}>مسموح</label></div>
       <div class="toggle-row"><div><b>أقصى عدد في اليوم</b></div><input id="lim" class="input q-in mono" value="${pol.agent_daily_limit}"></div>
       <h2>التوصيل</h2><p class="small muted">اعمل مفتاح للإيجنت (بيظهر مرة واحدة)، وحطه في إعدادات MCP:</p>
