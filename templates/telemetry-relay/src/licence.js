@@ -30,7 +30,7 @@
 //
 // D1 Free plan: a request uses at most 9 queries, a status poll 1, a decision 2, a button 3, clean-up 5. No query reads the whole table.
 
-import {bearer, num, reply, same, sha256hex} from './common.js';
+import {adminOk, bearer, num, reply, same, sha256hex} from './common.js';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const HASH = /^[0-9a-f]{64}$/;
@@ -207,7 +207,6 @@ async function ack(request, env, now) {
   return reply({status: r.status === 'issued' ? 'delivered' : r.status}, 200, now);
 }
 
-const adminOk = (request, env) => !!env.LICENCE_ADMIN_TOKEN && same(bearer(request.headers), env.LICENCE_ADMIN_TOKEN);
 
 async function pending(env, url, now) {
   const limit = Math.min(100, Math.max(1, Math.floor(num(url.searchParams.get('limit'), 50)) || 50));

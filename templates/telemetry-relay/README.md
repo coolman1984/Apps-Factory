@@ -107,10 +107,21 @@ Rough load per installation: one batch per hour, plus one for each urgent error.
 - **Planned (design only):** the customer bot and the owner's `/status`/`/incidents` commands (the webhook for the licence buttons exists, see above) and the signed `/latest` update endpoint. See
   `docs/CUSTOMER_PATCH_PIPELINE.md`.
 
+## The owner's phone audit mirror (third job of this Worker, `src/audit.js`)
+
+The Pixel Plus Owner Android app keeps a hash-chained audit of what the owner did (Arabic and English sentence per entry, no customer text, no token, no code, no amount). This is where its mirror lands, so the history survives a lost phone. Admin token only (`LICENCE_ADMIN_TOKEN`; the pull token never opens it). The phone does not call it yet: the client adapter is staged and treats a missing route as "not available".
+
+- `POST /audit/append` `{entry, previousHash, entryHash}`: `entry` is a **string**, the exact canonical bytes the phone hashed (a JSON array of 27 fields). The Worker hashes those bytes (`sha256(previousHash as 32 raw bytes || bytes)`), refuses an entry that is not already in canonical form (spaces, floats, unsorted keys, duplicate keys), checks every field, and appends with one conditional INSERT: sequence 1 needs an empty chain and the zero hash, sequence n needs row n-1 from the same device with `entryHash = previousHash`. `201` new, `200 replay: true` for an identical retry, `409` with the current `head` for a gap, a fork, a wrong predecessor or a reused event id, `400` malformed, `413` too large (entry 16 KiB), `507` when `AUDIT_MAX_CHAINS` (50) or `AUDIT_MAX_SEQUENCE` (200000) is reached.
+- `GET /audit/recent?chainId=&beforeSequence=&limit=`: newest first, 1 to 100 (default 50), the chain `head` and a `nextCursor`. Two D1 queries.
+- **Nothing private:** only allowlisted keys in `beforeSafe`/`afterSafe` (a sensitive key may appear only with the value `[redacted]`), no nested values, no licence-code-, bearer- or key-looking text, no long hex.
+- **Append-only:** no UPDATE or DELETE route, database triggers refuse both, and the daily clean-up never touches `owner_audit`. Growth is bounded only by the two caps above; there is no retention policy yet (it would need an exported anchor first).
+- A shared admin token is not a cryptographic identity. The mirror shows tampering against a head the phone retains; it cannot prove who wrote it. Not deployed: run `wrangler d1 execute af-telemetry-relay --remote --file=schema.sql` first (creates `owner_audit` and its two triggers; the triggers are not yet confirmed against live D1).
+- The golden entry in `test/audit-golden-v1.json` is a copy of the phone's own golden file: the Worker must accept it byte for byte.
+
 ## Test
 
 The tests need Node 22 or newer. They use a D1 shim over `node:sqlite`.
 
 ```bash
-node --experimental-sqlite --test test/relay.test.mjs test/licence.test.mjs test/telegram.test.mjs
+node --experimental-sqlite --test test/relay.test.mjs test/licence.test.mjs test/telegram.test.mjs test/audit.test.mjs
 ```
