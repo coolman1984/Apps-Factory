@@ -4,6 +4,20 @@ Dated owner decisions, newest first. Only decisions recorded in the repository a
 
 ## Decided
 
+### 2026-10-12 — Finishing the Store: decisions delegated to the agent by the owner
+The owner's instruction (task message, 2026-10-12): *"Make a real plan to finish the store without return to me at all, do the merges and
+release the exe, all you take decisions."* Decisions taken under that delegation (each can be reversed by the owner):
+- **Solo plan off-PC backup (D1) = the customer's own folder, not a company cloud.** Al-Store 1.10.0 seals every backup with a phrase the
+  customer keeps on paper and writes it to a OneDrive / Google Drive folder or a USB stick the customer chooses. The company hosts nothing,
+  holds no key and pays nothing; no hosting region or data-transfer decision is needed for plan 1. ADR-0001 open decision 1 (provider,
+  region, monthly ceiling) stays open for plan 2 (sync), where it is really needed.
+- **Encryption with the standard library only** (PBKDF2-SHA256 + keyed-BLAKE2b stream and tag, encrypt-then-MAC), because the Store's rule
+  is no third-party server package. Losing both the paper and the PC makes the copies unreadable; this is said on the screen and the paper.
+- **The release is a pilot build**, not an official release: the gate still says NO-GO (field items need a person, a printer, two real PCs
+  and the first shop). Nothing about prices, the brand name, the relay deployment or the vendor key was decided: those need the owner's
+  own accounts or money, and an agent cannot hold a signing key.
+- **Left open on purpose:** Apps-Factory PR #48 (Pixel Plus Owner Android) is unrelated to finishing the Store and was not merged.
+
 ### 2026-10-10 — One-person Pixel Plus operating-company direction
 - The owner wants one accountable human with AI-assisted engineering, marketing, research, management, Council, support, cost analysis and operational execution. **Direction approved; architecture is a staged proposal, not delegated broad credentials or permission to spend.**
 - [Research and operating architecture](docs/PIXEL_PLUS_ONE_PERSON_COMPANY_OS.md) and [first 30-day workflows](docs/PIXEL_PLUS_COMPANY_OS_PLAYBOOK.md): bounded work queue, reviewed handoffs, evidence links, independent QA, low-cost current tools and owner approval for all customer-impacting/financial/external acts.
