@@ -94,7 +94,7 @@
     "security_review": "Automated negative checks (CSP, Host/Origin, roles, approvals, append-only ledger) PASS; independent review PENDING",
     "clean_device_restore": "PENDING field drill",
     "core_user_acceptance": "PENDING first pilot shop",
-    "off_device_cloud_restore": "PENDING: safe encrypted versioned cloud backup, retention and off-device restore on a different clean Windows PC not yet implemented/accepted"
+    "off_device_cloud_restore": "PENDING field drill: built in Al-Store 1.10.0 (customer-phrase encrypted, versioned copies written to the customer's own OneDrive / Google Drive folder or USB stick, restore on a never-set-up PC from the setup screen; tests/test_offsite.py + ProtectedCopyByClicking green). Not yet run on two real Windows PCs with a real stick or synced folder"
   },
   "features": [
     "pos",
