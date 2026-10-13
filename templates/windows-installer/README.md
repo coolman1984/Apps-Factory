@@ -18,3 +18,4 @@ Rules that cost a day to learn (see docs/knowledge/LESSONS.md):
 4. The smoke test prints the program's own output when it fails — without that the first red run is unreadable.
 5. Firewall rule for the private/domain network only.
 6. CI builds must use a **different** Inno `AppId` and install folder than commercial (`AF_INSTALLER_CHANNEL=ci-test` in `build_windows.py`, or `/DAppChannel=ci-test` on ISCC) so test installers never upgrade a real customer's copy in place.
+7. A smoke test that only checks pages can miss a sold build whose licence can be switched off. `smoke_exe.py` already starts the program on a brand-new data folder. Pass `--license-path /your/licence/status` (and `--license-state trial` when that is the fresh state), or set `AF_SMOKE_LICENSE_PATH` and `AF_SMOKE_LICENSE_STATE`. The check stays off until the product names its own route.

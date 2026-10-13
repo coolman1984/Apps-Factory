@@ -40,7 +40,7 @@ Survey of 2026-10-09, based on code, tests and workflows (not on docs alone).
 | Capability | Where | Goes to |
 |---|---|---|
 | Ledger tables refuse UPDATE/DELETE by trigger | `Store/server/db.py` | Hessa and Trip Orders money tables; factory data standard |
-| Smoke test of the built `.exe` | `Store/tools/smoke_exe.py` | already in the installer template; Hessa, Trip Orders |
+| Smoke test of the built `.exe` | `Store/tools/smoke_exe.py` | already in the installer template; Hessa, Trip Orders. Template can optionally require a fresh folder to report the licence required (`--license-path`); that check is not part of the copied Al-Store workflow until a product turns it on |
 | Junk-input (fuzz) tests | `Store/tests/test_fuzz.py` | every product (QA-02) |
 | Strict CSP + "no inline style" test | `Store/tests/test_frontend.py` | Hessa, Trip Orders (needs removing inline styles first) |
 | Wide-font layout test (DejaVu at XL, 360 px) | `Teachers/tests/test_acceptance.py` | Store, Trip Orders |

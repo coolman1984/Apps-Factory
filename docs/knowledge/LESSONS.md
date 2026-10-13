@@ -57,6 +57,13 @@ Each lesson comes from a real history file. A rule that caught a real bug outran
 - The verifier must be stdlib-only so a product does not need `cryptography`; a test checks the vendored copy is byte-identical to the package.
 - Locked ≠ hostage: an expired product still reads, exports and backs up (RULES.md, BIZ-03: never hold customer data).
 
+## Sold build must require a licence (Teachers → factory, 2026-10-13)
+Source: [Teachers #37](https://github.com/coolman1984/Teachers/pull/37). Nuitka's own note is in the [4.3 changelog](https://nuitka.net/changelog/Changelog.html): `globals().get("__uncompiled__", globals().get("__compiled__"))`.
+
+| What happened | Fix | Rule |
+|---|---|---|
+| Nuitka 4.3 can ship a module as bytecode with `__uncompiled__` and no `__compiled__`. A check that only looked for `__compiled__` and PyInstaller's `sys.frozen` treated the sold exe as a source run, so a config flag could turn enforcement off. The Windows smoke step only checked that pages loaded. | `af_license.runtime.distributed_runtime` (0.3.2) treats `__uncompiled__` like `__compiled__`. The installer template's `smoke_exe.py` can require `required: true` on the fresh data folder it already creates, when the product passes `--license-path`. | Match every marker Nuitka sets on shipped modules, not only `__compiled__` and `sys.frozen`. A smoke test of a sold build must ask the licence status on a brand-new data folder. |
+
 ## Films and motion (Animation repo CRAFT / QUALITY_PLAYBOOK)
 - Every motion has a cause; blur only while moving; exact rest state; no looping decoration on working screens.
 - Capture real screens for promos — never fake UI in marketing.

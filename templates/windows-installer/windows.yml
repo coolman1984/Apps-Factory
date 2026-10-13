@@ -30,6 +30,9 @@ jobs:
         run: choco install innosetup -y --no-progress
       - name: Build the installer
         run: python tools/build_windows.py
+      # A sold build must also prove the licence is required on a fresh data folder.
+      # Opt in with that product's own route. Leave these flags off until the route exists:
+      #   python tools/smoke_exe.py --license-path /your/licence/status --license-state trial build/app.dist/Al-Store.exe
       - name: Smoke-test the program folder (before installing)
         run: python tools/smoke_exe.py build/app.dist/Al-Store.exe
       - name: Install silently, then smoke-test the installed program
