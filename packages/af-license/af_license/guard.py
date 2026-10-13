@@ -1,19 +1,20 @@
 """Gentle clock and server-date protection; no runtime or lockout counters.
 
 A PC that never goes online and keeps its date frozen is an accepted edge case.
-Deleting this state file loses its persisted high-water marks, not the signed
-licence terms. Products should also restore trusted time from their own signed
-data with ``note_seen(at=...)``. This module only writes its state file and its
-own temporary file; it never changes customer data. ``full=False`` means that
-read, export and backup must remain available.
+Protected products supply independent, verified licence-time anchor callbacks.
+Without them, deletion resistance is unimplemented. This module only writes its
+state file and its own temporary file; anchor callbacks must only retain licence
+metadata, never change customer records. ``full=False`` means that read, export
+and backup must remain available.
 """
 from __future__ import annotations
 
 import json
 import os
 import tempfile
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, datetime, time, timedelta, timezone, tzinfo
 from pathlib import Path
+from time import monotonic
 from typing import TYPE_CHECKING, Callable
 
 if TYPE_CHECKING:
@@ -38,20 +39,87 @@ def _day(value: str) -> date:
 class ClockGuard:
     """One guard per product state file; injected clocks make checks repeatable.
 
-    Naive datetimes mean UTC. I/O failures leave the in-memory marks intact and
-    never raise or prevent reading customer data. Use one writer per state file.
+    Naive observed datetimes mean UTC. Licence dates use ``calendar_tz`` (the
+    system local zone by default), including vendor dates. I/O failures preserve
+    memory. Use one writer. Both anchor callbacks are required for protection
+    against removal/corruption/restoration of this file alone; the reader must
+    return a verified YYYY-MM-DD or None for a confirmed fresh installation.
     """
 
     def __init__(self, state_path: str | os.PathLike,
                  now: Callable[[], datetime] = lambda: datetime.now(timezone.utc),
-                 today: Callable[[], date] = date.today):
+                 today: Callable[[], date] | None = None, *,
+                 calendar_tz: tzinfo | None = None,
+                 monotonic_now: Callable[[], float] = monotonic,
+                 load_anchor: Callable[[], str | None] | None = None,
+                 save_anchor: Callable[[str], None] | None = None):
+        if (load_anchor is None) != (save_anchor is None):
+            raise ValueError('both_anchor_callbacks_required')
         self.state_path = Path(state_path)
         self._now = now
-        self._today = today
+        self._calendar_tz = calendar_tz
+        self._today = today or (lambda: self._calendar_day(_utc(self._now())))
+        self._monotonic = monotonic_now
+        self._load_anchor = load_anchor
+        self._save_anchor = save_anchor
+        self._anchor_ready = load_anchor is None
+        self._anchor_day: date | None = None
         self.max_seen: datetime | None = None
         self.server_day_max: date | None = None
         self._written_max: datetime | None = None
+        self._pending = False
+        self._retry_after: float | None = None
         self._load()
+        if load_anchor is not None:
+            if not self._restore_anchor():
+                self._retry_after = self._monotonic() + 5
+
+    def _calendar_day(self, moment: datetime) -> date:
+        return moment.astimezone(self._calendar_tz).date()
+
+    def _restore_anchor(self) -> bool:
+        try:
+            value = self._load_anchor()
+            day = _day(value) if value is not None else None
+        except (OSError, ValueError, TypeError):
+            return False
+        self._anchor_ready = True
+        self._anchor_day = day
+        if day is not None and (self.server_day_max is None or day > self.server_day_max):
+            self.server_day_max = day
+            self._pending = True
+        # Historical anchors restore expiry, but cannot prove today's date and
+        # must never lower a local maximum. Only a fresh server response can.
+        return True
+
+    @property
+    def deletion_protected(self) -> bool:
+        """Independent anchor is available and contains the latest vendor day."""
+        return (self._load_anchor is not None and self._anchor_ready
+                and self._anchor_day == self.server_day_max)
+
+    def _persist(self) -> None:
+        """Retry I/O after five monotonic seconds, independent of wall time.
+
+        These are transient I/O scheduling timestamps, never usage counters.
+        """
+        tick = self._monotonic()
+        if self._retry_after is not None and tick < self._retry_after:
+            return
+        success = True
+        if not self._anchor_ready:
+            success = self._restore_anchor()
+        if (self._save_anchor is not None and self._anchor_ready
+                and self.server_day_max is not None
+                and self.server_day_max != self._anchor_day):
+            try:
+                self._save_anchor(self.server_day_max.isoformat())
+                self._anchor_day = self.server_day_max
+            except (OSError, ValueError, TypeError):
+                success = False
+        if self._pending:
+            success = self._save() and success
+        self._retry_after = None if success else tick + 5
 
     def _load(self) -> None:
         try:
@@ -68,7 +136,7 @@ class ClockGuard:
         self.max_seen = self._written_max = max_seen
         self.server_day_max = server_day
 
-    def _save(self) -> None:
+    def _save(self) -> bool:
         temporary = None
         try:
             # A unique sibling avoids overwriting an unrelated pre-existing .tmp.
@@ -85,8 +153,10 @@ class ClockGuard:
             os.replace(temporary, self.state_path)
             temporary = None
             self._written_max = self.max_seen
+            self._pending = False
+            return True
         except OSError:
-            pass
+            return False
         finally:
             if temporary is not None:
                 try:
@@ -105,28 +175,73 @@ class ClockGuard:
             self.max_seen = seen
         if (self._written_max is None
                 or self.max_seen - self._written_max >= timedelta(minutes=5)):
-            self._save()
+            self._pending = True
+        self._persist()
 
     def clock_back(self, tolerance_hours: float = 2) -> bool:
         """Rollback is a current state, cleared when the clock is corrected."""
         return (self.max_seen is not None
                 and self.max_seen - _utc(self._now()) > timedelta(hours=tolerance_hours))
 
-    def note_server_day(self, day_str: str) -> None:
-        """A vendor date can advance expiry checks, never extend signed terms."""
+    def note_server_day(self, day_str: str, tolerance_hours: float = 2) -> None:
+        """Accept a *fresh authenticated* vendor day in the licence calendar.
+
+        The adapter must reject stale/replayed responses and UTC-day mismatches.
+        A day older than the retained vendor day is ignored. A fresh day can
+        repair an erroneous local future maximum beyond its latest possible
+        instant plus tolerance. Only a server can prove this correction; it
+        never lowers retained vendor expiry evidence or changes signed terms.
+        """
         try:
             day = _day(day_str)
         except (ValueError, TypeError):
             return
+        if self.server_day_max is not None and day < self.server_day_max:
+            self._persist()
+            return
         if self.server_day_max is None or day > self.server_day_max:
             self.server_day_max = day
-            self._save()
+            self._pending = True
+        if self.max_seen is not None:
+            try:
+                end = datetime.combine(day, time.max, self._calendar_tz).astimezone(timezone.utc)
+                start = datetime.combine(day, time.min, self._calendar_tz).astimezone(timezone.utc)
+                if self.max_seen - end > timedelta(hours=tolerance_hours):
+                    # A whole day proves only its lower bound, not an exact time.
+                    self.max_seen = start
+                    self._pending = True
+            except (OverflowError, ValueError):
+                # Extreme representable dates may overflow zone conversion.
+                pass
+        self._persist()
+
+    def note_server_time(self, moment: datetime, tolerance_hours: float = 2) -> None:
+        """Convert a fresh authenticated aware server instant to our calendar.
+
+        Prefer this API when the endpoint reports UTC; never pass a bare UTC
+        day to ``note_server_day`` for licences in another timezone.
+        """
+        if not isinstance(moment, datetime) or moment.utcoffset() is None:
+            raise ValueError('aware_server_time_required')
+        day = self._calendar_day(moment)
+        if self.server_day_max is not None and day < self.server_day_max:
+            self._persist()
+            return
+        # A timestamp also proves the time within a day, unlike a bare day.
+        trusted = _utc(moment)
+        if (self.max_seen is not None
+                and self.max_seen - trusted > timedelta(hours=tolerance_hours)):
+            self.max_seen = trusted
+            self._pending = True
+        self.note_server_day(day.isoformat(), tolerance_hours)
 
     def effective_day(self) -> date:
-        """Latest local, observed UTC or vendor calendar date."""
+        """Latest local or trusted vendor day, in one licence calendar.
+
+        Untrusted max_seen is only rollback evidence, never expiry evidence.
+        A small clock correction within tolerance must not poison a paid day.
+        """
         days = [self._today()]
-        if self.max_seen is not None:
-            days.append(self.max_seen.date())
         if self.server_day_max is not None:
             days.append(self.server_day_max)
         return max(days)
@@ -150,6 +265,8 @@ class ClockGuard:
             return result('invalid', False, 'missing_code')
         if not code_result.valid:
             return result('invalid', False, code_result.reason)
+        if self._load_anchor is not None and not self.deletion_protected:
+            return result('anchor_unavailable', False, 'retry_licence_time_storage')
         try:
             terms = code_result.terms
             last = terms['last_day']
