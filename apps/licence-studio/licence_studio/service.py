@@ -79,6 +79,7 @@ REQUEST_COLUMNS = (('source', "TEXT NOT NULL DEFAULT 'agent'"), ('relay_id', 'TE
                    ('decide_claim', 'INTEGER'))
 DECIDE_LEASE = 120  # seconds: signing and saving one decision takes milliseconds, so a longer one belongs to a studio that is gone
 UNATTENDED = ('auto-trial', 'telegram')  # actors that sign without the owner at the keyboard: they never keep the key open
+SERIAL_ATTEMPTS = 5  # codes.serial is a 4-byte random primary key: a clash is signed again, never taken from the clock
 MONTHLY_DAYS, MONTHLY_GRACE = 30, 3   # owner decision 2026-10-09: the Studio defaults for a monthly code
 MAX_KEEP_UNLOCKED_HOURS = 12
 DEFAULT_PRODUCTS = [('al-store', 'Al-Store · الستور', 14), ('hessa-centre', 'Hessa · حصّة', 14)]
@@ -385,7 +386,8 @@ class Studio:
         first = date.fromisoformat(first_day) if first_day else date.today()
         if first < date.today() - timedelta(days=1):
             raise StudioError('first_day', 'The first day cannot be in the past.')
-        out = codes.issue_code(self._pem(owner=actor not in UNATTENDED), product, edition, first, days, device, int(grace_days), int(seats), date.today())
+        pem = self._pem(owner=actor not in UNATTENDED)
+        out = codes.issue_code(pem, product, edition, first, days, device, int(grace_days), int(seats), date.today())
         kid = (self.public_key() or ':').split(':', 1)[0]
         with self.lock:
             self.db.execute('BEGIN IMMEDIATE')
@@ -403,17 +405,37 @@ class Studio:
                     used = self.db.execute("SELECT COUNT(*) AS n FROM codes WHERE issued_by = ? AND substr(issued_at, 1, 10) = ?", (actor, utc_today())).fetchone()['n']
                     if used >= daily_cap:
                         raise StudioError(cap_error, 'Today\'s limit of automatic trial codes was reached. The owner can raise it.', 429)
-                if machine and edition == 'trial':  # one automatic trial per PC for ever: the primary key refuses a second, even in a race
+                # The serial is random, not the clock, but two draws can still match and codes.serial is the primary key.
+                # Sign again inside this same transaction: the cap and the one-trial checks above stay in force, and a
+                # discarded draw never becomes this PC's trial (the ledger row is written only with the serial that is stored).
+                for attempt in range(SERIAL_ATTEMPTS):
+                    self.db.execute('SAVEPOINT issue_serial')
                     try:
-                        self.db.execute('INSERT INTO trial_ledger(product, machine, device, serial, relay_id, at) VALUES (?, ?, ?, ?, ?, ?)',
-                                        (product, machine, device, out['serial'], request_id, now_iso()))
-                    except sqlite3.IntegrityError:
-                        raise StudioError('trial.repeat', 'This PC already had its trial.', 409) from None
-                self.db.execute('INSERT INTO codes(serial, product, edition, device, customer, phone, first_day, last_day, grace_days, seats, code, kid, '
-                                'note, issued_at, issued_by, request_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-                                (out['serial'], product, edition, device, (customer or '').strip()[:80], (phone or '').strip()[:20], out['first_day'],
-                                 out['last_day'] or PERPETUAL, int(grace_days), int(seats), out['code'], kid, (note or '').strip()[:300], now_iso(), actor,
-                                 request_id))
+                        if machine and edition == 'trial':  # one automatic trial per PC for ever: the primary key refuses a second, even in a race
+                            try:
+                                self.db.execute('INSERT INTO trial_ledger(product, machine, device, serial, relay_id, at) VALUES (?, ?, ?, ?, ?, ?)',
+                                                (product, machine, device, out['serial'], request_id, now_iso()))
+                            except sqlite3.IntegrityError:
+                                raise StudioError('trial.repeat', 'This PC already had its trial.', 409) from None
+                        self.db.execute('INSERT INTO codes(serial, product, edition, device, customer, phone, first_day, last_day, grace_days, seats, code, kid, '
+                                        'note, issued_at, issued_by, request_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                                        (out['serial'], product, edition, device, (customer or '').strip()[:80], (phone or '').strip()[:20], out['first_day'],
+                                         out['last_day'] or PERPETUAL, int(grace_days), int(seats), out['code'], kid, (note or '').strip()[:300], now_iso(), actor,
+                                         request_id))
+                        self.db.execute('RELEASE issue_serial')
+                        break
+                    except StudioError:
+                        self.db.execute('ROLLBACK TO issue_serial')
+                        self.db.execute('RELEASE issue_serial')
+                        raise
+                    except sqlite3.IntegrityError as err:
+                        self.db.execute('ROLLBACK TO issue_serial')
+                        self.db.execute('RELEASE issue_serial')
+                        if 'codes.serial' not in str(err) or attempt + 1 == SERIAL_ATTEMPTS:
+                            if 'codes.serial' in str(err):
+                                raise StudioError('serial.collision', 'Could not give this code its own serial. Try again.', 503) from None
+                            raise
+                        out = codes.issue_code(pem, product, edition, first, days, device, int(grace_days), int(seats), date.today())
                 self.db.execute('COMMIT')
             except BaseException:
                 self.db.execute('ROLLBACK')

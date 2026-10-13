@@ -316,6 +316,61 @@ class ServiceTests(unittest.TestCase):
             self.s.issue('al-store', 'trial', codes.device_code('pc-8', 'i-8'), 'Shop', actor='auto-trial', request_id='req-2', daily_cap=1)
         self.assertEqual(e.exception.key, 'daily_cap')
 
+    def test_a_colliding_serial_is_signed_again_and_both_codes_are_stored(self):
+        """A repeated 32-bit serial must not fail the issue or store a duplicate. The second code is signed again
+        with a different serial, the trial ledger keeps that serial, and the daily cap still counts stored codes once."""
+        import licence_studio.service as svc
+        self.s.create_key(PASS)
+        machine_a, machine_b = 'a' * 64, 'b' * 64
+        first = self.s.issue('al-store', 'trial', DEVICE, 'Shop', actor='auto-trial', machine=machine_a, daily_cap=2)
+        other = codes.device_code('pc-2', 'i-2')
+        real = codes.os.urandom
+        stuck = bytes.fromhex(first['serial'])
+        draws = []
+
+        def collide(n):
+            draws.append(n)
+            return stuck if len(draws) == 1 else real(n)
+
+        codes.os.urandom = collide
+        try:
+            second = self.s.issue('al-store', 'trial', other, 'Shop 2', actor='auto-trial', machine=machine_b,
+                                  request_id='req-collide', daily_cap=2)
+            self.assertEqual(len(draws), 2, 'the stored serial was rejected once, then a new one was signed')
+            codes.os.urandom = lambda n: stuck
+            again = self.s.issue('al-store', 'trial', codes.device_code('pc-9', 'i-9'), 'Other', actor='auto-trial',
+                                 machine='c' * 64, request_id='req-collide', daily_cap=1)
+        finally:
+            codes.os.urandom = real
+        self.assertNotEqual(second['serial'], first['serial'])
+        self.assertEqual(again['serial'], second['serial'])
+        self.assertEqual(self.s.one('SELECT COUNT(*) AS n FROM codes')['n'], 2)
+        self.assertEqual(self.s.one('SELECT serial FROM trial_ledger WHERE machine = ?', machine_b)['serial'], second['serial'])
+        self.assertEqual(self.s.one('SELECT COUNT(*) AS n FROM trial_ledger')['n'], 2)
+        checked = self.s.verify(second['code'], 'al-store', other)
+        self.assertTrue(checked['valid'])
+        self.assertEqual(checked['terms']['serial'], second['serial'])
+        self.assertTrue(self.s.verify(first['code'], 'al-store', DEVICE)['valid'])
+        with self.assertRaises(StudioError) as e:
+            self.s.issue('al-store', 'trial', codes.device_code('pc-3', 'i-3'), 'Shop 3', actor='auto-trial', machine='d' * 64, daily_cap=2)
+        self.assertEqual(e.exception.key, 'daily_cap')
+        self.assertEqual(self.s.one('SELECT COUNT(*) AS n FROM codes')['n'], 2)
+        with self.assertRaises(StudioError) as e:
+            self.s.issue('al-store', 'trial', codes.device_code('pc-4', 'i-4'), 'Shop', actor='auto-trial', machine=machine_a)
+        self.assertEqual(e.exception.key, 'trial.repeat')
+        self.assertEqual(self.s.one('SELECT COUNT(*) AS n FROM codes')['n'], 2)
+        attempts, svc.SERIAL_ATTEMPTS = svc.SERIAL_ATTEMPTS, 2
+        codes.os.urandom = lambda n: stuck
+        try:
+            with self.assertRaises(StudioError) as e:
+                self.s.issue('al-store', 'trial', codes.device_code('pc-5', 'i-5'), 'Shop 5', actor='auto-trial', machine='e' * 64)
+            self.assertEqual((e.exception.key, e.exception.status), ('serial.collision', 503))
+        finally:
+            codes.os.urandom = real
+            svc.SERIAL_ATTEMPTS = attempts
+        self.assertEqual(self.s.one('SELECT COUNT(*) AS n FROM codes')['n'], 2)
+        self.assertIsNone(self.s.one('SELECT 1 FROM trial_ledger WHERE machine = ?', 'e' * 64))
+
     def test_two_agent_requests_for_one_device_at_once_make_one_trial(self):
         """Review of PR #26: «one trial per device» was a look followed by a write, so two requests arriving together (a double click, two windows)
         both passed the look and both trials were signed."""

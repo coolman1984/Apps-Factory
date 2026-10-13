@@ -57,6 +57,11 @@ Each lesson comes from a real history file. A rule that caught a real bug outran
 - The verifier must be stdlib-only so a product does not need `cryptography`; a test checks the vendored copy is byte-identical to the package.
 - Locked ≠ hostage: an expired product still reads, exports and backs up (RULES.md, BIZ-03: never hold customer data).
 
+## Unique serials (Hessa (Teachers) → factory, 2026-10-13)
+| What happened | Fix | Rule |
+|---|---|---|
+| Two activation codes issued in the same second shared a serial: Hessa's seller used the wall-clock second, the gateway rejected the duplicate (HTTP 409), and the PC could not rank two codes with equal dates. The factory already draws a random serial, but a 32-bit collision was an unhandled SQLite error, so the issue failed, including an unattended auto-trial | Licence Studio signs again with a fresh serial, a bounded number of times, inside the same locked transaction. The codes primary key stays the uniqueness check | Identity fields (serials, ids) are never derived from wall-clock seconds; use a random or counter-based id and let the store enforce uniqueness |
+
 ## Films and motion (Animation repo CRAFT / QUALITY_PLAYBOOK)
 - Every motion has a cause; blur only while moving; exact rest state; no looping decoration on working screens.
 - Capture real screens for promos — never fake UI in marketing.

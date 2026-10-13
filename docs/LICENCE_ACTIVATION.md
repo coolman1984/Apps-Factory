@@ -60,6 +60,8 @@ Automatic only when **all** hold: the key is unlocked; the device code and machi
 - A policy refusal needs no key and is delivered to the shop with its reason.
 - Everything else waits for the owner and the shop sees "waiting".
 
+A code's serial is a random id, never a wall-clock second. If that serial is already stored, the Studio signs again with a new one; the codes primary key is the uniqueness check, and the one-trial ledger and the daily cap still apply once.
+
 **Key handling.** The key is encrypted on disk and lives in memory after the passphrase. For unattended issuing the owner chooses «افضل مفتوح N ساعة» (at most 12): the key stays in memory for that time only; locking, a restart or the end of the time puts it back behind the passphrase. If the key is locked when a request arrives, the request waits, the owner's phone says so once, and the next round after unlocking issues it. Nothing signs without the owner having unlocked it that day.
 
 ## 4b. The owner's buttons on Telegram (0.14.0)

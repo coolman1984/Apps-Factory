@@ -330,7 +330,7 @@ class AutoTrial:
             s.release(r['id'], token)
             if e.key in ('key.locked', 'request.closed'):  # (closed: this decision was taken over by another window: that one stands)
                 return
-            if e.key == 'daily_cap':  # two rounds or windows passed the first look together: the one that lost waits for tomorrow, it is not refused
+            if e.key in ('daily_cap', 'serial.collision'):  # the one that lost the cap waits for tomorrow; a serial that clashes on every draw waits too, it is not a refusal
                 self.last['held'] += 1
                 return
             self._close(r, 'refused', 'already_used' if e.key == 'trial.repeat' else 'bad_device', by)
