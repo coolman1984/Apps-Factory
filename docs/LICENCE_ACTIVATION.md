@@ -1,5 +1,7 @@
 # Licence activation chain: request → Telegram → policy → code → the shop switches itself on
 
+After activation, use the [Licence protection standard](LICENCE_PROTECTION_STANDARD.md) for rollback and server-date expiry checks.
+
 Reference spec (not a living doc: rules are in [RULES.md](../RULES.md) LIC-01 and BIZ-03, parts in [PARTS.md](../PARTS.md)). Written for Al-Store; any product with a device-bound code can use it.
 
 **Owner decisions behind it** ([DECISIONS.md](../DECISIONS.md)): the three kinds of code (trial, monthly, permanent; the trial is 14 days unless the owner sets another length for the product); **Telegram is the owner's notification channel, not WhatsApp**; the private signing key lives only on the owner's trusted PC; automatic issuing follows a trial policy the owner switches on; subscriptions and permanent activation need confirmed payment and the owner's own approval.

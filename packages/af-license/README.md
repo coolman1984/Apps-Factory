@@ -1,7 +1,8 @@
-# af-license v0.1.0 • signed licences and update manifests
+# af-license v0.4.0 • signed licences and update manifests
 
 **Status:** `implemented` (unit-tested here). Not yet `verified` inside a shipped product or field-accepted.
 Controls: `BIZ-04`, `PROT-02`, `PROT-04`, `REL-02`. Spec: [docs/PROTECTION_UPDATES_AND_SUPPORT.md](../../docs/PROTECTION_UPDATES_AND_SUPPORT.md).
+Licence clock guard and product wiring: [Licence protection standard](../../docs/LICENCE_PROTECTION_STANDARD.md).
 
 - Ed25519 through the vetted `cryptography` library; the algorithm is fixed in code, never read from the file.
 - Purpose-separated keys: a `licence` key and an `update` key. The purpose is inside the signed bytes.
