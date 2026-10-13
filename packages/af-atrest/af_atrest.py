@@ -32,7 +32,10 @@ import time
 
 MAGIC_AEAD = b'AFAEAD1'          # backup archives (ChaCha20-Poly1305, not a live database)
 MAGIC_KEY = b'AFDPK1'            # wrapped data key (dpapi stand-in)
+MAGIC_DEVICE_TRANSFER = b'AFDTX1'  # wrapped device-transfer X25519 private key
 AAD_KEY = b'af-atrest-db-key-v1'
+AAD_DEVICE_TRANSFER = b'af-atrest-device-transfer-v1'
+OUTBOX_TOKEN_AAD = b'af-atrest-outbox-token-v1'
 KEY_NAME = 'atrest.key'
 _LOCK = threading.RLock()
 _MASTER = None
@@ -40,7 +43,7 @@ _DATA_KEYS = {}
 _DRIVER = None
 _DRIVER_TRIED = False
 
-__version__ = '0.1.0'
+__version__ = '0.2.0'
 
 
 def env_prefix():
@@ -231,6 +234,133 @@ def adopt_wrapped(data_dir, blob):
         key = unwrap_key_blob(blob)
         _DATA_KEYS[data_dir] = key
         return key
+
+
+def wrap_device_transfer_private(priv: bytes) -> bytes:
+    if len(priv) != 32:
+        raise ValueError('device transfer private key must be 32 bytes')
+    nonce = secrets.token_bytes(12)
+    ct = _aead()(master_secret()).encrypt(nonce, priv, AAD_DEVICE_TRANSFER)
+    return MAGIC_DEVICE_TRANSFER + nonce + ct
+
+
+def unwrap_device_transfer_private(blob: bytes) -> bytes:
+    blob = bytes(blob)
+    if len(blob) < len(MAGIC_DEVICE_TRANSFER) + 12 + 16 or not blob.startswith(MAGIC_DEVICE_TRANSFER):
+        raise ValueError('device transfer key blob is damaged')
+    nonce = blob[len(MAGIC_DEVICE_TRANSFER):len(MAGIC_DEVICE_TRANSFER) + 12]
+    ct = blob[len(MAGIC_DEVICE_TRANSFER) + 12:]
+    try:
+        priv = _aead()(master_secret()).decrypt(nonce, ct, AAD_DEVICE_TRANSFER)
+    except Exception:
+        raise ValueError('cannot unwrap device transfer key') from None
+    if len(priv) != 32:
+        raise ValueError('device transfer private key must be 32 bytes')
+    return priv
+
+
+def _user_db_paths(data_dir: str) -> list[str]:
+    data_dir = os.path.abspath(data_dir)
+    skip = {'af-atrest-sync.sqlite'}
+    out: list[str] = []
+    try:
+        names = os.listdir(data_dir)
+    except OSError:
+        return out
+    for name in sorted(names):
+        if not name.endswith('.db') or name in skip:
+            continue
+        path = os.path.join(data_dir, name)
+        if os.path.isfile(path):
+            out.append(path)
+    return out
+
+
+def data_dir_has_user_rows(data_dir: str) -> bool:
+    """True when any live database in the directory has at least one user table row."""
+    for path in _user_db_paths(data_dir):
+        if is_aead(path):
+            continue
+        if is_plain_sqlite(path):
+            try:
+                conn = sqlite3.connect(path)
+            except sqlite3.Error:
+                continue
+            try:
+                tables = [
+                    r[0]
+                    for r in conn.execute(
+                        "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"
+                    ).fetchall()
+                ]
+                for t in tables:
+                    if conn.execute(f'SELECT COUNT(*) FROM "{t}"').fetchone()[0] > 0:
+                        return True
+            finally:
+                conn.close()
+            continue
+        if _sqlcipher() is not None:
+            try:
+                dk = data_key(data_dir)
+                conn = _sqlcipher().connect(path)
+            except (sqlite3.Error, RuntimeError):
+                continue
+            try:
+                conn.execute("PRAGMA key = \"x'" + dk.hex() + "'\"")
+                tables = [
+                    r[0]
+                    for r in conn.execute(
+                        "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"
+                    ).fetchall()
+                ]
+                for t in tables:
+                    if conn.execute(f'SELECT COUNT(*) FROM "{t}"').fetchone()[0] > 0:
+                        return True
+            finally:
+                conn.close()
+    return False
+
+
+def install_recovered_data_key(data_dir: str, data_key: bytes) -> None:
+    """Install vendor-recovered raw key; refuse when another key protects non-empty data."""
+    if len(data_key) != 32:
+        raise ValueError('data key must be 32 bytes')
+    data_dir = os.path.abspath(data_dir)
+    path = _key_path(data_dir)
+    with _LOCK:
+        if os.path.exists(path):
+            with open(path, 'rb') as f:
+                existing = unwrap_key_blob(f.read())
+            if existing == data_key:
+                _DATA_KEYS[data_dir] = existing
+                return
+            if data_dir_has_user_rows(data_dir):
+                from af_errors import AtRestError
+
+                raise AtRestError('ATREST_RECOVERED_KEY_CONFLICT')
+            os.remove(path)
+            _DATA_KEYS.pop(data_dir, None)
+        os.makedirs(data_dir, exist_ok=True)
+        wrapped = _wrap_key(data_key)
+        _write_0600(path, wrapped)
+        _DATA_KEYS[data_dir] = data_key
+
+
+def seal_outbox_secret(data_dir: str, secret: str) -> bytes:
+    """Encrypt a sync secret (e.g. company token) for the outbox payload."""
+    key = data_key(data_dir)
+    nonce = secrets.token_bytes(12)
+    ct = _aead()(key).encrypt(nonce, secret.encode('utf-8'), OUTBOX_TOKEN_AAD)
+    return nonce + ct
+
+
+def open_outbox_secret(data_dir: str, blob: bytes) -> str:
+    key = data_key(data_dir)
+    if len(blob) < 12 + 16:
+        raise ValueError('outbox secret blob too short')
+    nonce, ct = blob[:12], blob[12:]
+    plain = _aead()(key).decrypt(nonce, ct, OUTBOX_TOKEN_AAD)
+    return plain.decode('utf-8')
 
 
 def _uri_fs(uri):

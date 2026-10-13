@@ -2,6 +2,9 @@
 
 Factory versions (the `README.md` version line). The control catalogue has its own `catalog_version` in `factory/controls.json`.
 
+## 0.19.0 (2026-10-13)
+End-to-end key recovery for **af-atrest 0.2.0**: vendor-only restore (Key Vault recovered-key package), **mandatory** escrow at activation, offline outbox with bilingual `sync_warning`, daily off-site backup **on by default**, plaintext migration orchestration, bilingual errors. Template Cloudflare worker `templates/key-escrow-worker/` and vendor desktop tool `tools/key-vault/` (`make-recovery-package`). **No** client password recovery file. **Not field-verified**; sqlcipher3 still required for live encryption and migration on real data.
+
 ## 0.18.0 (2026-10-13)
 Port of reusable offline-security hardening from Trip Orders (Yousef), product-agnostic.
 - **af-atrest 0.1.0:** optional SQLCipher 4 + ChaCha20-Poly1305 backups; `AF_ENCRYPT` off by default; vendor `scripts/vendor_atrest.py`. Known gaps documented (no recovery key, migration, or second-PC restore; non-DB files plaintext).

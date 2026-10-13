@@ -1,0 +1,21 @@
+# Template only — not deployed. Replace placeholders before any real deploy.
+name = "key-escrow-worker-PLACEHOLDER"
+main = "src/worker.js"
+compatibility_date = "2024-09-23"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "key_escrow_PLACEHOLDER"
+database_id = "00000000-0000-0000-0000-000000000000"
+
+[[r2_buckets]]
+binding = "BACKUPS"
+bucket_name = "af-atrest-backups-PLACEHOLDER"
+
+[vars]
+MAX_ESCROW_BODY = "65536"
+MAX_BACKUP_BODY = "52428800"
+KEEP_DAYS = "90"
+
+# Secret (wrangler secret put COMPANY_TOKEN_SALT): optional extra salt for token hashing.
+# Per-company tokens are registered via POST /companies (admin) — never store private keys here.

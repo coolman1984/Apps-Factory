@@ -14,7 +14,7 @@ Product use below was read from the product clones on 2026-10-09 (Store, Teacher
 - **Used by:** Store, Teachers, Yousef-Transportation (vendored). Mr.Ayman-HR has its own access code and has not vendored it.
 
 ### af-atrest — optional SQLite / backup at-rest encryption
-- **Version:** 0.1.0 (`packages/af-atrest/af_atrest.py`). Off unless `{PREFIX}_ENCRYPT=1` (default prefix `AF`; override with `AF_ATREST_PREFIX`). SQLCipher 4 live DBs; ChaCha20-Poly1305 backup archives; per-data-dir key wrapped with a DPAPI stand-in on non-Windows.
+- **Version:** 0.2.0 (`packages/af-atrest/af_atrest.py`). Off unless `{PREFIX}_ENCRYPT=1` (default prefix `AF`; override with `AF_ATREST_PREFIX`). SQLCipher 4 live DBs; ChaCha20-Poly1305 backup archives; per-data-dir key wrapped with a DPAPI stand-in on non-Windows. Mandatory vendor escrow at activation (`af_activation.py`), offline outbox (`af_sync.py`), vendor-only restore (`af_recovery.py`), daily off-site upload on by default (`af_offsite.py`), plaintext migration (`af_migrate.py`), bilingual errors (`af_errors.py`). Worker template: `templates/key-escrow-worker/`; vendor vault: `tools/key-vault/`.
 - **Vendor:** `python3 scripts/vendor_atrest.py <product>` → `server/afatrest.py`.
 - **Spec:** [docs/OFFLINE_SECURITY_AND_RECOVERY.md](docs/OFFLINE_SECURITY_AND_RECOVERY.md); package `packages/af-atrest/README.md`.
 - **Used by:** none vendored yet (ported from Trip Orders hardening).
