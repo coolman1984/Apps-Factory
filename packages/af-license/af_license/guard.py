@@ -36,6 +36,27 @@ def _day(value: str) -> date:
     return result
 
 
+def _parse_anchor_value(value: str) -> tuple[date | None, datetime | None]:
+    """Plain YYYY-MM-DD or JSON with optional rollback ``max_seen``."""
+    if value.startswith('{'):
+        data = json.loads(value)
+        if not isinstance(data, dict):
+            raise ValueError('bad_anchor')
+        day_raw = data.get('day')
+        day = _day(day_raw) if day_raw is not None else None
+        seen = data.get('max_seen')
+        max_seen = _utc(datetime.fromisoformat(seen)) if seen is not None else None
+        return day, max_seen
+    return _day(value), None
+
+
+def _encode_anchor_record(day: date, max_seen: datetime | None) -> str:
+    if max_seen is None:
+        return day.isoformat()
+    return json.dumps({'day': day.isoformat(), 'max_seen': max_seen.isoformat()},
+                      separators=(',', ':'))
+
+
 class ClockGuard:
     """One guard per product state file; injected clocks make checks repeatable.
 
@@ -43,7 +64,8 @@ class ClockGuard:
     system local zone by default), including vendor dates. I/O failures preserve
     memory. Use one writer. Both anchor callbacks are required for protection
     against removal/corruption/restoration of this file alone; the reader must
-    return a verified YYYY-MM-DD or None for a confirmed fresh installation.
+    return a verified YYYY-MM-DD (or JSON with optional rollback ``max_seen``)
+    or None for a confirmed fresh installation.
     """
 
     def __init__(self, state_path: str | os.PathLike,
@@ -64,6 +86,9 @@ class ClockGuard:
         self._save_anchor = save_anchor
         self._anchor_ready = load_anchor is None
         self._anchor_day: date | None = None
+        self._anchor_max_seen: datetime | None = None
+        self._anchor_out_of_sync = False
+        self._pending_server_day: date | None = None
         self.max_seen: datetime | None = None
         self.server_day_max: date | None = None
         self._written_max: datetime | None = None
@@ -80,22 +105,75 @@ class ClockGuard:
     def _restore_anchor(self) -> bool:
         try:
             value = self._load_anchor()
-            day = _day(value) if value is not None else None
-        except (OSError, ValueError, TypeError):
+            if value is None:
+                day, anchor_seen = None, None
+            else:
+                day, anchor_seen = _parse_anchor_value(value)
+        except (OSError, ValueError, TypeError, json.JSONDecodeError, OverflowError):
             return False
         self._anchor_ready = True
         self._anchor_day = day
-        if day is not None and (self.server_day_max is None or day > self.server_day_max):
+        self._anchor_max_seen = anchor_seen
+        if day is not None:
+            if self.server_day_max is not None and self.server_day_max > day:
+                self.server_day_max = day
+                self._pending = True
+            elif self.server_day_max is None or day > self.server_day_max:
+                self.server_day_max = day
+                self._pending = True
+        if anchor_seen is not None:
+            if self.max_seen is None or anchor_seen > self.max_seen:
+                self.max_seen = anchor_seen
+                self._pending = True
+        return True
+
+    def _sync_anchor(self) -> bool:
+        if (self._save_anchor is None or not self._anchor_ready
+                or self.server_day_max is None):
+            return True
+        if (self._anchor_day == self.server_day_max
+                and self._anchor_max_seen == self.max_seen):
+            return True
+        try:
+            self._save_anchor(_encode_anchor_record(self.server_day_max, self.max_seen))
+            self._anchor_day = self.server_day_max
+            self._anchor_max_seen = self.max_seen
+            self._anchor_out_of_sync = False
+            return True
+        except (OSError, ValueError, TypeError):
+            self._anchor_out_of_sync = True
+            return False
+
+    def _commit_server_day(self, day: date) -> bool:
+        if self.server_day_max == day:
+            return True
+        if self._save_anchor is None:
             self.server_day_max = day
             self._pending = True
-        # Historical anchors restore expiry, but cannot prove today's date and
-        # must never lower a local maximum. Only a fresh server response can.
-        return True
+            return True
+        if not self._anchor_ready:
+            return False
+        previous = self.server_day_max
+        self.server_day_max = day
+        if self._sync_anchor():
+            self._pending_server_day = None
+            self._pending = True
+            return True
+        self.server_day_max = previous
+        self._pending_server_day = day
+        self._retry_after = self._monotonic() + 5
+        return False
 
     @property
     def deletion_protected(self) -> bool:
         """Independent anchor is available and contains the latest vendor day."""
-        return (self._load_anchor is not None and self._anchor_ready
+        if self._load_anchor is None or not self._anchor_ready:
+            return False
+        if self._anchor_out_of_sync:
+            return False
+        if self.server_day_max is None and self._anchor_day is None:
+            return True
+        return (self.server_day_max is not None
                 and self._anchor_day == self.server_day_max)
 
     def _persist(self) -> None:
@@ -109,14 +187,10 @@ class ClockGuard:
         success = True
         if not self._anchor_ready:
             success = self._restore_anchor()
-        if (self._save_anchor is not None and self._anchor_ready
-                and self.server_day_max is not None
-                and self.server_day_max != self._anchor_day):
-            try:
-                self._save_anchor(self.server_day_max.isoformat())
-                self._anchor_day = self.server_day_max
-            except (OSError, ValueError, TypeError):
-                success = False
+        if self._pending_server_day is not None:
+            self._commit_server_day(self._pending_server_day)
+        if self._save_anchor is not None and self._anchor_ready:
+            success = self._sync_anchor() and success
         if self._pending:
             success = self._save() and success
         self._retry_after = None if success else tick + 5
@@ -183,6 +257,23 @@ class ClockGuard:
         return (self.max_seen is not None
                 and self.max_seen - _utc(self._now()) > timedelta(hours=tolerance_hours))
 
+    def _repair_max_seen(self, day: date, tolerance_hours: float) -> None:
+        if self.max_seen is None:
+            return
+        now_utc = _utc(self._now())
+        try:
+            start = datetime.combine(day, time.min, self._calendar_tz).astimezone(timezone.utc)
+            end = datetime.combine(day, time.max, self._calendar_tz).astimezone(timezone.utc)
+        except (OverflowError, ValueError):
+            return
+        if (day == self._today()
+                and self.max_seen - now_utc > timedelta(hours=tolerance_hours)):
+            self.max_seen = start
+            self._pending = True
+        elif self.max_seen - end > timedelta(hours=tolerance_hours):
+            self.max_seen = start
+            self._pending = True
+
     def note_server_day(self, day_str: str, tolerance_hours: float = 2) -> None:
         """Accept a *fresh authenticated* vendor day in the licence calendar.
 
@@ -200,19 +291,10 @@ class ClockGuard:
             self._persist()
             return
         if self.server_day_max is None or day > self.server_day_max:
-            self.server_day_max = day
-            self._pending = True
-        if self.max_seen is not None:
-            try:
-                end = datetime.combine(day, time.max, self._calendar_tz).astimezone(timezone.utc)
-                start = datetime.combine(day, time.min, self._calendar_tz).astimezone(timezone.utc)
-                if self.max_seen - end > timedelta(hours=tolerance_hours):
-                    # A whole day proves only its lower bound, not an exact time.
-                    self.max_seen = start
-                    self._pending = True
-            except (OverflowError, ValueError):
-                # Extreme representable dates may overflow zone conversion.
-                pass
+            if not self._commit_server_day(day):
+                self._persist()
+                return
+        self._repair_max_seen(day, tolerance_hours)
         self._persist()
 
     def note_server_time(self, moment: datetime, tolerance_hours: float = 2) -> None:

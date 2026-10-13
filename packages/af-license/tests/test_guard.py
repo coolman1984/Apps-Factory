@@ -255,14 +255,40 @@ class GuardTests(unittest.TestCase):
         # A repaired local clock never erases a vendor-observed expiry.
         self.assert_access(self.paid(), 'expired', False)
 
-    def test_server_repair_requires_evidence_beyond_end_of_day_plus_tolerance(self):
-        self.guard.note_seen(at=datetime(2026, 10, 14, 1, 59, tzinfo=timezone.utc))
-        original = self.guard.max_seen
+    def test_fresh_server_day_matching_local_today_repairs_clock_back(self):
+        self.guard.note_seen(at=datetime(2026, 10, 14, 1, 0, tzinfo=timezone.utc))
+        self.assert_access(self.paid(last='2026-10-31'), 'clock_back', False)
         self.guard.note_server_day('2026-10-13')
-        self.assertEqual(self.guard.max_seen, original)
-        self.guard.note_seen(at=datetime(2026, 10, 14, 2, tzinfo=timezone.utc))
+        self.guard = self.new_guard()
+        self.assert_access(self.paid(last='2026-10-31'), 'active', True)
+
+    def test_one_day_forward_mistake_repaired_by_server_day_and_time(self):
+        private, public, _ = generate_keypair()
+        device = codes.device_code('one-day-mistake-pc')
+        signed = codes.issue_code(private, 'guard-test', 'standard', self.local,
+                                  days=19, device=device)
+        code = codes.read_code(signed['code'], [public], 'guard-test', device, today=self.local)
+        self.wall = datetime(2026, 10, 13, 0, 10, tzinfo=timezone.utc)
+        self.local = self.wall.date()
+        self.assert_access(code, 'active', True)
+        self.wall = datetime(2026, 10, 14, 1, 0, tzinfo=timezone.utc)
+        self.assert_access(code, 'active', True)
+        self.wall = datetime(2026, 10, 13, 0, 10, tzinfo=timezone.utc)
+        self.local = self.wall.date()
+        self.guard = self.new_guard()
+        self.assert_access(code, 'clock_back', False)
         self.guard.note_server_day('2026-10-13')
-        self.assertEqual(self.guard.max_seen, datetime(2026, 10, 13, tzinfo=timezone.utc))
+        self.guard = self.new_guard()
+        self.assert_access(code, 'active', True)
+        self.wall = datetime(2026, 10, 14, 1, 0, tzinfo=timezone.utc)
+        self.guard.note_seen()
+        self.wall = datetime(2026, 10, 13, 0, 10, tzinfo=timezone.utc)
+        self.local = self.wall.date()
+        self.guard = self.new_guard()
+        self.assert_access(code, 'clock_back', False)
+        self.guard.note_server_time(datetime(2026, 10, 13, 0, 10, tzinfo=timezone.utc))
+        self.guard = self.new_guard()
+        self.assert_access(code, 'active', True)
 
     def test_failed_server_only_save_retries_with_frozen_wall_time(self):
         self.guard.note_seen()
@@ -339,19 +365,30 @@ class GuardTests(unittest.TestCase):
         def load():
             if not self.anchor_path.exists():
                 return None  # fixture's confirmed fresh installation
-            signed = json.loads(self.anchor_path.read_text())
+            record = json.loads(self.anchor_path.read_text())
+            signed = record['signed'] if isinstance(record, dict) and 'signed' in record else record
             result = codes.read_code(signed['code'], [self.anchor_public], 'anchor-test',
                                      self.anchor_device, today=self.local)
             if not result.valid:
                 raise ValueError('unverified_anchor')
-            return result.terms['issued']
+            day = result.terms['issued']
+            max_seen = record.get('max_seen') if isinstance(record, dict) else None
+            if max_seen:
+                return json.dumps({'day': day, 'max_seen': max_seen})
+            return day
 
-        def save(day):
+        def save(payload):
             # Simulates receiving and retaining a genuinely signed server proof.
+            if payload.startswith('{'):
+                data = json.loads(payload)
+                day = data['day']
+                max_seen = data.get('max_seen')
+            else:
+                day, max_seen = payload, None
             signed = codes.issue_code(self.anchor_private, 'anchor-test', 'standard',
                                       date(2026, 10, 1), days=1, device=self.anchor_device,
                                       issued=date.fromisoformat(day))
-            self.anchor_path.write_text(json.dumps(signed))
+            self.anchor_path.write_text(json.dumps({'signed': signed, 'max_seen': max_seen}))
 
         return ClockGuard(self.path, now=lambda: self.wall, today=lambda: self.local,
                           calendar_tz=timezone.utc, monotonic_now=lambda: self.mono,
@@ -401,7 +438,9 @@ class GuardTests(unittest.TestCase):
         self.guard = self.anchor_guard()
         self.guard.note_server_day('2026-10-13')
         record = json.loads(self.anchor_path.read_text())
-        record['code'] = record['code'][:-1] + ('0' if record['code'][-1] != '0' else '1')
+        signed = record['signed'] if 'signed' in record else record
+        signed['code'] = signed['code'][:-1] + ('0' if signed['code'][-1] != '0' else '1')
+        record['signed'] = signed
         self.anchor_path.write_text(json.dumps(record))
         self.guard = self.anchor_guard()
         self.assert_access(self.paid(), 'anchor_unavailable', False)
@@ -419,6 +458,71 @@ class GuardTests(unittest.TestCase):
         self.guard.note_seen()
         self.assert_access(self.paid(), 'active', True)
         self.assertTrue(self.guard.deletion_protected)
+
+    def test_anchor_restores_rollback_after_clock_file_removed_post_expiry(self):
+        private, public, _ = generate_keypair()
+        device = codes.device_code('rollback-anchor-pc')
+        signed = codes.issue_code(private, 'guard-test', 'standard', date(2026, 10, 1),
+                                  days=31, device=device)
+        code = codes.read_code(signed['code'], [public], 'guard-test', device,
+                               today=date(2026, 10, 13))
+        self.guard = self.anchor_guard()
+        self.guard.note_server_day('2026-10-13')
+        self.wall = datetime(2026, 11, 5, 12, tzinfo=timezone.utc)
+        self.local = self.wall.date()
+        self.guard.note_seen()
+        self.assert_access(code, 'expired', False)
+        self.path.unlink()
+        self.wall = datetime(2026, 10, 31, 12, tzinfo=timezone.utc)
+        self.local = self.wall.date()
+        self.guard = self.anchor_guard()
+        self.assertTrue(self.guard.deletion_protected)
+        result = self.guard.evaluate(code)
+        self.assertNotEqual((result['state'], result['full']), ('active', True))
+
+    def test_unconfirmed_clock_file_day_cannot_exceed_verified_anchor(self):
+        self.guard = self.anchor_guard()
+        self.guard.note_server_day('2026-10-13')
+        state = json.loads(self.path.read_text())
+        state['server_day_max'] = '9999-12-31'
+        self.path.write_text(json.dumps(state))
+        self.guard = self.anchor_guard()
+        self.assert_access(self.paid(last='2026-10-31'), 'active', True)
+        self.assertEqual(self.guard.server_day_max, date(2026, 10, 13))
+        self.guard.note_server_time(datetime(2026, 10, 14, 12, tzinfo=timezone.utc))
+        self.guard = self.anchor_guard()
+        self.assertEqual(self.guard.server_day_max, date(2026, 10, 14))
+        self.assert_access(self.paid(last='2026-10-31'), 'active', True)
+
+    def test_strict_anchor_rejects_unconfirmed_future_day_in_clock_file(self):
+        self.guard = self.anchor_guard()
+        self.guard.note_server_day('2026-10-13')
+        state = json.loads(self.path.read_text())
+        state['server_day_max'] = '9999-12-31'
+        self.path.write_text(json.dumps(state))
+        save = self.guard._save_anchor
+
+        def strict(payload):
+            if payload.startswith('{'):
+                day = json.loads(payload)['day']
+            else:
+                day = payload
+            if day == '9999-12-31':
+                raise ValueError('unconfirmed_day')
+            save(payload)
+
+        self.guard = ClockGuard(self.path, now=lambda: self.wall, today=lambda: self.local,
+                                calendar_tz=timezone.utc, monotonic_now=lambda: self.mono,
+                                load_anchor=self.guard._load_anchor, save_anchor=strict)
+        self.assert_access(self.paid(last='2026-10-31'), 'active', True)
+        self.assertEqual(self.guard.server_day_max, date(2026, 10, 13))
+        self.mono += 5
+        self.guard.note_server_time(datetime(2026, 10, 14, 12, tzinfo=timezone.utc))
+        self.guard = ClockGuard(self.path, now=lambda: self.wall, today=lambda: self.local,
+                                calendar_tz=timezone.utc, monotonic_now=lambda: self.mono,
+                                load_anchor=self.guard._load_anchor, save_anchor=strict)
+        self.assertEqual(self.guard.server_day_max, date(2026, 10, 14))
+        self.assert_access(self.paid(last='2026-10-31'), 'active', True)
 
     def test_historical_anchor_does_not_repair_a_future_local_maximum(self):
         self.guard = self.anchor_guard()
