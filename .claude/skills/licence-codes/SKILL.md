@@ -8,3 +8,4 @@ description: Add trial/paid licence codes to a product, or check/request codes t
 - Studio: `cd apps/licence-studio && python -m licence_studio serve` (owner) or `… mcp` (agent; env `LS_URL`, `LS_AGENT_TOKEN`).
 - Agents: use `verify_code`, `list_codes`, `request_code`. `issue_trial_code` works only if the owner enabled it (≤ 14 days, daily cap). Paid codes: owner only.
 - Tests to keep green: `packages/af-license` (incl. vendored copy not stale) and `apps/licence-studio/tests` (full chain with a product).
+- Trial sign-in such as admin/123 is source-only: `af_license.runtime.dev_features_allowed(config_flag)`. A shipped build refuses it even when config says true. The first `config.json` on that build writes the flag false (`first_run_source_flag`).

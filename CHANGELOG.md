@@ -2,6 +2,9 @@
 
 Factory versions (the `README.md` version line). The control catalogue has its own `catalog_version` in `factory/controls.json`.
 
+## 0.19.1 (2026-10-13)
+**af-license 0.3.2:** `dev_features_allowed` is true only when a config flag such as `dev_login` is true and `distributed_runtime` is false, so a sold build ignores admin/123 even if config says true. `first_run_source_flag` writes that flag false when the first `config.json` is created on a shipped build. The helper calls the existing `distributed_runtime` API and does not add Nuitka markers (that detection is a separate change). Not field-verified. Ported from [Teachers #38](https://github.com/coolman1984/Teachers/pull/38). Open PR #71 also proposes factory 0.19.1 / af-license 0.3.2 for Nuitka `__uncompiled__`; rebase this number if that lands first.
+
 ## 0.19.0 (2026-10-13)
 End-to-end key recovery for **af-atrest 0.2.0**: vendor-only restore (Key Vault recovered-key package), **mandatory** escrow at activation, offline outbox with bilingual `sync_warning`, daily off-site backup **on by default**, plaintext migration orchestration, bilingual errors. Template Cloudflare worker `templates/key-escrow-worker/` and vendor desktop tool `tools/key-vault/` (`make-recovery-package`). **No** client password recovery file. **Not field-verified**; sqlcipher3 still required for live encryption and migration on real data.
 

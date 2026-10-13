@@ -47,6 +47,7 @@ Keep verified plaintext backups until migration and restore drills pass on a sec
 ## Commercial runtime (`packages/af-license` `runtime.py`)
 
 - **Distributed builds** without `_release_policy` fail closed: no trusted keys, edits blocked.
+- **Source-only features** (`dev_login`, trial admin/123): `dev_features_allowed(flag)` is true only on a source run. The first `config.json` a shipped build writes must store the flag false (`first_run_source_flag`). A later edit that sets the flag true is still ignored.
 - **Upgrade grace** (`UPGRADE_GRACE_DAYS`, default 30): one-time for offices with provably old data upgrading to commercial; not for fresh installs or `ci-test` builds; clock rollback locks edits without consuming grace permanently.
 
 Products wire grace to their primary database (including via vendored `af-atrest` when encryption is on).

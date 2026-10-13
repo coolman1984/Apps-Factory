@@ -234,5 +234,51 @@ class UpgradeGraceTest(unittest.TestCase):
             self.assertTrue(_evaluator(d).edits_allowed())
 
 
+class DevFeaturesAllowedTest(unittest.TestCase):
+    """Trial features such as admin/123: config true is not enough on a shipped build."""
+
+    def test_flag_true_and_source_run_is_allowed(self):
+        self.assertTrue(R.dev_features_allowed(
+            True, frozen=False, compiled=False, executable=sys.executable,
+        ))
+
+    def test_flag_true_and_compiled_is_refused(self):
+        self.assertFalse(R.dev_features_allowed(
+            True, compiled=True, frozen=False, executable=sys.executable,
+        ))
+
+    def test_flag_true_and_frozen_is_refused(self):
+        self.assertFalse(R.dev_features_allowed(
+            True, frozen=True, compiled=False, executable=sys.executable,
+        ))
+
+    def test_flag_false_is_refused_on_a_source_run(self):
+        self.assertFalse(R.dev_features_allowed(
+            False, frozen=False, compiled=False, executable=sys.executable,
+        ))
+
+    def test_flag_false_is_refused_when_distributed(self):
+        self.assertFalse(R.dev_features_allowed(False, frozen=True, compiled=True))
+
+    def test_non_python_executable_refuses_a_true_flag(self):
+        self.assertFalse(R.dev_features_allowed(
+            True, frozen=False, compiled=False, executable='/opt/MyApp/MyApp.exe',
+        ))
+
+    def test_first_run_config_writes_false_on_a_shipped_build(self):
+        self.assertFalse(R.first_run_source_flag(
+            True, compiled=True, frozen=False, executable=sys.executable,
+        ))
+        self.assertFalse(R.first_run_source_flag(
+            True, frozen=True, compiled=False, executable=sys.executable,
+        ))
+        self.assertTrue(R.first_run_source_flag(
+            True, frozen=False, compiled=False, executable=sys.executable,
+        ))
+        self.assertFalse(R.first_run_source_flag(
+            False, frozen=False, compiled=False, executable=sys.executable,
+        ))
+
+
 if __name__ == '__main__':
     unittest.main()

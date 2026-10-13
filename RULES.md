@@ -82,7 +82,7 @@ These are enforced in code and tests, not by habit.
 - **Never collected:** passwords, keystrokes or typed text, screenshots, names, phones, national ids, e-mails, addresses, amounts, or full customer, student or money records.
 - **Only ids and counts:** short machine ids (page, action, guide, error code, fingerprint), counts, durations and true/false values, from the one taxonomy in `packages/af-telemetry/events.json`. Any other field raises `PrivacyError`. A product that needs a new event type adds it to the factory taxonomy, never to its own copy.
 - Credentials and personal data never go into source, logs, screenshots, public issues or fixtures.
-- Vendor support is not an admin backdoor: it is customer-approved, scoped, time-bound, audited, revocable and off by default. Never publish `admin/123` or any static production credential.
+- Vendor support is not an admin backdoor: it is customer-approved, scoped, time-bound, audited, revocable and off by default. Never publish `admin/123` or any static production credential. In a shipped build, `dev_login: true` in config is not enough: `af_license.runtime.dev_features_allowed` stays false whenever `distributed_runtime` is true.
 
 ## 3. The agent workflow (non-negotiable)
 1. State the customer, the core pain and acceptance criteria that can be checked. Label unknowns **UNKNOWN**.

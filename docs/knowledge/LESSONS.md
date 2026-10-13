@@ -90,3 +90,11 @@ Each lesson comes from a real history file. A rule that caught a real bug outran
 | "Permanent" licences did not fit a dated code | A new edition id whose last day is the largest day; older readers refuse an unknown edition | Extend a signed format by adding values older readers refuse, never by changing what old values mean |
 | The Windows workflow proved install and uninstall but not that a real shop survives an update | `tools/journey_exe.py` runs set-up → licence → stock → cash sale → backup on the installed program, then again after installing over it | Prove the update with a real shop folder, not with an empty one |
 
+## Sale hardening (Hessa → factory, 2026-10-13)
+
+Source: [Teachers #38](https://github.com/coolman1984/Teachers/pull/38) (merge `e526070`).
+
+| What happened | Fix | Rule |
+|---|---|---|
+| The installed program copied its default config with `dev_login: true`, so anyone at the desk could create the administrator with admin/123 before the owner. Editing `config.json` could turn the trial path back on. | `af_license.runtime.dev_features_allowed` is true only when the flag is true and `distributed_runtime` is false. `first_run_source_flag` writes the flag false when a shipped build creates the first `config.json`. Tests pass `compiled=True` or `frozen=True`; they do not need a Nuitka build. | Sale hardening lives in the shipped-build detector, not in a manual config edit. Trial sign-in stays on for `python …` only. |
+
