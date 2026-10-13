@@ -2,6 +2,13 @@
 
 Factory versions (the `README.md` version line). The control catalogue has its own `catalog_version` in `factory/controls.json`.
 
+## 0.18.0 (2026-10-13)
+Port of reusable offline-security hardening from Trip Orders (Yousef), product-agnostic.
+- **af-atrest 0.1.0:** optional SQLCipher 4 + ChaCha20-Poly1305 backups; `AF_ENCRYPT` off by default; vendor `scripts/vendor_atrest.py`. Known gaps documented (no recovery key, migration, or second-PC restore; non-DB files plaintext).
+- **af-license 0.3.1:** optional `af_license.runtime` (distributed fail-closed without `_release_policy`, one-time commercial upgrade grace, clock rollback does not burn grace).
+- **templates/windows-installer:** `AppChannel` `commercial` vs `ci-test` with distinct `AppId` GUIDs; `AF_INSTALLER_CHANNEL` in `build_windows.py`.
+- **docs:** [OFFLINE_SECURITY_AND_RECOVERY.md](docs/OFFLINE_SECURITY_AND_RECOVERY.md); [BUSINESS_DATE_VS_UTC_CI.md](docs/knowledge/BUSINESS_DATE_VS_UTC_CI.md).
+
 ## 0.17.2 (2026-10-11)
 Owner's request: help reads "between formal and Egyptian", not like a government letter.
 - **af-guide 0.1.4:** the lexicon also bans stiff office Arabic (يُرجى، نظرًا، يتعذّر، بموجب، حيث إن، المذكور، آنفًا، لا سيما،

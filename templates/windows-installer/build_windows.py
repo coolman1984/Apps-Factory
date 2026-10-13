@@ -69,8 +69,13 @@ def main():
     assert not leaks, f'source files in the program folder: {leaks}'
     for must in ('web/index.html', 'licence_keys.txt'):
         assert os.path.exists(os.path.join(DIST, must)), f'{must} did not reach the program folder'
-    run([iscc(), f'/DAppVersion={VERSION}', os.path.join('installer', 'store.iss')])
-    out = os.path.join(ROOT, 'dist', f'Al-Store-Setup-{VERSION}.exe')
+    channel = os.environ.get('AF_INSTALLER_CHANNEL', 'commercial')
+    run([iscc(), f'/DAppChannel={channel}', f'/DAppVersion={VERSION}', os.path.join('installer', 'store.iss')])
+    suffix = '-CI-TEST-NOT-FOR-CUSTOMERS' if channel == 'ci-test' else ''
+    out = os.path.join(ROOT, 'dist', f'Al-Store-Setup-{VERSION}{suffix}.exe')
+    if channel == 'ci-test':
+        with open(os.path.join(ROOT, 'dist', 'CI-TEST-BUILD-NOT-FOR-CUSTOMERS.txt'), 'w', encoding='utf-8') as f:
+            f.write('TEST ONLY. Ephemeral signing keys. Never sell or publish this installer.\n')
     assert os.path.exists(out), 'the installer was not produced'
     print('Built', out)
 

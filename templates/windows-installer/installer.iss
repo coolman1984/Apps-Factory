@@ -2,7 +2,22 @@
 ; The same Al-Store-Setup.exe installs the program on a new PC and updates it on a PC that already has it:
 ; only the program in Program Files is replaced, the shop's data in %ProgramData%\Al-Store is never touched.
 
-#define MyAppName "Al-Store"
+#ifndef AppChannel
+  #define AppChannel "commercial"
+#endif
+#if AppChannel == "ci-test"
+  #define MyAppId "{{E4A92C15-8B3F-4D6E-A1C0-9F7E2B5D4C81}"
+  #define MyInstallFolder "Al-Store-CITest"
+  #define AppDisplayName "Al-Store - CI TEST - NOT FOR CUSTOMERS"
+  #define AppFileSuffix "-CI-TEST-NOT-FOR-CUSTOMERS"
+  #define MyAppName "Al-Store CI Test"
+#else
+  #define MyAppId "{{6F1D5B7A-3C42-4E0B-9A57-2B8C5D1E7F60}"
+  #define MyInstallFolder "Al-Store"
+  #define AppDisplayName "Al-Store"
+  #define AppFileSuffix ""
+  #define MyAppName "Al-Store"
+#endif
 #ifndef AppVersion
   #define AppVersion "0.0.0"
 #endif
@@ -11,13 +26,13 @@
 #endif
 
 [Setup]
-AppId={{6F1D5B7A-3C42-4E0B-9A57-2B8C5D1E7F60}
-AppName={#MyAppName}
+AppId={#MyAppId}
+AppName={#AppDisplayName}
 AppVersion={#AppVersion}
-AppVerName={#MyAppName} {#AppVersion}
+AppVerName={#AppDisplayName} {#AppVersion}
 AppPublisher={#AppPublisher}
 VersionInfoVersion={#AppVersion}
-DefaultDirName={autopf}\Al-Store
+DefaultDirName={autopf}\{#MyInstallFolder}
 DefaultGroupName={#MyAppName}
 DisableProgramGroupPage=yes
 UsePreviousAppDir=yes
@@ -26,7 +41,7 @@ PrivilegesRequired=admin
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 OutputDir=..\dist
-OutputBaseFilename=Al-Store-Setup-{#AppVersion}
+OutputBaseFilename=Al-Store-Setup-{#AppVersion}{#AppFileSuffix}
 SetupIconFile=..\build\store.ico
 UninstallDisplayIcon={app}\Al-Store.exe
 UninstallDisplayName={#MyAppName}
