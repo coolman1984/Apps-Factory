@@ -1,0 +1,2 @@
+# Factory-side tests only. sqlcipher3-binary is optional until AF_ENCRYPT=1 in the product.
+cryptography>=42.0.0

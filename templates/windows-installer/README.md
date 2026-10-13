@@ -6,7 +6,7 @@ Copy these files into a product, then change the marked names. Verified on a rea
 | File | Goes to | Change |
 |---|---|---|
 | `build_windows.py` | `tools/` | `EXE`, `SHIPPED`, the Nuitka `--include-data-*` lines for your static files |
-| `installer.iss` | `installer/store.iss` (rename) | `MyAppName`, `AppId` (a NEW GUID per product), folder names, practice shortcut |
+| `installer.iss` | `installer/store.iss` (rename) | `MyAppName`, **two** `AppId` GUIDs (`commercial` vs `ci-test` via `/DAppChannel=`), folder names, practice shortcut |
 | `windows.yml` | `.github/workflows/` | exe/folder names in the smoke steps |
 | `smoke_exe.py` | `tools/` | the asset list that must be served |
 | `make_icon.py` | `tools/` | draw your own icon |
@@ -17,3 +17,4 @@ Rules that cost a day to learn (see docs/knowledge/LESSONS.md):
 3. Data lives in `%ProgramData%\<Product>`, never in Program Files; the installer never touches it; uninstall keeps it.
 4. The smoke test prints the program's own output when it fails — without that the first red run is unreadable.
 5. Firewall rule for the private/domain network only.
+6. CI builds must use a **different** Inno `AppId` and install folder than commercial (`AF_INSTALLER_CHANNEL=ci-test` in `build_windows.py`, or `/DAppChannel=ci-test` on ISCC) so test installers never upgrade a real customer's copy in place.
