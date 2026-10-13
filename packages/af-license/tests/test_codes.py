@@ -169,3 +169,40 @@ class CodeTests(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class TrialOnlyKeyTest(unittest.TestCase):
+    """A trial-only key (e.g. a licence-hub Worker key) can only mint bound trials of at most 14 days incl. grace."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.pem, cls.pub, _ = generate_keypair()
+        cls.device = codes.device_code('machine-guid-123', 'install-abc')
+        cls.only = frozenset({cls.pub})
+
+    def read(self, code, today=TODAY):
+        return codes.read_code(code, [self.pub], 'al-store', self.device, today, trial_only_keys=self.only)
+
+    def issue(self, edition='trial', days=14, grace=0):
+        return codes.issue_code(self.pem, 'al-store', edition, TODAY, days, device=self.device, grace_days=grace, issued=TODAY)['code']
+
+    def test_fourteen_day_trial_accepted(self):
+        self.assertTrue(self.read(self.issue()).full_access)
+
+    def test_paid_edition_refused(self):
+        self.assertEqual(self.read(self.issue('standard', 30)).reason, 'trial_key_edition')
+
+    def test_longer_or_graced_trial_refused(self):
+        self.assertEqual(self.read(self.issue(days=20)).reason, 'trial_key_days')
+        self.assertEqual(self.read(self.issue(grace=60)).reason, 'trial_key_days')
+
+    def test_unbound_trial_refused(self):
+        from unittest.mock import patch
+        with patch.object(codes, '_device_tag', lambda code: b'\0' * 6):
+            code = self.issue()
+        self.assertEqual(self.read(code).reason, 'trial_key_unbound')
+
+    def test_same_key_without_trial_only_flag_still_reads_paid(self):
+        code = self.issue('standard', 30)
+        self.assertTrue(codes.read_code(code, [self.pub], 'al-store', self.device, TODAY).full_access)
+
