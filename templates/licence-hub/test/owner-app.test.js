@@ -33,8 +33,10 @@ test('offlineAfterBlockedError maps reissue and already_used to reissue retry', 
   assert.deepEqual(offlineAfterBlockedError('downgrade', true), { abort: false, reissue: false });
 });
 
-test('offlineFlagsAfterDowngradeConfirmed sets reissue for delivered replacement', () => {
-  assert.deepEqual(offlineFlagsAfterDowngradeConfirmed(), { confirmDowngrade: true, reissue: true });
+test('offlineFlagsAfterDowngradeConfirmed sets reissue only for trial with stored window', () => {
+  assert.deepEqual(offlineFlagsAfterDowngradeConfirmed({ grant: 'trial' }, false), { confirmDowngrade: true, reissue: false });
+  assert.deepEqual(offlineFlagsAfterDowngradeConfirmed({ grant: 'trial' }, true), { confirmDowngrade: true, reissue: true });
+  assert.deepEqual(offlineFlagsAfterDowngradeConfirmed({ grant: 'paid' }, false), { confirmDowngrade: true, reissue: true });
 });
 
 test('ownerIssueFlags sends reissue and confirm_downgrade explicitly', () => {

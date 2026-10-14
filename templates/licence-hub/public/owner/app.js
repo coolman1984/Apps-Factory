@@ -61,9 +61,11 @@ export function offlineAfterBlockedError(error, userConfirmed) {
   return { abort: false, reissue: true };
 }
 
-/** After downgrade confirm on offline issue, replace delivered/issued rows (not only weaker grant). */
-export function offlineFlagsAfterDowngradeConfirmed() {
-  return { confirmDowngrade: true, reissue: true };
+/** After downgrade confirm: trial re-sign only when a stored trial window still applies. */
+export function offlineFlagsAfterDowngradeConfirmed(grant, trialReissue = false) {
+  const confirmDowngrade = true;
+  const reissue = grant?.grant === 'trial' ? trialReissue === true : true;
+  return { confirmDowngrade, reissue };
 }
 
 export function downgradeConfirmMessageAr(current) {
@@ -436,7 +438,7 @@ export function wireOffline(form, out, tierHost) {
       if (!confirm(downgradeConfirmMessageAr(data.current))) {
         return;
       }
-      ({ confirmDowngrade, reissue } = offlineFlagsAfterDowngradeConfirmed());
+      ({ confirmDowngrade, reissue } = offlineFlagsAfterDowngradeConfirmed(grant, data.trial_reissue === true));
       data = await api('/offline', {
         method: 'POST',
         headers: headers(),
