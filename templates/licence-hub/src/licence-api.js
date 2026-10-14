@@ -44,9 +44,15 @@ export function hubTrialDaysInclusive(raw) {
   return Math.floor(days);
 }
 
-/** Blank phone-like digit runs before persisting or notifying (activation protocol). */
+/** Blank phone-like digit runs (>=7 digits; spaces/dashes/dots/parentheses allowed between digits). */
 export function blankLongDigitRuns(text, minRun = 7) {
-  return String(text || '').replace(new RegExp(`\\d{${minRun},}`, 'g'), '');
+  const s = String(text || '');
+  if (minRun < 2) return s;
+  const re = new RegExp(
+    `(?:\\([\\s.\\-()]*)?\\d(?:[\\s.\\-()]*\\d){${minRun - 1},}(?:[\\s.\\-()]*\\))?`,
+    'g',
+  );
+  return s.replace(re, (chunk) => (chunk.replace(/\D/g, '').length >= minRun ? '' : chunk));
 }
 
 /** Payment reference fingerprint for D1 (raw ref is not stored). */
@@ -94,16 +100,21 @@ function timeLimited(ip) {
 }
 
 export function products(env) {
-  return new Set(String(env.LICENCE_PRODUCTS || 'trip-orders,al-store').split(',').map((s) => s.trim()).filter(Boolean));
+  const raw = env.LICENCE_PRODUCTS;
+  if (raw === undefined || raw === null || !String(raw).trim()) return null;
+  const ids = String(raw).split(',').map((s) => s.trim()).filter(Boolean);
+  if (!ids.length) return null;
+  return new Set(ids);
 }
 
-/** Omitted `product` on licence/offline requests uses this id (Yousef: set `trip-orders`). */
+/** Omitted `product` on licence/offline requests uses this id (set `LICENCE_DEFAULT_PRODUCT` or list first in `LICENCE_PRODUCTS`). */
 export function defaultProduct(env) {
   const allowed = products(env);
+  if (!allowed) return null;
   const explicit = String(env.LICENCE_DEFAULT_PRODUCT || '').trim();
   if (explicit && allowed.has(explicit)) return explicit;
   for (const id of allowed) return id;
-  return 'trip-orders';
+  return null;
 }
 
 export function parseProductLabels(env) {
@@ -129,8 +140,10 @@ export function hubCalendarTz(env) {
 }
 
 export function ownerProductsPayload(env) {
+  const allowed = products(env);
+  if (!allowed) return null;
   return {
-    products: [...products(env)],
+    products: [...allowed],
     labels: parseProductLabels(env),
     default_product: defaultProduct(env),
     calendar_tz: hubCalendarTz(env),
@@ -150,7 +163,9 @@ export function signingKeyForProduct(env, baseName, productId) {
 /** First non-empty global or per-product secret in LICENCE_PRODUCTS order. */
 export function anySigningKeyPem(env, baseName) {
   if (env[baseName]) return env[baseName];
-  for (const productId of products(env)) {
+  const allowed = products(env);
+  if (!allowed) return null;
+  for (const productId of allowed) {
     const specific = env[`${baseName}_${productEnvSuffix(productId)}`];
     if (specific) return specific;
   }
@@ -556,6 +571,8 @@ export async function handleLicence(request, env, url) {
 
   if (await limited(env, 'lic:ip:' + ip, 120)) return json({ error: 'rate' }, 429);
   if (!env.SESSION_SECRET) return json({ error: 'config' }, 503);
+  const allowedProducts = products(env);
+  if (!allowedProducts) return json({ error: 'config' }, 503);
 
   await migrateLegacyTrialLocks(env);
   await expireStalePending(env);
@@ -572,11 +589,12 @@ export async function handleLicence(request, env, url) {
     const product = typeof body.product === 'string' && body.product.trim()
       ? body.product.trim()
       : defaultProduct(env);
+    if (!product) return json({ error: 'config' }, 503);
     body.product = product;
     if (body.device.length > MAX_DEVICE || body.machine.length > MAX_MACHINE || body.nonce.length > MAX_NONCE) {
       return json({ field: 'device' }, 400);
     }
-    if (!products(env).has(body.product)) return json({ field: 'product' }, 400);
+    if (!allowedProducts.has(body.product)) return json({ field: 'product' }, 400);
     if (!['trial', 'monthly', 'permanent'].includes(body.kind)) return json({ field: 'kind' }, 400);
     let dkey;
     try { dkey = deviceKey(body.device); } catch { return json({ field: 'device' }, 400); }
@@ -676,9 +694,10 @@ export async function handleLicence(request, env, url) {
     const token = auth.startsWith('Bearer ') ? auth.slice(7) : '';
     if (!id || !token) return json({}, 401);
     const pollHash = await sha256Hex(token);
-    await env.DB.prepare(
-      'UPDATE licence_requests SET status = ?, code = NULL, updated_at = ? WHERE id = ? AND poll_token_hash = ?',
-    ).bind('delivered', now(), id, pollHash).run();
+    const updated = await env.DB.prepare(
+      'UPDATE licence_requests SET status = ?, code = NULL, updated_at = ? WHERE id = ? AND poll_token_hash = ? AND status = ? AND code IS NOT NULL',
+    ).bind('delivered', now(), id, pollHash, 'issued').run();
+    if (!updated.meta.changes) return json({ error: 'conflict' }, 409);
     return json({ ok: true });
   }
 
@@ -977,7 +996,7 @@ async function issueOfflineCustomerInner(env, keys, device, shop, productId, opt
   const offlineKind = grant.grant === 'permanent' ? 'permanent' : grant.grant === 'paid' ? 'monthly' : 'trial';
   await env.DB.prepare(
     'INSERT INTO licence_requests(id, poll_token_hash, product, kind, device, device_key, machine, nonce, shop, ref, version, status, created_at, updated_at) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET product = excluded.product, kind = excluded.kind, shop = excluded.shop, updated_at = excluded.updated_at',
-  ).bind(requestId, 'offline', productId, offlineKind, device, dkey, '', 'offline-' + requestId, shop.slice(0, 60) || '—', '', '', 'pending', t, t).run();
+  ).bind(requestId, 'offline', productId, offlineKind, device, dkey, '', 'offline-' + requestId, blankLongDigitRuns(shop).slice(0, 60) || '—', '', '', 'pending', t, t).run();
 
   if (!ownsLock) {
     const ins = await env.DB.prepare('INSERT INTO machine_trials(machine, request_id, at) VALUES(?, ?, ?) ON CONFLICT(machine) DO NOTHING')
@@ -1100,7 +1119,17 @@ export function issueOfflineCustomer(env, keys, device, shop, productId, options
 /** Drop activation codes from delivered rows older than TRIAL_DAYS (scheduled). */
 export function ownerCapabilities(env) {
   const byProduct = {};
-  for (const productId of products(env)) {
+  const allowed = products(env);
+  if (!allowed) {
+    return {
+      products: {},
+      paid_available: false,
+      trial_available: false,
+      calendar_tz: hubCalendarTz(env),
+      config_error: true,
+    };
+  }
+  for (const productId of allowed) {
     byProduct[productId] = {
       paid_available: Boolean(signingKeyForProduct(env, 'PAID_SIGNING_KEY', productId)),
       trial_available: Boolean(signingKeyForProduct(env, 'LICENCE_SIGNING_KEY', productId)),

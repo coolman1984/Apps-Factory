@@ -10,6 +10,7 @@ PKG = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PKG))
 from af_license import generate_keypair  # noqa: E402
 from af_license.hub_time import (  # noqa: E402
+    HubTimeVerifyResult,
     hub_time_message_v1,
     hub_time_message_v2,
     verify_hub_time,
@@ -55,16 +56,30 @@ class HubTimeTests(unittest.TestCase):
     def test_unsigned_response_rejected(self):
         self.assertIsNone(verify_hub_time({'calendar_day': '2026-01-01', 'signed': False}, self.trusted))
 
-    def test_v1_compat(self):
+    def test_v1_disabled_by_default(self):
         data = self._pack_v1()
-        self.assertEqual(verify_hub_time(data, self.trusted), ('2026-10-14', None))
+        self.assertIsNone(verify_hub_time(data, self.trusted))
+
+    def test_v1_compat_when_allowed(self):
+        data = self._pack_v1()
+        self.assertEqual(
+            verify_hub_time(data, self.trusted, allow_v1=True),
+            HubTimeVerifyResult('2026-10-14', None, False),
+        )
 
     def test_v2_good_first_poll(self):
         data = self._pack_v2(server_time=1_700_000_100)
-        self.assertEqual(verify_hub_time(data, self.trusted), ('2026-10-14', 1_700_000_100))
+        self.assertEqual(
+            verify_hub_time(data, self.trusted),
+            HubTimeVerifyResult('2026-10-14', 1_700_000_100, False),
+        )
 
     def test_v2_replay_older_server_time_rejected(self):
         data = self._pack_v2(server_time=1_700_000_050)
+        self.assertIsNone(verify_hub_time(data, self.trusted, last_server_time=1_700_000_100))
+
+    def test_v2_replay_equal_server_time_rejected_without_nonce(self):
+        data = self._pack_v2(server_time=1_700_000_100)
         self.assertIsNone(verify_hub_time(data, self.trusted, last_server_time=1_700_000_100))
 
     def test_v2_nonce_mismatch_rejected(self):
@@ -75,8 +90,36 @@ class HubTimeTests(unittest.TestCase):
         data = self._pack_v2(server_time=1_700_000_010, nonce='n-once1')
         self.assertEqual(
             verify_hub_time(data, self.trusted, nonce='n-once1'),
-            ('2026-10-14', 1_700_000_010),
+            HubTimeVerifyResult('2026-10-14', 1_700_000_010, False),
         )
+
+    def test_v2_nonce_does_not_skip_high_water_mark(self):
+        data = self._pack_v2(server_time=1_700_000_050, nonce='n-once1')
+        self.assertIsNone(
+            verify_hub_time(data, self.trusted, nonce='n-once1', last_server_time=1_700_000_100),
+        )
+
+    def test_v2_nonce_equal_server_time_allowed(self):
+        data = self._pack_v2(server_time=1_700_000_100, nonce='n-once1')
+        self.assertEqual(
+            verify_hub_time(data, self.trusted, nonce='n-once1', last_server_time=1_700_000_100),
+            HubTimeVerifyResult('2026-10-14', 1_700_000_100, False),
+        )
+
+    def test_older_day_than_sealed_rejected(self):
+        data = self._pack_v2(day='2026-10-10', server_time=1_700_000_200)
+        self.assertIsNone(verify_hub_time(data, self.trusted, sealed_day='2026-10-14'))
+
+    def test_day_jump_capped(self):
+        data = self._pack_v2(day='2026-10-30', server_time=1_700_000_300)
+        self.assertEqual(
+            verify_hub_time(data, self.trusted, sealed_day='2026-10-14', max_jump_days=7),
+            HubTimeVerifyResult('2026-10-21', 1_700_000_300, True),
+        )
+
+    def test_v1_respects_sealed_day_when_allowed(self):
+        data = self._pack_v1(day='2026-10-10')
+        self.assertIsNone(verify_hub_time(data, self.trusted, sealed_day='2026-10-14', allow_v1=True))
 
     def test_tamper_rejected(self):
         data = self._pack_v2()

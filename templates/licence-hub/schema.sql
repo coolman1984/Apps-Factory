@@ -44,10 +44,10 @@ CREATE TABLE IF NOT EXISTS machine_trials (
   at         INTEGER NOT NULL
 );
 
--- product DEFAULT is for fresh installs only; match LICENCE_DEFAULT_PRODUCT / first LICENCE_PRODUCTS in wrangler.toml.
+-- customers.product DEFAULT '' on raw schema.sql apply; legacy migrations use __DEFAULT_PRODUCT__ (substituted by scripts/apply-migrations.mjs).
 CREATE TABLE IF NOT EXISTS customers (
   id         TEXT PRIMARY KEY,
-  product    TEXT NOT NULL DEFAULT 'trip-orders',
+  product    TEXT NOT NULL DEFAULT '',
   shop       TEXT NOT NULL,
   device     TEXT NOT NULL,
   kind       TEXT NOT NULL,

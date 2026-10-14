@@ -92,7 +92,9 @@ async function ownerApi(request, env, url, session) {
     return json({ items });
   }
   if (path === '/products' && request.method === 'GET') {
-    return json(ownerProductsPayload(env));
+    const payload = ownerProductsPayload(env);
+    if (!payload) return json({ error: 'config' }, 503);
+    return json(payload);
   }
 
   if (request.method !== 'POST') return json({ error: 'method' }, 405);
@@ -140,9 +142,12 @@ async function ownerApi(request, env, url, session) {
     const device = String(body.device || '').trim();
     const shop = String(body.shop || '').trim();
     if (!device) return json({ error: 'device' }, 400);
+    const allowed = products(env);
+    if (!allowed) return json({ error: 'config' }, 503);
     const fallback = defaultProduct(env);
+    if (!fallback) return json({ error: 'config' }, 503);
     const product = String(body.product || fallback).trim() || fallback;
-    if (!products(env).has(product)) return json({ error: 'product' }, 400);
+    if (!allowed.has(product)) return json({ error: 'product' }, 400);
     const keys = await loadSigningKeys(env, product);
     try {
       const signed = await issueOfflineCustomer(env, keys, device, shop, product, {

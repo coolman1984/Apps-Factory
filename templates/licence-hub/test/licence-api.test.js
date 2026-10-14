@@ -128,6 +128,12 @@ test('blankLongDigitRuns leaves short digit runs', () => {
   assert.equal(blankLongDigitRuns('call 1234567 now'), 'call  now');
 });
 
+test('blankLongDigitRuns strips spaced and dashed phone-like runs', () => {
+  assert.equal(blankLongDigitRuns('010 1234 5678'), '');
+  assert.equal(blankLongDigitRuns('010-1234-5678'), '');
+  assert.equal(blankLongDigitRuns('shop (010) 123-4567'), 'shop ');
+});
+
 test('losing concurrent approval never exposes issued code on status poll', async () => {
   const e = env();
   const keys = await signingKeys(19);
@@ -272,10 +278,38 @@ test('ack clears stored activation code', async () => {
     headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + poll },
     body: JSON.stringify({ id: data.id }),
   });
-  await handleLicence(ackReq, e, new URL(ackReq.url));
+  const ackRes = await handleLicence(ackReq, e, new URL(ackReq.url));
+  assert.equal(ackRes.status, 200);
   const row = await e.DB.prepare('SELECT code, status FROM licence_requests WHERE id = ?').bind(data.id).first();
   assert.equal(row.code, null);
   assert.equal(row.status, 'delivered');
+});
+
+test('ack on pending request returns 409 and leaves row unchanged', async () => {
+  const e = env();
+  const { data } = await postRequest(e, body({ nonce: 'ack-pending' }));
+  const ackReq = new Request('https://hub.test/licence/ack', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + data.poll_token },
+    body: JSON.stringify({ id: data.id }),
+  });
+  const ackRes = await handleLicence(ackReq, e, new URL(ackReq.url));
+  assert.equal(ackRes.status, 409);
+  const row = await e.DB.prepare('SELECT code, status FROM licence_requests WHERE id = ?').bind(data.id).first();
+  assert.equal(row.status, 'pending');
+  assert.equal(row.code, null);
+});
+
+test('licence routes return 503 when LICENCE_PRODUCTS is unset', async () => {
+  const e = env();
+  delete e.LICENCE_PRODUCTS;
+  const req = new Request('https://hub.test/licence/request', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body({ nonce: 'no-products' })),
+  });
+  const res = await handleLicence(req, e, new URL(req.url));
+  assert.equal(res.status, 503);
 });
 
 test('owner force reissue replaces device trial lock', async () => {
