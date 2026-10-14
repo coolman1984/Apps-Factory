@@ -2,7 +2,7 @@
 from importlib import import_module
 from .guard import ClockGuard
 
-__version__ = "0.4.1"
+__version__ = "0.4.2"
 __all__ = ["ALG", "FORMAT", "PURPOSES", "Result", "ClockGuard", "canonical", "clock_rolled_back", "codes", "fingerprint",
            "generate_keypair", "issue", "key_id", "verify", "__version__"]
 
