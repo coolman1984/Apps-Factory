@@ -235,7 +235,10 @@ class GuardTests(unittest.TestCase):
         floor = self.vendor_floor(date(2026, 10, 13))
         self.assertEqual(self.guard.max_seen, floor)
         self.wall = floor - timedelta(hours=1)
+        self.local = self.wall.date()
         self.guard = self.new_guard()
+        self.assert_access(code, 'clock_back', False)
+        self.guard.note_server_day('2026-10-13')
         self.assert_access(code, 'active', True)
         self.assertEqual(code.terms['last_day'], '2026-10-31')
 
@@ -263,6 +266,8 @@ class GuardTests(unittest.TestCase):
         self.guard.note_server_day('2026-11-01')
         self.guard = self.new_guard()
         self.wall = self.vendor_floor(date(2026, 11, 1)) - timedelta(hours=1)
+        self.local = self.wall.date()
+        self.guard.note_server_day('2026-11-01')
         # A repaired local clock never erases a vendor-observed expiry.
         self.assert_access(self.paid(), 'expired', False)
 
@@ -331,7 +336,7 @@ class GuardTests(unittest.TestCase):
         self.assertEqual(self.guard.max_seen, floor)
         self.assertTrue(self.guard.clock_back())
         self.guard = self.new_guard()
-        self.assertEqual(self.guard.max_seen, floor)
+        self.assertEqual(self.guard.max_seen, datetime(2026, 10, 16, 12, tzinfo=timezone.utc))
         self.assertTrue(self.guard.clock_back())
         self.assert_access(self.paid(), 'clock_back', False)
 
@@ -426,14 +431,21 @@ class GuardTests(unittest.TestCase):
     def test_fresh_server_instant_repairs_same_day_future_time(self):
         day = self.wall.date()
         floor = self.vendor_floor(day)
+        repair_instant = self.wall
         self.guard.note_seen(at=floor + timedelta(hours=3))
         self.assert_access(self.paid(), 'clock_back', False)
-        self.guard.note_server_time(self.wall)
+        self.guard.note_server_time(repair_instant)
         self.assertEqual(self.guard.max_seen, floor)
         self.wall = floor - timedelta(hours=1)
+        self.local = self.wall.date()
         self.guard = self.new_guard()
+        overshoot = floor + timedelta(hours=3)
+        self.assertEqual(self.guard.max_seen, overshoot)
+        self.guard.note_server_time(repair_instant)
         self.assertEqual(self.guard.max_seen, floor)
-        self.assert_access(self.paid(), 'active', True)
+        self.wall = floor - timedelta(hours=1)
+        self.local = self.wall.date()
+        self.assert_access(self.paid(last='2026-10-31'), 'active', True)
 
     def anchor_guard(self):
         """Synthetic vendor signs an independent device-bound time anchor.
@@ -451,12 +463,8 @@ class GuardTests(unittest.TestCase):
                 return None  # fixture's confirmed fresh installation
             record = json.loads(self.anchor_path.read_text())
             max_seen = record.get('max_seen') if isinstance(record, dict) else None
-            repair_gen = record.get('repair_gen', 0) if isinstance(record, dict) else 0
             if isinstance(record, dict) and 'signed' not in record and max_seen:
-                payload = {'max_seen': max_seen}
-                if repair_gen:
-                    payload['repair_gen'] = repair_gen
-                return json.dumps(payload)
+                return json.dumps({'max_seen': max_seen})
             signed = record['signed'] if isinstance(record, dict) and 'signed' in record else record
             result = codes.read_code(signed['code'], [self.anchor_public], 'anchor-test',
                                      self.anchor_device, today=self.local)
@@ -464,10 +472,7 @@ class GuardTests(unittest.TestCase):
                 raise ValueError('unverified_anchor')
             day = result.terms['issued']
             if max_seen:
-                payload = {'day': day, 'max_seen': max_seen}
-                if repair_gen:
-                    payload['repair_gen'] = repair_gen
-                return json.dumps(payload)
+                return json.dumps({'day': day, 'max_seen': max_seen})
             return day
 
         def save(payload):
@@ -476,22 +481,15 @@ class GuardTests(unittest.TestCase):
                 data = json.loads(payload)
                 day = data.get('day')
                 max_seen = data.get('max_seen')
-                repair_gen = data.get('repair_gen', 0)
             else:
-                day, max_seen, repair_gen = payload, None, 0
+                day, max_seen = payload, None
             if day is None:
-                out = {'max_seen': max_seen}
-                if repair_gen:
-                    out['repair_gen'] = repair_gen
-                self.anchor_path.write_text(json.dumps(out))
+                self.anchor_path.write_text(json.dumps({'max_seen': max_seen}))
                 return
             signed = codes.issue_code(self.anchor_private, 'anchor-test', 'standard',
                                       date(2026, 10, 1), days=1, device=self.anchor_device,
                                       issued=date.fromisoformat(day))
-            out = {'signed': signed, 'max_seen': max_seen}
-            if repair_gen:
-                out['repair_gen'] = repair_gen
-            self.anchor_path.write_text(json.dumps(out))
+            self.anchor_path.write_text(json.dumps({'signed': signed, 'max_seen': max_seen}))
 
         return ClockGuard(self.path, now=lambda: self.wall, today=lambda: self.local,
                           calendar_tz=timezone.utc, monotonic_now=lambda: self.mono,
@@ -612,48 +610,48 @@ class GuardTests(unittest.TestCase):
         self.local = self.wall.date()
         self.assertTrue(self.guard.clock_back())
 
-    def test_signed_repair_wins_over_stale_high_anchor_on_restart(self):
+    def test_restart_after_in_run_signed_repair_restores_disk_watermark(self):
         self.guard = self.anchor_guard()
         future = datetime(2026, 10, 18, 12, 0, tzinfo=timezone.utc)
         self.guard.note_seen(at=future)
-        self.assertTrue(self.guard.deletion_protected)
         floor = self.vendor_floor(date(2026, 10, 14))
         self.guard.note_server_time(datetime(2026, 10, 14, 20, 0, tzinfo=timezone.utc))
         self.assertEqual(self.guard.max_seen, floor)
-        self.assertGreater(self.guard._repair_gen, 0)
-        stale_high = future.isoformat()
-        record = json.loads(self.anchor_path.read_text())
-        record['max_seen'] = stale_high
-        if 'repair_gen' in record:
-            del record['repair_gen']
-        self.anchor_path.write_text(json.dumps(record))
-        self.guard = self.anchor_guard()
-        self.assertEqual(self.guard.max_seen, floor)
-        self.assertNotEqual(self.guard.max_seen, future)
         self.wall = floor - timedelta(hours=1)
         self.assertFalse(self.guard.clock_back())
+        clock_before = json.loads(self.path.read_text())
+        anchor_before = json.loads(self.anchor_path.read_text())
+        self.assertEqual(clock_before['max_seen'], future.isoformat())
+        self.guard = self.anchor_guard()
+        self.assertEqual(self.guard.max_seen, future)
+        self.assertTrue(self.guard.clock_back())
+        self.guard.note_server_time(datetime(2026, 10, 14, 20, 0, tzinfo=timezone.utc))
+        self.assertEqual(self.guard.max_seen, floor)
+        self.wall = floor - timedelta(hours=1)
+        self.assertFalse(self.guard.clock_back())
+        self.assertEqual(json.loads(self.path.read_text())['max_seen'], clock_before['max_seen'])
+        self.assertEqual(json.loads(self.anchor_path.read_text())['max_seen'],
+                         anchor_before['max_seen'])
 
-    def test_signed_repair_persists_clock_before_anchor_when_replace_fails(self):
+    def test_in_run_signed_repair_clears_clock_back_without_lowering_files(self):
         self.guard = self.anchor_guard()
         future = datetime(2026, 10, 18, 12, 0, tzinfo=timezone.utc)
         self.guard.note_seen(at=future)
+        clock_before = json.loads(self.path.read_text())
+        anchor_before = json.loads(self.anchor_path.read_text())
         floor = self.vendor_floor(date(2026, 10, 14))
-        real_replace = __import__('os').replace
-        calls = []
-
-        def track_replace(src, dst):
-            calls.append(dst)
-            if len(calls) == 1:
-                raise OSError('clock write failed')
-            return real_replace(src, dst)
-
-        with patch('af_license.guard.os.replace', side_effect=track_replace):
-            self.guard.note_server_time(datetime(2026, 10, 14, 20, 0, tzinfo=timezone.utc))
+        self.guard.note_server_time(datetime(2026, 10, 14, 20, 0, tzinfo=timezone.utc))
         self.assertEqual(self.guard.max_seen, floor)
-        self.mono += 5
+        self.wall = floor - timedelta(hours=1)
+        self.local = self.wall.date()
+        self.assertFalse(self.guard.clock_back())
+        self.assert_access(self.paid(last='2026-10-31'), 'active', True)
+        self.assertEqual(json.loads(self.path.read_text())['max_seen'], clock_before['max_seen'])
+        self.assertEqual(json.loads(self.anchor_path.read_text())['max_seen'],
+                         anchor_before['max_seen'])
         self.guard.note_seen()
-        self.guard = self.anchor_guard()
         self.assertEqual(self.guard.max_seen, floor)
+        self.assert_access(self.paid(last='2026-10-31'), 'active', True)
 
     def test_reviewer_clock_file_tamper_cannot_lower_below_anchor(self):
         self.guard = self.anchor_guard()
@@ -663,7 +661,7 @@ class GuardTests(unittest.TestCase):
         self.path.write_text(json.dumps({
             'max_seen': tampered.isoformat(),
             'server_day_max': None,
-            'repair_gen': 999999,
+            'extra': 'tamper',
         }))
         anchor_before = json.loads(self.anchor_path.read_text())
         self.wall = tampered
@@ -682,7 +680,7 @@ class GuardTests(unittest.TestCase):
         self.path.write_text(json.dumps({
             'max_seen': None,
             'server_day_max': None,
-            'repair_gen': 999999,
+            'extra': 'tamper',
         }))
         anchor_before = json.loads(self.anchor_path.read_text())
         self.wall = tampered
@@ -913,7 +911,8 @@ class GuardTests(unittest.TestCase):
         self.wall = floor - timedelta(hours=1)
         self.assertFalse(self.guard.clock_back())
         self.guard = self.new_guard()
-        self.assertEqual(self.guard.max_seen, floor)
+        self.assertEqual(self.guard.max_seen, far_future)
+        self.assertTrue(self.guard.clock_back())
 
     def test_bare_signed_day_repairs_same_year_future_to_floor(self):
         """REV70-4: day-only proof repairs beyond tolerance down to the vendor floor."""
@@ -929,8 +928,9 @@ class GuardTests(unittest.TestCase):
         self.assertFalse(self.guard.clock_back())
         self.assert_access(self.paid(last='2026-10-31'), 'active', True)
         self.guard = self.new_guard()
-        self.assertEqual(self.guard.max_seen, floor)
-        self.assertFalse(self.guard.clock_back())
+        persisted = datetime(2026, 10, 16, 12, 0, tzinfo=timezone.utc)
+        self.assertEqual(self.guard.max_seen, persisted)
+        self.assertTrue(self.guard.clock_back())
 
     def test_anchor_callbacks_must_be_supplied_together(self):
         for kwargs in ({'load_anchor': lambda: None}, {'save_anchor': lambda day: None}):
