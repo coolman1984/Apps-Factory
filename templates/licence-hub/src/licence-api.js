@@ -1,8 +1,9 @@
 import {
-  issueTrialCode, issuePaidUntilCode, issuePermanentCode, paidPresetLastDay, normalize, importSigningKey,
+  issueTrialCode, issueTrialWindowCode, issuePaidUntilCode, issuePermanentCode, paidPresetLastDay, normalize,
+  importSigningKey,
 } from './afcodes.js';
 import { hex } from './auth.js';
-import { calendarDateInTz, isValidCalendarIso } from './calendar.js';
+import { calendarDateInTz, isValidCalendarIso, shiftCalendarDays } from './calendar.js';
 import { signHubCalendar } from './hub-time.js';
 
 const enc = new TextEncoder();
@@ -514,6 +515,53 @@ export function downgradeError(term) {
   return e;
 }
 
+function trialInclusiveDays(env) {
+  return hubTrialDaysInclusive(env.TRIAL_DAYS || 14);
+}
+
+/** Original trial window for force re-issue (same first/last days, no extension). */
+export async function originalTrialWindow(env, productId, device) {
+  const product = String(productId || 'trip-orders').trim() || 'trip-orders';
+  const cust = await env.DB.prepare(
+    'SELECT first_day, last_day, licence_expiry, kind, licence_tier FROM customers WHERE device = ? AND product = ?',
+  ).bind(device, product).first();
+  if (cust) {
+    const tier = String(cust.licence_tier || cust.kind || '').trim().toLowerCase();
+    if (tier === 'trial' || tier === '') {
+      const first = String(cust.first_day || '').trim();
+      const last = String(cust.last_day || cust.licence_expiry || '').trim();
+      if (first && last) return { first, last };
+    }
+  }
+  const dkey = deviceKey(device);
+  const row = await env.DB.prepare(
+    `SELECT licence_expiry, licence_tier, kind FROM licence_requests
+     WHERE device_key = ? AND product = ?
+       AND status IN ('issued', 'delivered')
+       AND (licence_tier = 'trial' OR kind = 'trial' OR licence_tier = '' OR licence_tier IS NULL)
+     ORDER BY updated_at DESC LIMIT 1`,
+  ).bind(dkey, product).first();
+  if (!row) return null;
+  const last = String(row.licence_expiry || '').trim();
+  if (!last) return null;
+  const inclusive = trialInclusiveDays(env);
+  const first = shiftCalendarDays(last, -(inclusive - 1));
+  return { first, last };
+}
+
+export function trialWindowEnded(lastIso, env) {
+  const tz = env.LICENCE_CALENDAR_TZ || 'Africa/Cairo';
+  const today = calendarDateInTz(new Date(), tz).iso;
+  return today > String(lastIso || '').trim();
+}
+
+async function trialSignOptions(env, grant, force, productId, device) {
+  if (!force || grant.grant !== 'trial') return {};
+  const win = await originalTrialWindow(env, productId, device);
+  if (!win || trialWindowEnded(win.last, env)) throw new Error('trial_expired');
+  return { trialFirstDay: win.first, trialLastDay: win.last };
+}
+
 async function latestIssuedForDeviceProduct(env, productId, dkey) {
   return env.DB.prepare(
     "SELECT * FROM licence_requests WHERE product = ? AND device_key = ? AND status IN ('issued', 'delivered') ORDER BY updated_at DESC LIMIT 1",
@@ -837,11 +885,22 @@ async function claimAndIssue(env, requestId, dkey, machineHash, signed, t, force
   return { ok: true, signed };
 }
 
-async function signGrant(env, keys, grant, row) {
+async function signGrant(env, keys, grant, row, signOpts = {}) {
   const tz = env.LICENCE_CALENDAR_TZ || 'Africa/Cairo';
   const when = new Date();
   if (grant.grant === 'trial') {
     if (!keys.trialKey) throw new Error('no_signing_key');
+    if (signOpts.trialFirstDay && signOpts.trialLastDay) {
+      return issueTrialWindowCode(
+        keys.trialKey,
+        row.product,
+        row.device,
+        signOpts.trialFirstDay,
+        signOpts.trialLastDay,
+        when,
+        tz,
+      );
+    }
     const days = hubTrialDaysInclusive(env.TRIAL_DAYS || 14);
     return issueTrialCode(keys.trialKey, row.product, row.device, days, when, tz);
   }
@@ -905,7 +964,8 @@ export async function approveRequest(env, requestId, keys, options = {}) {
   const t = now();
   let signed;
   try {
-    signed = await signGrant(env, keys, grant, row);
+    const signOpts = await trialSignOptions(env, grant, force, productId, row.device);
+    signed = await signGrant(env, keys, grant, row, signOpts);
   } catch (e) {
     if (e?.message === 'bad_device_code') {
       await refuseRequest(env, requestId, 'bad_device');
@@ -1039,7 +1099,8 @@ async function issueOfflineCustomerInner(env, keys, device, shop, productId, opt
   const grantRow = { product: productId, device };
   let signed;
   try {
-    signed = await signGrant(env, keys, grant, grantRow);
+    const signOpts = await trialSignOptions(env, grant, force, productId, device);
+    signed = await signGrant(env, keys, grant, grantRow, signOpts);
   } catch (e) {
     if (e?.message === 'no_signing_key') throw e;
     throw e;

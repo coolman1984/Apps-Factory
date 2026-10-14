@@ -601,13 +601,40 @@ test('owner force reissue on delivered row mints code without granting a second 
   const e = env();
   const keys = await signingKeys(61);
   const { data } = await postRequest(e, body({ nonce: 'delivered-reissue' }));
-  await approveRequest(e, data.id, keys);
+  const firstSign = await approveRequest(e, data.id, keys);
   await e.DB.prepare("UPDATE licence_requests SET status = 'delivered', code = NULL WHERE id = ?").bind(data.id).run();
   assert.equal(await approveRequest(e, data.id, keys), null);
   const forced = await approveRequest(e, data.id, keys, { force: true });
   assert.ok(forced?.code);
+  assert.equal(forced.first_day, firstSign.first_day);
+  assert.equal(forced.last_day, firstSign.last_day);
   const retry = await postRequest(e, body({ nonce: 'delivered-reissue-2' }));
   assert.equal(retry.data.reason, 'already_used');
+});
+
+test('owner force trial reissue refuses when trial window ended', async () => {
+  const e = env();
+  const keys = await signingKeys(63);
+  const { data } = await postRequest(e, body({ nonce: 'force-expired-1' }));
+  await approveRequest(e, data.id, keys);
+  await e.DB.prepare(
+    "UPDATE customers SET first_day = '2020-01-01', last_day = '2020-01-14', licence_expiry = '2020-01-14'",
+  ).bind().run();
+  await e.DB.prepare(
+    "UPDATE licence_requests SET licence_expiry = '2020-01-14', status = 'delivered', code = NULL WHERE id = ?",
+  ).bind(data.id).run();
+  await assert.rejects(() => approveRequest(e, data.id, keys, { force: true }), /trial_expired/);
+});
+
+test('offline force trial reissue keeps original first and last days', async () => {
+  const e = env();
+  const keys = await signingKeys(64);
+  const device = 'ABCDE-FGHJK';
+  const first = await issueOfflineCustomer(e, keys, device, 'Shop', 'trip-orders', { grant: 'trial' });
+  const second = await issueOfflineCustomer(e, keys, device, 'Shop', 'trip-orders', { grant: 'trial', force: true });
+  assert.equal(second.first_day, first.first_day);
+  assert.equal(second.last_day, first.last_day);
+  assert.notEqual(second.code, first.code);
 });
 
 test('separate offline queues on one database return the same issued code', async () => {

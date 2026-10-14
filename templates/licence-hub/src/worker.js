@@ -130,6 +130,7 @@ async function ownerApi(request, env, url, session) {
         return json({ error: 'downgrade', current: e.current || undefined }, 409);
       }
       if (e?.message === 'reissue_confirm') return json({ error: 'reissue_confirm' }, 409);
+      if (e?.message === 'trial_expired') return json({ error: 'trial_expired' }, 409);
       if (e?.message === 'no_signing_key') return json({ error: 'config' }, 503);
       throw e;
     }
@@ -169,6 +170,7 @@ async function ownerApi(request, env, url, session) {
         return json({ error: 'downgrade', current: e.current || undefined }, 409);
       }
       if (e?.message === 'reissue_confirm') return json({ error: 'reissue_confirm' }, 409);
+      if (e?.message === 'trial_expired') return json({ error: 'trial_expired' }, 409);
       if (e?.message === 'no_signing_key') return json({ error: 'config' }, 503);
       throw e;
     }

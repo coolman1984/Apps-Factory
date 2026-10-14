@@ -1,6 +1,10 @@
 """Verify signed hub calendar responses from the licence Worker (/licence/time).
 
-v1: ``AF-LICENCE-HUB-TIME/1|<day>|<kid>`` in ``sig`` (legacy clients; opt-in via ``allow_v1``).
+v1 (``allow_v1`` only, deprecated): never advances ``sealed_day``. If ``sealed_day`` is set,
+returns ``sealed_day`` when the signed day is on or after ``sealed_day``, else ``None``. If there
+is no seal, returns the signed day with ``sealable=False``. v1 never returns ``server_time`` and
+must not be used to advance ``last_server_time``.
+
 v2: ``AF-LICENCE-HUB-TIME/2|<day>|<server_time>|<kid>`` or with ``|<nonce>`` in ``sig2``.
 
 Client persistence (required for safe expiry):
@@ -9,20 +13,20 @@ Client persistence (required for safe expiry):
   each successful verify to the returned ``server_time`` (when not ``None``).
 - ``sealed_day`` (``licence_hub_sealed_calendar_max``): maximum **business calendar day** ever
   applied to licensing. After each successful verify, set
-  ``sealed_day = max(sealed_day, accepted_calendar_day)``.
+  ``sealed_day = max(sealed_day, accepted_calendar_day)`` when ``sealable`` is true.
 
-v2 is required unless ``allow_v1=True``. Freshness rules (``last_server_time`` set):
+v2 is required unless ``allow_v1=True``.
 
-- Without a request ``nonce``: ``server_time`` must be **strictly greater** than
-  ``last_server_time`` (equal timestamps replay).
-- With a request ``nonce``: response ``nonce`` must match **and**
-  ``server_time`` must be **strictly greater** than ``last_server_time`` (same ``sig2`` cannot be re-applied).
+**Nonce mode (recommended):** the client sends a fresh random ``nonce`` on each request. If the
+response ``nonce`` matches, the signature is accepted regardless of ``last_server_time`` (replay
+of an old body fails because the nonce is new). Calendar day is
+``min(signed day, sealed_day + max_jump_days)`` and never below ``sealed_day`` when set. Returns
+``server_time`` for persistence.
 
-Day sealing (when ``sealed_day`` is set): responses with an earlier ``calendar_day`` are rejected.
-A day more than ``max_jump_days`` after ``sealed_day`` is capped to ``sealed_day + max_jump_days``
-(``day_jump_capped`` flag). v1 obeys the same sealing and can never lower the day; v1 never
-returns ``server_time`` (unsigned in the v1 signature) and must not be used to advance
-``last_server_time``.
+**No-nonce mode:** when ``last_server_time`` is set, ``server_time`` must be **strictly greater**
+than ``last_server_time`` (equal timestamps replay). There is **no** upper bound on the gap so
+honest clients offline for weeks can recover. Day is capped the same way as nonce mode. Persist the
+returned ``server_time``. A far-future ``server_time`` can only be produced with the hub private key.
 """
 from __future__ import annotations
 
@@ -41,6 +45,7 @@ class HubTimeVerifyResult(NamedTuple):
     server_time: int | None
     day_jump_capped: bool
     version: int
+    sealable: bool
 
 
 def _b64url_decode(s: str) -> bytes | None:
@@ -139,19 +144,11 @@ def verify_hub_time(
         if nonce is not None:
             if not _NONCE_RE.match(nonce) or resp_nonce != nonce:
                 return None
-            if last_server_time is not None:
-                lst = int(last_server_time)
-                if server_time <= lst:
-                    return None
-                if server_time > lst + max_jump_days * 86400:
-                    return None
             msg = hub_time_message_v2(day, server_time, kid, nonce)
         else:
             if last_server_time is not None:
                 lst = int(last_server_time)
                 if server_time <= lst:
-                    return None
-                if server_time > lst + max_jump_days * 86400:
                     return None
             msg = hub_time_message_v2(day, server_time, kid, resp_nonce if resp_nonce else None)
         sig_bytes = _b64url_decode(str(sig2))
@@ -163,7 +160,7 @@ def verify_hub_time(
         if sealed is None:
             return None
         out_day, capped = sealed
-        return HubTimeVerifyResult(out_day, server_time, capped, 2)
+        return HubTimeVerifyResult(out_day, server_time, capped, 2, True)
 
     if not allow_v1:
         return None
@@ -179,7 +176,7 @@ def verify_hub_time(
     if sealed_day:
         sealed = _parse_calendar_day(sealed_day)
         parsed = _parse_calendar_day(day)
-        if sealed is None or parsed is None or parsed != sealed:
+        if sealed is None or parsed is None or parsed < sealed:
             return None
-        return HubTimeVerifyResult(sealed.isoformat(), None, False, 1)
-    return HubTimeVerifyResult(day, None, False, 1)
+        return HubTimeVerifyResult(sealed.isoformat(), None, False, 1, False)
+    return HubTimeVerifyResult(day, None, False, 1, False)

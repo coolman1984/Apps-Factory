@@ -155,6 +155,20 @@ export async function issueTrialCode(privateKey, productId, device, days = 14, w
   return issueEditionCode(privateKey, productId, device, EDITION_TRIAL, firstIso, lastIso, when, timeZone);
 }
 
+/** Re-sign a trial for the same inclusive calendar window (owner force re-issue). */
+export async function issueTrialWindowCode(
+  privateKey,
+  productId,
+  device,
+  firstIso,
+  lastIso,
+  when = new Date(),
+  timeZone = DEFAULT_CALENDAR_TZ,
+) {
+  if (lastIso < firstIso) throw new Error('trial_window_invalid');
+  return issueEditionCode(privateKey, productId, device, EDITION_TRIAL, firstIso, lastIso, when, timeZone);
+}
+
 /** Paid subscription until inclusive `lastDayIso` (edition standard, bound to device). */
 export async function issuePaidUntilCode(privateKey, productId, device, lastDayIso, when = new Date(), timeZone = DEFAULT_CALENDAR_TZ) {
   const firstIso = calendarDateInTz(when, timeZone).iso;
