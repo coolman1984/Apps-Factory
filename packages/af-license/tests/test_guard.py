@@ -655,6 +655,98 @@ class GuardTests(unittest.TestCase):
         self.guard = self.anchor_guard()
         self.assertEqual(self.guard.max_seen, floor)
 
+    def test_reviewer_clock_file_tamper_cannot_lower_below_anchor(self):
+        self.guard = self.anchor_guard()
+        future = datetime(2026, 10, 18, 12, 0, tzinfo=timezone.utc)
+        self.guard.note_seen(at=future)
+        tampered = datetime(2026, 10, 11, 12, 0, tzinfo=timezone.utc)
+        self.path.write_text(json.dumps({
+            'max_seen': tampered.isoformat(),
+            'server_day_max': None,
+            'repair_gen': 999999,
+        }))
+        anchor_before = json.loads(self.anchor_path.read_text())
+        self.wall = tampered
+        self.local = self.wall.date()
+        self.guard = self.anchor_guard()
+        self.assertEqual(self.guard.max_seen, future)
+        self.assert_access(self.paid(), 'clock_back', False)
+        anchor_after = json.loads(self.anchor_path.read_text())
+        self.assertEqual(anchor_after['max_seen'], anchor_before['max_seen'])
+
+    def test_reviewer_null_clock_max_seen_restores_anchor_before_evaluate(self):
+        self.guard = self.anchor_guard()
+        future = datetime(2026, 10, 18, 12, 0, tzinfo=timezone.utc)
+        self.guard.note_seen(at=future)
+        tampered = datetime(2026, 10, 11, 12, 0, tzinfo=timezone.utc)
+        self.path.write_text(json.dumps({
+            'max_seen': None,
+            'server_day_max': None,
+            'repair_gen': 999999,
+        }))
+        anchor_before = json.loads(self.anchor_path.read_text())
+        self.wall = tampered
+        self.local = self.wall.date()
+        self.guard = self.anchor_guard()
+        self.assertEqual(self.guard.max_seen, future)
+        self.assert_access(self.paid(), 'clock_back', False)
+        anchor_after = json.loads(self.anchor_path.read_text())
+        self.assertEqual(anchor_after['max_seen'], anchor_before['max_seen'])
+
+    def test_fresh_signed_instant_seeds_max_seen_not_vendor_floor(self):
+        instant = datetime(2026, 10, 14, 12, 0, tzinfo=timezone.utc)
+        self.wall = instant
+        self.local = instant.date()
+        guard = self.new_guard()
+        guard.note_server_time(instant)
+        self.assertEqual(guard.max_seen, instant)
+        self.assertFalse(guard.clock_back())
+
+    def test_fresh_hub_time_seeds_max_seen_not_vendor_floor(self):
+        instant = datetime(2026, 10, 14, 12, 0, tzinfo=timezone.utc)
+        self.wall = instant
+        self.local = instant.date()
+        private, pub_b64, kid = generate_keypair()
+        trusted = {kid: pub_b64}
+        private_key = serialization.load_pem_private_key(private, password=None)
+
+        def b64url(raw):
+            return base64.urlsafe_b64encode(raw).decode().rstrip('=')
+
+        server_time = int(instant.timestamp())
+        day = '2026-10-14'
+        nonce = 'hub-seed01'
+        msg = hub_time_message_v2(day, server_time, kid, nonce)
+        data = {
+            'calendar_day': day,
+            'kid': kid,
+            'server_time': server_time,
+            'sig2': b64url(private_key.sign(msg)),
+            'signed': True,
+            'nonce': nonce,
+        }
+        result = verify_hub_time(
+            data, trusted, sealed_day=day, max_jump_days=7, nonce=nonce,
+        )
+        guard = self.new_guard()
+        guard.note_hub_time(result)
+        self.assertEqual(guard.max_seen, instant)
+        self.assertFalse(guard.clock_back())
+
+    def test_signed_time_clears_stuck_clock_back(self):
+        forward_seen = datetime(2026, 10, 14, 1, 0, tzinfo=timezone.utc)
+        repair_instant = datetime(2026, 10, 13, 0, 10, tzinfo=timezone.utc)
+        self.guard.note_seen(at=forward_seen)
+        self.wall = repair_instant
+        self.local = self.wall.date()
+        self.guard = self.new_guard()
+        self.assertTrue(self.guard.clock_back())
+        self.guard.note_server_time(repair_instant)
+        self.assertEqual(self.guard.max_seen, forward_seen)
+        self.wall = forward_seen - timedelta(hours=2)
+        self.assertFalse(self.guard.clock_back())
+        self.assert_access(self.paid(), 'active', True)
+
     def test_independent_verified_anchor_recovers_deleted_corrupt_and_old_state(self):
         self.guard = self.anchor_guard()
         self.assertFalse(self.guard.deletion_protected)

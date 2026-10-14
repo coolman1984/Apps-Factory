@@ -109,6 +109,7 @@ class ClockGuard:
         self._anchor_repair_gen = 0
         self._anchor_out_of_sync = False
         self._repair_gen = 0
+        self._clock_file_repair_gen = 0
         self._persist_clock_before_anchor = False
         self._pending_server_day: date | None = None
         self.max_seen: datetime | None = None
@@ -120,6 +121,8 @@ class ClockGuard:
         if load_anchor is not None:
             if not self._restore_anchor():
                 self._retry_after = self._monotonic() + 5
+        else:
+            self._repair_gen = self._clock_file_repair_gen
 
     def _calendar_day(self, moment: datetime) -> date:
         return moment.astimezone(self._calendar_tz).date()
@@ -144,21 +147,36 @@ class ClockGuard:
             elif self.server_day_max is None or day > self.server_day_max:
                 self.server_day_max = day
                 self._pending = True
-        if anchor_gen > self._repair_gen:
-            self._repair_gen = anchor_gen
-            if anchor_seen is not None:
-                self.max_seen = anchor_seen
+        clock_seen = self.max_seen
+        clock_gen = self._clock_file_repair_gen
+        self._repair_gen = anchor_gen
+        if anchor_seen is None:
+            return True
+        if clock_seen is None:
+            self.max_seen = anchor_seen
+            self._pending = True
+            return True
+        if clock_seen > anchor_seen:
+            if clock_seen != self.max_seen:
                 self._pending = True
-        elif self._repair_gen > anchor_gen:
-            pass
-        elif anchor_seen is not None:
-            if self.max_seen is None or anchor_seen > self.max_seen:
-                self.max_seen = anchor_seen
-                self._pending = True
-            elif (anchor_seen < self.max_seen and anchor_gen > 0
-                  and anchor_gen == self._repair_gen):
-                self.max_seen = anchor_seen
-                self._pending = True
+            self.max_seen = clock_seen
+            return True
+        if clock_seen == anchor_seen:
+            self.max_seen = clock_seen
+            return True
+        if (anchor_gen > 0 and anchor_gen == clock_gen
+                and anchor_seen == clock_seen):
+            self.max_seen = clock_seen
+            return True
+        if (clock_gen > anchor_gen
+                and clock_gen - anchor_gen == 1):
+            self.max_seen = clock_seen
+            self._repair_gen = clock_gen
+            self._pending = True
+            return True
+        self.max_seen = anchor_seen
+        self._repair_gen = anchor_gen
+        self._pending = True
         return True
 
     def _sync_anchor(self) -> bool:
@@ -172,7 +190,7 @@ class ClockGuard:
             return True
         if (self.max_seen is not None and self._anchor_max_seen is not None
                 and self.max_seen < self._anchor_max_seen
-                and self._repair_gen <= self._anchor_repair_gen):
+                and not self._persist_clock_before_anchor):
             return True
         try:
             self._save_anchor(_encode_anchor_record(self.server_day_max, self.max_seen,
@@ -264,7 +282,7 @@ class ClockGuard:
             return
         self.max_seen = self._written_max = max_seen
         self.server_day_max = server_day
-        self._repair_gen = repair_gen
+        self._clock_file_repair_gen = repair_gen
 
     def _save(self) -> bool:
         temporary = None
@@ -351,7 +369,7 @@ class ClockGuard:
         trusted = _utc(pinned)
         previous = self.max_seen
         if previous is None:
-            self.max_seen = max(floor, trusted)
+            self.max_seen = trusted
             self._pending = True
             return
         if previous <= floor:
@@ -479,12 +497,25 @@ class ClockGuard:
             days.append(self.server_day_max)
         return max(days)
 
+    def _merge_anchor_max_seen_before_note(self) -> None:
+        if self._load_anchor is None:
+            return
+        if not self._anchor_ready and not self._restore_anchor():
+            return
+        if self.max_seen is not None:
+            return
+        if self._anchor_max_seen is not None:
+            self.max_seen = self._anchor_max_seen
+            self._repair_gen = self._anchor_repair_gen
+            self._pending = True
+
     def evaluate(self, code_result: CodeResult | None, tolerance_hours: float = 2) -> dict:
         """Re-check verified terms; a paid product may choose e.g. 72 hours.
 
         Pass only ``codes.read_code`` results: this guard does not verify signatures.
         ``effective_day`` in the returned dictionary is an ISO date string.
         """
+        self._merge_anchor_max_seen_before_note()
         self.note_seen()
         day = self.effective_day()
 
