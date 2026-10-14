@@ -806,11 +806,27 @@ class GuardTests(unittest.TestCase):
         self.assert_access(self.paid(), 'anchor_unavailable', False)
         self.assertFalse(self.guard.deletion_protected)
         self.assertEqual(self.guard._save_anchor.call_count, 1)
+        for _ in range(5):
+            self.guard.note_seen()
+            self.assert_access(self.paid(), 'anchor_unavailable', False)
+        self.assertEqual(self.guard._save_anchor.call_count, 1)
         self.guard._save_anchor = save
         self.mono += 5
         self.guard.note_seen()
         self.assert_access(self.paid(), 'active', True)
         self.assertTrue(self.guard.deletion_protected)
+
+    def test_evaluate_active_when_clock_save_fails_but_anchor_matches_disk(self):
+        anchor_seen = datetime(2026, 10, 13, 12, 0, tzinfo=timezone.utc)
+        self.guard = self.anchor_guard()
+        self.guard.note_seen(at=anchor_seen)
+        self.wall += timedelta(minutes=6)
+        with patch('af_license.guard.os.replace', side_effect=OSError('disk busy')):
+            self.assert_access(self.paid(), 'active', True)
+        self.mono += 5
+        self.guard.note_seen()
+        self.assertEqual(json.loads(self.path.read_text())['max_seen'],
+                         datetime(2026, 10, 13, 12, 6, tzinfo=timezone.utc).isoformat())
 
     def test_anchor_restores_rollback_after_clock_file_removed_post_expiry(self):
         private, public, _ = generate_keypair()

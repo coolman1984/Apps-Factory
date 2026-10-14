@@ -211,7 +211,7 @@ class ClockGuard:
         if self._anchor_day is None and self._anchor_max_seen is None:
             return False
         return (self.server_day_max == self._anchor_day
-                and self._anchor_max_seen == self._disk_max_seen())
+                and self._anchor_max_seen == self._disk_high_water)
 
     def _persist(self) -> None:
         """Retry I/O after five monotonic seconds, independent of wall time.
@@ -225,7 +225,7 @@ class ClockGuard:
         if not self._anchor_ready:
             success = self._restore_anchor()
         if self._pending_server_day is not None:
-            self._commit_server_day(self._pending_server_day)
+            success = self._commit_server_day(self._pending_server_day) and success
         clock_saved = True
         if self._pending:
             clock_saved = self._save()
