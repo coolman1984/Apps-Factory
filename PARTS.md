@@ -20,7 +20,7 @@ Product use below was read from the product clones on 2026-10-09 (Store, Teacher
 - **Used by:** none vendored yet (ported from Trip Orders hardening).
 
 ### af-license — signed licences, licence codes, update manifests
-- **Version:** 0.3.1 (`packages/af-license/af_license/__init__.py`; the package README header still says 0.1.0). 0.3.1 adds optional `af_license.runtime` (distributed fail-closed, commercial upgrade grace). 0.3.0 adds the `perpetual` code edition (never expires, refused by older readers). Ed25519 through the `cryptography` library; `requirements.txt` is for the factory side only.
+- **Version:** 0.4.1 (`packages/af-license/af_license/__init__.py`). Fixes ClockGuard recovery, licence-calendar boundaries, persistence retries, lazy stdlib imports and independent expiry anchors. 0.4.0 adds optional stdlib `ClockGuard` for rollback and server-date expiry checks without usage counters; [standard and wiring](docs/LICENCE_PROTECTION_STANDARD.md). 0.3.1 adds optional `af_license.runtime` (distributed fail-closed, commercial upgrade grace). 0.3.0 adds the `perpetual` code edition (never expires, refused by older readers). Ed25519 through the `cryptography` library; `requirements.txt` is for the factory side only.
 - **Vendor:** `python3 scripts/vendor_licence.py <product>` → `server/afcodes.py` and `server/ed25519.py` (stdlib verifier, public key only).
 - **Spec:** `docs/PROTECTION_UPDATES_AND_SUPPORT.md`; package `packages/af-license/README.md`. Controls LIC-01, BIZ-03.
 - **Used by:** Store (vendored codes, 0.3.0: trial, monthly subscription and permanent codes). Teachers, Yousef-Transportation and Mr.Ayman-HR carry their own Ed25519 code and are not on the vendored copy.

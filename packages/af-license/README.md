@@ -1,7 +1,8 @@
-# af-license v0.1.0 • signed licences and update manifests
+# af-license v0.4.1 • signed licences and update manifests
 
 **Status:** `implemented` (unit-tested here). Not yet `verified` inside a shipped product or field-accepted.
 Controls: `BIZ-04`, `PROT-02`, `PROT-04`, `REL-02`. Spec: [docs/PROTECTION_UPDATES_AND_SUPPORT.md](../../docs/PROTECTION_UPDATES_AND_SUPPORT.md).
+Licence clock guard and product wiring: [Licence protection standard](../../docs/LICENCE_PROTECTION_STANDARD.md).
 
 - Ed25519 through the vetted `cryptography` library; the algorithm is fixed in code, never read from the file.
 - Purpose-separated keys: a `licence` key and an `update` key. The purpose is inside the signed bytes.
@@ -16,3 +17,5 @@ python -m af_license verify customer.lic.json --public <kid>:<key> --purpose lic
 python -m unittest discover -s tests
 ```
 Private keys: offline, backed up twice, never in a repository, CI secret or customer build. Rotate by adding a new `kid` to the app's trusted list.
+
+Optional `ClockGuard` imports and code verification work without `cryptography`; core document APIs and signing load it lazily. Fresh authenticated server time can repair a mistaken future local clock without lowering trusted expiry evidence. Licences retain their local-calendar inclusive dates. Protected products must provide independent verified expiry-anchor callbacks; without them, deletion resistance is unimplemented. See the [startup and recovery contract](../../docs/LICENCE_PROTECTION_STANDARD.md). No runtime, usage or lockout counters.
