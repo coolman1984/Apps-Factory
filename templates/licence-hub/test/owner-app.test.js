@@ -22,7 +22,7 @@ function panelEl() {
 
 test('approveAfterReissueConfirm aborts when owner cancels reissue confirm', () => {
   assert.deepEqual(approveAfterReissueConfirm(true, false), { abort: true, force: false });
-  assert.deepEqual(approveAfterReissueConfirm(true, true), { abort: false, force: false });
+  assert.deepEqual(approveAfterReissueConfirm(true, true), { abort: false, force: true });
   assert.deepEqual(approveAfterReissueConfirm(false, false), { abort: false, force: false });
 });
 

@@ -8,7 +8,7 @@ import {
   trialUsedOnline, REASON_PAID_IN_STUDIO, REASON_PAID_KEY_MISSING, offlineDeviceLockKey,
   hubCalendarSigned, hubTimeSigningMaterial, ownerCapabilities, loadSigningKeys,
   offlineRequestId, storedGrantMatches, trialUsedForOfflineProduct, wouldDowngradeGrant,
-  currentTerm, defaultProduct, ownerProductsPayload,
+  currentTerm, defaultProduct, ownerProductsPayload, blankLongDigitRuns, refFingerprint,
 } from '../src/licence-api.js';
 import { importSigningKey } from '../src/afcodes.js';
 import { calendarDateInTz } from '../src/calendar.js';
@@ -91,14 +91,41 @@ test('monthly and permanent requests enter pending for owner approval', async ()
   }
 });
 
-test('nonce replay returns the same poll token', async () => {
+test('nonce replay does not return the poll token again', async () => {
   const e = env();
   const payload = body();
   const first = await postRequest(e, payload);
   const second = await postRequest(e, payload);
   assert.equal(second.data.replay, true);
-  assert.equal(second.data.poll_token, first.data.poll_token);
   assert.equal(second.data.id, first.data.id);
+  assert.equal(second.data.status, first.data.status);
+  assert.equal(second.data.poll_token, undefined);
+});
+
+test('request accepts missing ref and stores only a fingerprint', async () => {
+  const e = env();
+  const payload = body();
+  delete payload.ref;
+  const { res, data } = await postRequest(e, payload);
+  assert.equal(res.status, 200);
+  assert.equal(data.status, 'pending');
+  const row = await e.DB.prepare('SELECT ref FROM licence_requests WHERE id = ?').bind(data.id).first();
+  assert.equal(row.ref, '');
+});
+
+test('shop long digit runs are blanked before storage', async () => {
+  const e = env();
+  const { data } = await postRequest(e, body({ shop: 'متجر 0123456789', ref: 'pay-ref-1' }));
+  const row = await e.DB.prepare('SELECT shop, ref FROM licence_requests WHERE id = ?').bind(data.id).first();
+  assert.equal(row.shop, 'متجر ');
+  const fp = await refFingerprint('pay-ref-1');
+  assert.equal(row.ref, fp);
+  assert.notEqual(row.ref, 'pay-ref-1');
+});
+
+test('blankLongDigitRuns leaves short digit runs', () => {
+  assert.equal(blankLongDigitRuns('123456'), '123456');
+  assert.equal(blankLongDigitRuns('call 1234567 now'), 'call  now');
 });
 
 test('losing concurrent approval never exposes issued code on status poll', async () => {
@@ -507,6 +534,22 @@ test('concurrent approval of the same request keeps device locks and one code', 
   assert.ok(locks.length >= 1);
   const cust = (await e.DB.prepare('SELECT id FROM customers').bind().all()).results || [];
   assert.equal(cust.length, 1);
+  const st = await getStatus(e, data.id, data.poll_token);
+  assert.equal(st.data.status, 'issued');
+  assert.equal(st.data.code, a.code);
+});
+
+test('owner force reissue on delivered row mints code without granting a second trial', async () => {
+  const e = env();
+  const keys = await signingKeys(61);
+  const { data } = await postRequest(e, body({ nonce: 'delivered-reissue' }));
+  await approveRequest(e, data.id, keys);
+  await e.DB.prepare("UPDATE licence_requests SET status = 'delivered', code = NULL WHERE id = ?").bind(data.id).run();
+  assert.equal(await approveRequest(e, data.id, keys), null);
+  const forced = await approveRequest(e, data.id, keys, { force: true });
+  assert.ok(forced?.code);
+  const retry = await postRequest(e, body({ nonce: 'delivered-reissue-2' }));
+  assert.equal(retry.data.reason, 'already_used');
 });
 
 test('separate offline queues on one database return the same issued code', async () => {

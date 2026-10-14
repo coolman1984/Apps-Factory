@@ -21,7 +21,7 @@ const TIME_MAX_IPS = 5000;
 const timeIps = new Map();
 let timeWindow;
 
-const REQUIRED = ['kind', 'device', 'machine', 'nonce', 'shop', 'ref', 'version'];
+const REQUIRED = ['kind', 'device', 'machine', 'nonce', 'shop', 'version'];
 export const REASON_PAID_IN_STUDIO = 'paid_in_licence_studio';
 export const REASON_PAID_KEY_MISSING = 'paid_signing_key_missing';
 const HUB_TIME_KID_TRIAL = 'trial-hub';
@@ -44,6 +44,18 @@ export function hubTrialDaysInclusive(raw) {
   return Math.floor(days);
 }
 
+/** Blank phone-like digit runs before persisting or notifying (activation protocol). */
+export function blankLongDigitRuns(text, minRun = 7) {
+  return String(text || '').replace(new RegExp(`\\d{${minRun},}`, 'g'), '');
+}
+
+/** Payment reference fingerprint for D1 (raw ref is not stored). */
+export async function refFingerprint(ref) {
+  const r = String(ref || '').trim();
+  if (!r) return '';
+  return sha256Hex(r);
+}
+
 async function sha256Hex(data) {
   const buf = typeof data === 'string' ? enc.encode(data) : data;
   return hex(await crypto.subtle.digest('SHA-256', buf));
@@ -54,7 +66,7 @@ async function hmacHex(secret, msg) {
   return hex(await crypto.subtle.sign('HMAC', key, enc.encode(msg)));
 }
 
-/** Deterministic poll token from nonce + server secret (safe to return on nonce replay). */
+/** Deterministic poll token from nonce + server secret (returned only on the first request). */
 export async function derivePollToken(sessionSecret, nonce) {
   if (!sessionSecret) throw new Error('no_session_secret');
   const digest = await hmacHex(sessionSecret, `licence-poll/v1|${nonce}`);
@@ -554,6 +566,9 @@ export async function handleLicence(request, env, url) {
     for (const f of REQUIRED) {
       if (typeof body[f] !== 'string') return json({ field: f }, 400);
     }
+    if (body.ref !== undefined && body.ref !== null && typeof body.ref !== 'string') {
+      return json({ field: 'ref' }, 400);
+    }
     const product = typeof body.product === 'string' && body.product.trim()
       ? body.product.trim()
       : defaultProduct(env);
@@ -570,6 +585,8 @@ export async function handleLicence(request, env, url) {
 
     const poll = await derivePollToken(env.SESSION_SECRET, body.nonce);
     const pollHash = await sha256Hex(poll);
+    const shopStored = blankLongDigitRuns(body.shop).slice(0, 60);
+    const refStored = await refFingerprint(body.ref);
 
     const existing = await env.DB.prepare('SELECT id, poll_token_hash, status, reason FROM licence_requests WHERE nonce = ?').bind(body.nonce).first();
     if (existing) {
@@ -577,14 +594,13 @@ export async function handleLicence(request, env, url) {
       return json({
         replay: true,
         id: existing.id,
-        poll_token: poll,
         status: existing.status,
-        reason: existing.reason || '',
       });
     }
 
     const id = crypto.randomUUID();
     const t = now();
+    const notifyBody = { ...body, shop: shopStored };
 
     if (body.kind !== 'trial') {
       if (await openRequestForDevice(env, body.product, dkey)) {
@@ -593,15 +609,15 @@ export async function handleLicence(request, env, url) {
       if (await limited(env, 'lic:pending:' + ip, MAX_PENDING_PER_IP)) return json({ error: 'rate' }, 429);
       await env.DB.prepare(
         'INSERT INTO licence_requests(id, poll_token_hash, product, kind, device, device_key, machine, nonce, shop, ref, version, status, created_at, updated_at) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-      ).bind(id, pollHash, body.product, body.kind, body.device, dkey, body.machine, body.nonce, body.shop.slice(0, 60), body.ref.slice(0, 60), body.version.slice(0, 40), 'pending', t, t).run();
-      await notifyOwner(env, body);
+      ).bind(id, pollHash, body.product, body.kind, body.device, dkey, body.machine, body.nonce, shopStored, refStored, body.version.slice(0, 40), 'pending', t, t).run();
+      await notifyOwner(env, notifyBody);
       return json({ id, poll_token: poll, status: 'pending' });
     }
 
     if (await trialUsedOnline(env, body.product, dkey, machineHash)) {
       await env.DB.prepare(
         'INSERT INTO licence_requests(id, poll_token_hash, product, kind, device, device_key, machine, nonce, shop, ref, version, status, reason, created_at, updated_at) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-      ).bind(id, pollHash, body.product, body.kind, body.device, dkey, body.machine, body.nonce, body.shop.slice(0, 60), body.ref.slice(0, 60), body.version.slice(0, 40), 'refused', 'already_used', t, t).run();
+      ).bind(id, pollHash, body.product, body.kind, body.device, dkey, body.machine, body.nonce, shopStored, refStored, body.version.slice(0, 40), 'refused', 'already_used', t, t).run();
       return json({ id, poll_token: poll, status: 'refused', reason: 'already_used' });
     }
 
@@ -613,9 +629,9 @@ export async function handleLicence(request, env, url) {
 
     await env.DB.prepare(
       'INSERT INTO licence_requests(id, poll_token_hash, product, kind, device, device_key, machine, nonce, shop, ref, version, status, created_at, updated_at) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-    ).bind(id, pollHash, body.product, body.kind, body.device, dkey, body.machine, body.nonce, body.shop.slice(0, 60), body.ref.slice(0, 60), body.version.slice(0, 40), 'pending', t, t).run();
+    ).bind(id, pollHash, body.product, body.kind, body.device, dkey, body.machine, body.nonce, shopStored, refStored, body.version.slice(0, 40), 'pending', t, t).run();
 
-    await notifyOwner(env, body);
+    await notifyOwner(env, notifyBody);
     return json({ id, poll_token: poll, status: 'pending' });
   }
 
@@ -756,8 +772,8 @@ async function claimAndIssue(env, requestId, dkey, machineHash, signed, t, force
   let issueBinds;
   if (replace) {
     issueSql =
-      'UPDATE licence_requests SET status = ?, stage = ?, code = ?, updated_at = ?, licence_tier = ?, licence_expiry = ? WHERE id = ? AND status NOT IN (?, ?)';
-    issueBinds = ['issued', 'approved', signed.code, t, tier, expiry || null, requestId, 'refused', 'delivered'];
+      'UPDATE licence_requests SET status = ?, stage = ?, code = ?, updated_at = ?, licence_tier = ?, licence_expiry = ? WHERE id = ? AND status != ?';
+    issueBinds = ['issued', 'approved', signed.code, t, tier, expiry || null, requestId, 'refused'];
   } else if (isTrialGrant) {
     issueSql =
       'UPDATE licence_requests SET status = ?, stage = ?, code = ?, updated_at = ? WHERE id = ? AND code IS NULL AND status NOT IN (?, ?) AND EXISTS (SELECT 1 FROM machine_trials WHERE machine = ? AND request_id = ?)';
@@ -778,10 +794,7 @@ async function claimAndIssue(env, requestId, dkey, machineHash, signed, t, force
       'UPDATE licence_requests SET licence_tier = ?, licence_expiry = ? WHERE id = ? AND code = ?',
     ).bind(tier, expiry || null, requestId, signed.code));
   }
-  stmts.push(env.DB.prepare(
-    'DELETE FROM machine_trials WHERE request_id = ? AND NOT EXISTS (SELECT 1 FROM licence_requests WHERE id = ? AND code IS NOT NULL)',
-  ).bind(requestId, requestId));
-  const issueStmtIndex = replace ? stmts.length - 4 : stmts.length - 5;
+  const issueStmtIndex = replace ? stmts.length - 3 : stmts.length - 4;
   const results = await env.DB.batch(stmts);
   const issued = results[issueStmtIndex]?.meta?.changes > 0;
   if (!issued) {
@@ -792,6 +805,9 @@ async function claimAndIssue(env, requestId, dkey, machineHash, signed, t, force
     await env.DB.prepare(
       'UPDATE licence_requests SET code = NULL, status = ?, reason = ?, updated_at = ? WHERE id = ? AND code IS NULL',
     ).bind('refused', 'already_used', t, requestId).run();
+    await env.DB.prepare(
+      'DELETE FROM machine_trials WHERE request_id = ? AND NOT EXISTS (SELECT 1 FROM licence_requests WHERE id = ? AND code IS NOT NULL)',
+    ).bind(requestId, requestId).run();
     return { ok: false };
   }
   return { ok: true, signed };
@@ -823,7 +839,8 @@ export async function approveRequest(env, requestId, keys, options = {}) {
     throw new Error('bad_grant');
   }
   const row = await env.DB.prepare('SELECT * FROM licence_requests WHERE id = ?').bind(requestId).first();
-  if (!row || row.status === 'refused' || row.status === 'delivered') return null;
+  if (!row || row.status === 'refused') return null;
+  if (row.status === 'delivered' && !force) return null;
 
   let dkey;
   try {
@@ -845,6 +862,8 @@ export async function approveRequest(env, requestId, keys, options = {}) {
       return signedFromRow(row);
     }
     if (!force && wouldDowngradeTerm(knownTerm, grant)) throw downgradeError(knownTerm);
+    replaceMode = true;
+  } else if (force && row.status === 'delivered') {
     replaceMode = true;
   } else if (!force && knownTerm && wouldDowngradeTerm(knownTerm, grant)) {
     throw downgradeError(knownTerm);
@@ -905,6 +924,15 @@ async function issueOfflineCustomerInner(env, keys, device, shop, productId, opt
   const existing = await env.DB.prepare('SELECT * FROM licence_requests WHERE id = ?').bind(requestId).first();
   let ownsLock = false;
   let replacingIssued = false;
+  if (existing?.status === 'delivered' && !force) {
+    if (wouldDowngradeTerm(knownTerm, grant)) throw downgradeError(knownTerm);
+    throw new Error('reissue_confirm');
+  }
+  if (existing?.status === 'delivered' && force) {
+    replacingIssued = true;
+    const claim = await trialLockRow(env, lock);
+    ownsLock = Boolean(claim && claim.request_id === requestId);
+  }
   if (existing?.code && existing.status === 'issued') {
     const claim = await trialLockRow(env, lock);
     if (claim && claim.request_id === requestId) {

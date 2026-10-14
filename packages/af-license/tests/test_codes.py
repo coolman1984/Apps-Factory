@@ -1,3 +1,4 @@
+import base64
 import hashlib
 import os
 import sys
@@ -205,4 +206,20 @@ class TrialOnlyKeyTest(unittest.TestCase):
     def test_same_key_without_trial_only_flag_still_reads_paid(self):
         code = self.issue('standard', 30)
         self.assertTrue(codes.read_code(code, [self.pub], 'al-store', self.device, TODAY).full_access)
+
+    def test_trial_only_enforced_for_alternate_key_spellings(self):
+        raw = base64.urlsafe_b64decode(self.pub + '=' * (-len(self.pub) % 4))
+        padded = self.pub + '='
+        std = base64.b64encode(raw).decode('ascii')
+        code = self.issue('standard', 30)
+        for only in (frozenset({padded}), frozenset({std})):
+            self.assertEqual(
+                codes.read_code(code, [self.pub], 'al-store', self.device, TODAY, trial_only_keys=only).reason,
+                'trial_key_edition',
+            )
+        perpetual = self.issue('perpetual', 30)
+        self.assertEqual(
+            codes.read_code(perpetual, [std], 'al-store', self.device, TODAY, trial_only_keys=frozenset({padded})).reason,
+            'trial_key_edition',
+        )
 

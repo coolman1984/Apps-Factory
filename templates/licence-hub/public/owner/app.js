@@ -39,9 +39,10 @@ let productFilter = '';
 let productLabels = {};
 let hubDefaultProduct = '';
 
-/** Reissue confirm: cancel must not POST approve; force is only for explicit downgrade override (regression-tested). */
+/** Reissue confirm: cancel must not POST approve; confirmed reissue sends force (no second trial). */
 export function approveAfterReissueConfirm(hasCustomer, userConfirmed) {
   if (hasCustomer && !userConfirmed) return { abort: true, force: false };
+  if (hasCustomer && userConfirmed) return { abort: false, force: true };
   return { abort: false, force: false };
 }
 
@@ -383,6 +384,16 @@ export function wireOffline(form, out, tierHost) {
       headers: headers(),
       body: JSON.stringify(offlineBody(false)),
     });
+    if (data && data.error === 'reissue_confirm') {
+      if (!confirm('إعادة إصدار لهذا الجهاز؟ (فقدان الكود فقط)')) {
+        return;
+      }
+      data = await api('/offline', {
+        method: 'POST',
+        headers: headers(),
+        body: JSON.stringify(offlineBody(true)),
+      });
+    }
     if (data && data.error === 'downgrade') {
       if (!confirm(downgradeConfirmMessageAr(data.current))) {
         return;
