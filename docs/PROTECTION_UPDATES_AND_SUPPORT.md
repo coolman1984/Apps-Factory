@@ -17,7 +17,7 @@ No software protection is unbreakable. The goal is to make copying **inconvenien
 | L5 Code signing | Stage A (now): our own Ed25519 signature on installer and updates + published SHA-256, installed by us; stage C: Authenticode certificate ([ADR-0004](decisions/ADR-0004-windows-trust-without-certificate.md)) | free now, ~€ per year later | tampered installers/updates (now); "unknown publisher" warnings (later) |
 | L6 Business | Customer name shown in the header and on receipts; updates and support only for valid licences; fair price; cloud features live on the hub | free | silent resale; a cracked copy gets no updates/support/cloud |
 
-**Never:** hand-written crypto; trusting the algorithm field in a file; a hidden kill switch; deleting, hiding or encrypting customer data when a licence fails (expiry = read/export/backup mode, BIZ-03 in RULES.md); spyware; claiming "uncrackable".
+**Never:** hand-written crypto; trusting the algorithm field in a file; a hidden kill switch; deleting, hiding or encrypting customer data when a licence fails (expiry = read/export/backup mode, BIZ-03 in RULES.md); spyware; claiming "uncrackable". A shipped binary must not honour a source-only trial sign-in (`dev_login` / admin/123) even when `config.json` says true — `af_license.runtime.dev_features_allowed`.
 **Avoid for now:** PyArmor free tier for commercial products (its terms restrict commercial use and changed between versions); paid obfuscators sold as "irreversible" — they raise effort, not certainty.
 The current hand-written signing file in the existing apps is replaced by `af-license` (or proven equivalent) before any sale.
 

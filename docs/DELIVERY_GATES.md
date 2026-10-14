@@ -19,7 +19,7 @@ A product is not ready merely because a plan says "done." Each gate produces aud
 
 ## Automatic fail
 - No login or UI-only permissions where sold as multi-user.
-- Shared `admin/123` / hidden vendor bypass in shipped build.
+- Shared `admin/123` / hidden vendor bypass in shipped build. `dev_login: true` (or any equivalent flag) still fails when `af_license.runtime.distributed_runtime` is true. Gate the feature with `dev_features_allowed`; do not treat a config edit as the sale check.
 - Payment or subscription can be spoofed by browser variable/client event.
 - One tenant can read/write another's records through IDs, exports or attachments.
 - Money overwritten/duplicated silently on retry; expiry destroys customer access to data.

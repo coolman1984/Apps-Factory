@@ -1,6 +1,7 @@
 """Optional helpers for commercial (distributed) builds: release-policy fail-closed and contract-upgrade grace.
 
 Products wire these into their own licence module; af-license code signing and licence-code formats are unchanged.
+Source-only features (trial admin/123) go through ``dev_features_allowed`` so a shipped binary ignores a true config flag.
 """
 from __future__ import annotations
 
@@ -48,6 +49,43 @@ def distributed_runtime(
         return True
     exe = os.path.basename(executable if executable is not None else (sys.executable or '')).lower()
     return bool(exe) and not exe.startswith('python')
+
+
+def dev_features_allowed(
+    enabled: bool,
+    *,
+    frozen: Optional[bool] = None,
+    compiled: Optional[bool] = None,
+    executable: Optional[str] = None,
+) -> bool:
+    """Trial, vendor and other source-only features (for example admin/123) never run in a shipped binary, even if config says true.
+
+    True only when ``enabled`` is true and this process is not a distributed runtime.
+    A source run (``python …``) keeps the flag. Pass ``frozen``, ``compiled`` or
+    ``executable`` to simulate a shipped build in a test. Marker detection stays
+    inside ``distributed_runtime``; this helper does not add its own.
+    """
+    return bool(enabled) and not distributed_runtime(
+        frozen=frozen, compiled=compiled, executable=executable,
+    )
+
+
+def first_run_source_flag(
+    default: bool = True,
+    *,
+    frozen: Optional[bool] = None,
+    compiled: Optional[bool] = None,
+    executable: Optional[str] = None,
+) -> bool:
+    """Value to write for a source-only flag such as ``dev_login`` when creating the first config.json.
+
+    A distributed build always writes false. A source run writes ``bool(default)``.
+    A later edit that sets the flag true still must not enable the feature: gate it
+    with ``dev_features_allowed``, not with the stored flag alone.
+    """
+    if distributed_runtime(frozen=frozen, compiled=compiled, executable=executable):
+        return False
+    return bool(default)
 
 
 @dataclass(frozen=True)
