@@ -210,6 +210,8 @@ class ClockGuard:
             return False
         if self._anchor_day is None and self._anchor_max_seen is None:
             return False
+        if self._disk_high_water is None and self._disk_max_seen() is not None:
+            return False
         return (self.server_day_max == self._anchor_day
                 and self._anchor_max_seen == self._disk_high_water)
 
