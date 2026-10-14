@@ -661,6 +661,70 @@ test('originalTrialWindow ignores delivered monthly request with blank licence_t
   assert.equal(await originalTrialWindow(e, 'trip-orders', device), null);
 });
 
+test('comb6: paid until 2027-10-14 blocks forced trial reissue online and offline', async () => {
+  const e = env();
+  const device = '7KD2M-QX9TP';
+  const dkey = deviceKey(device);
+  const keys = await signingKeys(80, 81);
+  const paidUntil = '2027-10-14';
+  const trialReq = await postRequest(e, body({ nonce: 'comb6-online' }));
+  await approveRequest(e, trialReq.data.id, keys);
+  const paidOnTrial = await approveRequest(e, trialReq.data.id, keys, { grant: 'paid', paid_until: paidUntil });
+  assert.ok(paidOnTrial?.code);
+  const trialRow = await e.DB.prepare(
+    'SELECT kind, licence_tier, licence_expiry, code FROM licence_requests WHERE id = ?',
+  ).bind(trialReq.data.id).first();
+  assert.equal(trialRow.kind, 'monthly');
+  assert.equal(trialRow.licence_tier, 'paid');
+  assert.equal(trialRow.licence_expiry, paidUntil);
+  assert.equal(await originalTrialWindow(e, 'trip-orders', device), null);
+  await e.DB.prepare(
+    "UPDATE licence_requests SET status = 'delivered', code = NULL WHERE id = ?",
+  ).bind(trialReq.data.id).run();
+  await assert.rejects(
+    () => approveRequest(e, trialReq.data.id, keys, { grant: 'trial', force: true }),
+    (err) => err.message === 'downgrade_forbidden' && err.current?.until === paidUntil,
+  );
+  const afterOnline = await e.DB.prepare(
+    'SELECT licence_tier, licence_expiry, code FROM licence_requests WHERE id = ?',
+  ).bind(trialReq.data.id).first();
+  assert.equal(afterOnline.licence_tier, 'paid');
+  assert.equal(afterOnline.licence_expiry, paidUntil);
+  assert.equal(afterOnline.code, null);
+  assert.deepEqual(await currentTerm(e, 'trip-orders', device), { tier: 'paid', until: paidUntil });
+
+  const offlineKeys = await signingKeys(82, 83);
+  const offDevice = 'ABCDE-FGHJK';
+  const offDkey = deviceKey(offDevice);
+  const offlinePaid = await issueOfflineCustomer(e, offlineKeys, offDevice, 'Shop', 'trip-orders', {
+    grant: 'paid', paid_until: paidUntil,
+  });
+  assert.ok(offlinePaid.code);
+  await e.DB.prepare(
+    "UPDATE licence_requests SET status = 'delivered', kind = 'trial' WHERE id = ?",
+  ).bind(offlineRequestId('trip-orders', offDkey)).run();
+  assert.equal(await originalTrialWindow(e, 'trip-orders', offDevice), null);
+  await assert.rejects(
+    () => issueOfflineCustomer(e, offlineKeys, offDevice, 'Shop', 'trip-orders', { grant: 'trial', force: true }),
+    (err) => err.message === 'downgrade_forbidden' && err.current?.until === paidUntil,
+  );
+  const offRow = await e.DB.prepare('SELECT code, licence_tier FROM licence_requests WHERE id = ?')
+    .bind(offlineRequestId('trip-orders', offDkey)).first();
+  assert.equal(offRow.licence_tier, 'paid');
+  assert.equal(offRow.code, offlinePaid.code);
+});
+
+test('trial upgraded on same online row sets kind monthly before delivered force trial', async () => {
+  const e = env();
+  const keys = await signingKeys(84, 85);
+  const { data } = await postRequest(e, body({ nonce: 'kind-sync' }));
+  await approveRequest(e, data.id, keys);
+  await approveRequest(e, data.id, keys, { grant: 'paid', paid_until: '2027-10-14' });
+  const row = await e.DB.prepare('SELECT kind, licence_tier FROM licence_requests WHERE id = ?').bind(data.id).first();
+  assert.equal(row.kind, 'monthly');
+  assert.equal(row.licence_tier, 'paid');
+});
+
 test('offline force trial reissue keeps original first and last days', async () => {
   const e = env();
   const keys = await signingKeys(64);
@@ -957,9 +1021,11 @@ test('paid online request after issued trial upgrades without force and keeps tr
   const paidOut = await approveRequest(e, 'paid-after-trial', paidKeys, { grant: 'paid', paid_until: '2028-06-01' });
   assert.ok(paidOut?.code);
   assert.notEqual(paidOut.code, trialCode.code);
-  const paidRow = await e.DB.prepare('SELECT status, reason FROM licence_requests WHERE id = ?').bind('paid-after-trial').first();
+  const paidRow = await e.DB.prepare('SELECT status, reason, kind, licence_tier FROM licence_requests WHERE id = ?').bind('paid-after-trial').first();
   assert.equal(paidRow.status, 'issued');
   assert.equal(paidRow.reason, '');
+  assert.equal(paidRow.kind, 'monthly');
+  assert.equal(paidRow.licence_tier, 'paid');
   const lockAfter = await e.DB.prepare('SELECT request_id FROM machine_trials WHERE machine = ?')
     .bind(deviceLockKey(dkey)).first();
   assert.ok(lockAfter);
@@ -1073,7 +1139,7 @@ test('signing failure on offline reissue leaves stored paid code', async () => {
   const keysNoTrial = { trialKey: null, paidKey: keys.paidKey };
   await assert.rejects(
     () => issueOfflineCustomer(e, keysNoTrial, device, 'Shop', 'trip-orders', { grant: 'trial', force: true }),
-    /no_signing_key/,
+    /downgrade_forbidden/,
   );
   const row = await e.DB.prepare('SELECT code FROM licence_requests WHERE id = ?')
     .bind(offlineRequestId('trip-orders', dkey)).first();

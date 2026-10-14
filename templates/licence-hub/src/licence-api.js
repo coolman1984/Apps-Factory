@@ -515,6 +515,42 @@ export function downgradeError(term) {
   return e;
 }
 
+/** Paid until calendar day inclusive; permanent always active. */
+export function isActiveStrongTerm(term, env) {
+  if (!term?.tier) return false;
+  if (term.tier === 'permanent') return true;
+  if (term.tier === 'paid') {
+    const until = String(term.until || '').trim();
+    if (!until) return true;
+    const tz = env.LICENCE_CALENDAR_TZ || 'Africa/Cairo';
+    const today = calendarDateInTz(new Date(), tz).iso;
+    return today <= until;
+  }
+  return false;
+}
+
+export function downgradeForbiddenError(term) {
+  const e = new Error('downgrade_forbidden');
+  e.current = { tier: term.tier, until: term.until || '' };
+  return e;
+}
+
+export function assertTrialNotOverStrongTerm(env, term, grant) {
+  if (grant.grant !== 'trial') return;
+  if (isActiveStrongTerm(term, env)) throw downgradeForbiddenError(term);
+}
+
+/** Row may supply original trial dates only when it is effectively trial and no paid/permanent term is active. */
+export function rowIsTrialSource(row, strongTermActive) {
+  if (!row || strongTermActive) return false;
+  const licTier = String(row.licence_tier ?? '').trim().toLowerCase();
+  const kind = String(row.kind ?? '').trim().toLowerCase();
+  if (licTier === 'paid' || licTier === 'permanent') return false;
+  if (licTier === 'trial') return true;
+  if (licTier === '' && kind === 'trial') return true;
+  return false;
+}
+
 function trialInclusiveDays(env) {
   return hubTrialDaysInclusive(env.TRIAL_DAYS || 14);
 }
@@ -522,33 +558,33 @@ function trialInclusiveDays(env) {
 /** Original trial window for force re-issue (same first/last days, no extension). */
 export async function originalTrialWindow(env, productId, device) {
   const product = String(productId || 'trip-orders').trim() || 'trip-orders';
+  const knownTerm = await currentTerm(env, productId, device);
+  const strongActive = isActiveStrongTerm(knownTerm, env);
+
   const cust = await env.DB.prepare(
     'SELECT first_day, last_day, licence_expiry, kind, licence_tier FROM customers WHERE device = ? AND product = ?',
   ).bind(device, product).first();
-  if (cust) {
-    const licTier = String(cust.licence_tier ?? '').trim().toLowerCase();
-    const kind = String(cust.kind ?? '').trim().toLowerCase();
-    const trialCustomer = licTier === 'trial' || (licTier === '' && kind === 'trial');
-    if (trialCustomer) {
-      const first = String(cust.first_day || '').trim();
-      const last = String(cust.last_day || cust.licence_expiry || '').trim();
-      if (first && last) return { first, last };
-    }
+  if (rowIsTrialSource(cust, strongActive)) {
+    const first = String(cust.first_day || '').trim();
+    const last = String(cust.last_day || cust.licence_expiry || '').trim();
+    if (first && last) return { first, last };
   }
   const dkey = deviceKey(device);
-  const row = await env.DB.prepare(
+  const rows = await env.DB.prepare(
     `SELECT licence_expiry, licence_tier, kind FROM licence_requests
      WHERE device_key = ? AND product = ?
        AND status IN ('issued', 'delivered')
-       AND (licence_tier = 'trial' OR kind = 'trial')
-     ORDER BY updated_at DESC LIMIT 1`,
-  ).bind(dkey, product).first();
-  if (!row) return null;
-  const last = String(row.licence_expiry || '').trim();
-  if (!last) return null;
-  const inclusive = trialInclusiveDays(env);
-  const first = shiftCalendarDays(last, -(inclusive - 1));
-  return { first, last };
+     ORDER BY updated_at DESC`,
+  ).bind(dkey, product).all();
+  for (const row of rows.results || []) {
+    if (!rowIsTrialSource(row, strongActive)) continue;
+    const last = String(row.licence_expiry || '').trim();
+    if (!last) continue;
+    const inclusive = trialInclusiveDays(env);
+    const first = shiftCalendarDays(last, -(inclusive - 1));
+    return { first, last };
+  }
+  return null;
 }
 
 export function trialWindowEnded(lastIso, env) {
@@ -846,8 +882,8 @@ async function claimAndIssue(env, requestId, dkey, machineHash, signed, t, force
   let issueBinds;
   if (replace) {
     issueSql =
-      'UPDATE licence_requests SET status = ?, stage = ?, code = ?, updated_at = ?, licence_tier = ?, licence_expiry = ? WHERE id = ? AND status != ?';
-    issueBinds = ['issued', 'approved', signed.code, t, tier, expiry || null, requestId, 'refused'];
+      'UPDATE licence_requests SET status = ?, stage = ?, code = ?, updated_at = ?, kind = ?, licence_tier = ?, licence_expiry = ? WHERE id = ? AND status != ?';
+    issueBinds = ['issued', 'approved', signed.code, t, kind, tier, expiry || null, requestId, 'refused'];
   } else if (isTrialGrant) {
     issueSql =
       'UPDATE licence_requests SET status = ?, stage = ?, code = ?, updated_at = ? WHERE id = ? AND code IS NULL AND status NOT IN (?, ?) AND EXISTS (SELECT 1 FROM machine_trials WHERE machine = ? AND request_id = ?)';
@@ -865,8 +901,8 @@ async function claimAndIssue(env, requestId, dkey, machineHash, signed, t, force
   stmts.push(...customerUpsertStmts(env, shop, signed, { kind, tier, expiry }, t, requestId));
   if (!replace) {
     stmts.push(env.DB.prepare(
-      'UPDATE licence_requests SET licence_tier = ?, licence_expiry = ? WHERE id = ? AND code = ?',
-    ).bind(tier, expiry || null, requestId, signed.code));
+      'UPDATE licence_requests SET kind = ?, licence_tier = ?, licence_expiry = ? WHERE id = ? AND code = ?',
+    ).bind(kind, tier, expiry || null, requestId, signed.code));
   }
   const issueStmtIndex = replace ? stmts.length - 3 : stmts.length - 4;
   const results = await env.DB.batch(stmts);
@@ -938,6 +974,7 @@ export async function approveRequest(env, requestId, keys, options = {}) {
   const productId = String(row.product || 'trip-orders').trim() || 'trip-orders';
   const rowIssued = row.status === 'issued' && row.code ? row : null;
   const knownTerm = await currentTerm(env, productId, row.device);
+  assertTrialNotOverStrongTerm(env, knownTerm, grant);
 
   let replaceMode = false;
   if (rowIssued) {
@@ -1007,6 +1044,7 @@ async function issueOfflineCustomerInner(env, keys, device, shop, productId, opt
   const requestId = offlineRequestId(productId, dkey);
   const lock = offlineDeviceLockKey(productId, dkey);
   const knownTerm = await currentTerm(env, productId, device);
+  assertTrialNotOverStrongTerm(env, knownTerm, grant);
   const existing = await env.DB.prepare('SELECT * FROM licence_requests WHERE id = ?').bind(requestId).first();
   let ownsLock = false;
   let replacingIssued = false;
@@ -1111,10 +1149,10 @@ async function issueOfflineCustomerInner(env, keys, device, shop, productId, opt
   const meta = tierMeta(grant, signed);
   const replacing = replacingIssued;
   const issueSql = replacing
-    ? 'UPDATE licence_requests SET status = ?, code = ?, device = ?, updated_at = ?, licence_tier = ?, licence_expiry = ? WHERE id = ? AND EXISTS (SELECT 1 FROM machine_trials WHERE machine = ? AND request_id = ?)'
+    ? 'UPDATE licence_requests SET status = ?, code = ?, device = ?, updated_at = ?, kind = ?, licence_tier = ?, licence_expiry = ? WHERE id = ? AND EXISTS (SELECT 1 FROM machine_trials WHERE machine = ? AND request_id = ?)'
     : 'UPDATE licence_requests SET status = ?, code = ?, device = ?, updated_at = ? WHERE id = ? AND code IS NULL AND EXISTS (SELECT 1 FROM machine_trials WHERE machine = ? AND request_id = ?)';
   const issueBinds = replacing
-    ? ['issued', signed.code, signed.device, t, meta.tier, meta.expiry || null, requestId, lock, requestId]
+    ? ['issued', signed.code, signed.device, t, meta.kind, meta.tier, meta.expiry || null, requestId, lock, requestId]
     : ['issued', signed.code, signed.device, t, requestId, lock, requestId];
   const customerStmts = customerUpsertStmts(
     env,
@@ -1127,8 +1165,8 @@ async function issueOfflineCustomerInner(env, keys, device, shop, productId, opt
   const tierStmt = replacing
     ? null
     : env.DB.prepare(
-      'UPDATE licence_requests SET licence_tier = ?, licence_expiry = ? WHERE id = ? AND code = ?',
-    ).bind(meta.tier, meta.expiry || null, requestId, signed.code);
+      'UPDATE licence_requests SET kind = ?, licence_tier = ?, licence_expiry = ? WHERE id = ? AND code = ?',
+    ).bind(meta.kind, meta.tier, meta.expiry || null, requestId, signed.code);
   const cleanupStmt = env.DB.prepare(
     'DELETE FROM machine_trials WHERE request_id = ? AND NOT EXISTS (SELECT 1 FROM licence_requests WHERE id = ? AND code IS NOT NULL)',
   ).bind(requestId, requestId);
