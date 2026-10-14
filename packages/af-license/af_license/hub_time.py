@@ -1,9 +1,9 @@
 """Verify signed hub calendar responses from the licence Worker (/licence/time).
 
-v1 (``allow_v1`` only, deprecated): never advances ``sealed_day``. If ``sealed_day`` is set,
-returns ``sealed_day`` when the signed day is on or after ``sealed_day``, else ``None``. If there
-is no seal, returns the signed day with ``sealable=False``. v1 never returns ``server_time`` and
-must not be used to advance ``last_server_time``.
+v1 (``allow_v1`` only, deprecated): never advances ``sealed_day``. Without ``sealed_day``, always
+returns ``None`` (never trust an unsealed v1 day). With ``sealed_day``, returns ``sealed_day`` only
+when the signed day is on or after ``sealed_day``; never advances. v1 never returns ``server_time``
+and must not be used to advance ``last_server_time``.
 
 v2: ``AF-LICENCE-HUB-TIME/2|<day>|<server_time>|<kid>`` or with ``|<nonce>`` in ``sig2``.
 
@@ -17,16 +17,16 @@ Client persistence (required for safe expiry):
 
 v2 is required unless ``allow_v1=True``.
 
-**Nonce mode (recommended):** the client sends a fresh random ``nonce`` on each request. If the
-response ``nonce`` matches, the signature is accepted regardless of ``last_server_time`` (replay
-of an old body fails because the nonce is new). Calendar day is
-``min(signed day, sealed_day + max_jump_days)`` and never below ``sealed_day`` when set. Returns
+**Nonce mode (recommended):** the client sends a fresh random ``nonce`` on each request; the response
+``nonce`` must match (additional binding, not a replay bypass). When ``last_server_time`` is known,
+``server_time`` must still be **strictly greater** than ``last_server_time`` in both nonce and
+no-nonce modes. Re-verifying the same v2 body after persisting fails for that reason. Calendar day is
+clamped to ``[sealed_day, sealed_day + max_jump_days]`` when ``sealed_day`` is set. Returns
 ``server_time`` for persistence.
 
-**No-nonce mode:** when ``last_server_time`` is set, ``server_time`` must be **strictly greater**
-than ``last_server_time`` (equal timestamps replay). There is **no** upper bound on the gap so
-honest clients offline for weeks can recover. Day is capped the same way as nonce mode. Persist the
-returned ``server_time``. A far-future ``server_time`` can only be produced with the hub private key.
+**No-nonce mode:** same ``server_time`` strict-increase rule; there is **no** upper bound on the gap
+so honest clients offline for weeks can recover. Day clamped the same way. Persist the returned
+``server_time``. A far-future ``server_time`` can only be produced with the hub private key.
 """
 from __future__ import annotations
 
@@ -141,15 +141,15 @@ def verify_hub_time(
         except (TypeError, ValueError):
             return None
         resp_nonce = data.get('nonce')
+        if last_server_time is not None:
+            lst = int(last_server_time)
+            if server_time <= lst:
+                return None
         if nonce is not None:
             if not _NONCE_RE.match(nonce) or resp_nonce != nonce:
                 return None
             msg = hub_time_message_v2(day, server_time, kid, nonce)
         else:
-            if last_server_time is not None:
-                lst = int(last_server_time)
-                if server_time <= lst:
-                    return None
             msg = hub_time_message_v2(day, server_time, kid, resp_nonce if resp_nonce else None)
         sig_bytes = _b64url_decode(str(sig2))
         if not sig_bytes or len(sig_bytes) != 64:
@@ -179,4 +179,4 @@ def verify_hub_time(
         if sealed is None or parsed is None or parsed < sealed:
             return None
         return HubTimeVerifyResult(sealed.isoformat(), None, False, 1, False)
-    return HubTimeVerifyResult(day, None, False, 1, False)
+    return None

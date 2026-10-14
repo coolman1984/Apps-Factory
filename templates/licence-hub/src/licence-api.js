@@ -526,8 +526,10 @@ export async function originalTrialWindow(env, productId, device) {
     'SELECT first_day, last_day, licence_expiry, kind, licence_tier FROM customers WHERE device = ? AND product = ?',
   ).bind(device, product).first();
   if (cust) {
-    const tier = String(cust.licence_tier || cust.kind || '').trim().toLowerCase();
-    if (tier === 'trial' || tier === '') {
+    const licTier = String(cust.licence_tier ?? '').trim().toLowerCase();
+    const kind = String(cust.kind ?? '').trim().toLowerCase();
+    const trialCustomer = licTier === 'trial' || (licTier === '' && kind === 'trial');
+    if (trialCustomer) {
       const first = String(cust.first_day || '').trim();
       const last = String(cust.last_day || cust.licence_expiry || '').trim();
       if (first && last) return { first, last };
@@ -538,7 +540,7 @@ export async function originalTrialWindow(env, productId, device) {
     `SELECT licence_expiry, licence_tier, kind FROM licence_requests
      WHERE device_key = ? AND product = ?
        AND status IN ('issued', 'delivered')
-       AND (licence_tier = 'trial' OR kind = 'trial' OR licence_tier = '' OR licence_tier IS NULL)
+       AND (licence_tier = 'trial' OR kind = 'trial')
      ORDER BY updated_at DESC LIMIT 1`,
   ).bind(dkey, product).first();
   if (!row) return null;

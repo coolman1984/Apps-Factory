@@ -60,12 +60,13 @@ class HubTimeTests(unittest.TestCase):
         data = self._pack_v1()
         self.assertIsNone(verify_hub_time(data, self.trusted))
 
-    def test_v1_compat_when_allowed(self):
+    def test_v1_without_seal_rejected(self):
         data = self._pack_v1()
-        self.assertEqual(
-            verify_hub_time(data, self.trusted, allow_v1=True),
-            HubTimeVerifyResult('2026-10-14', None, False, 1, False),
-        )
+        self.assertIsNone(verify_hub_time(data, self.trusted, allow_v1=True))
+
+    def test_v1_far_future_without_seal_rejected(self):
+        data = self._pack_v1(day='2099-12-31')
+        self.assertIsNone(verify_hub_time(data, self.trusted, allow_v1=True))
 
     def test_v2_good_first_poll(self):
         data = self._pack_v2(server_time=1_700_000_100)
@@ -93,18 +94,16 @@ class HubTimeTests(unittest.TestCase):
             HubTimeVerifyResult('2026-10-14', 1_700_000_010, False, 2, True),
         )
 
-    def test_v2_nonce_accepts_below_last_server_time(self):
+    def test_v2_nonce_rejects_below_last_server_time(self):
         data = self._pack_v2(server_time=1_700_000_050, nonce='n-once1')
-        self.assertEqual(
+        self.assertIsNone(
             verify_hub_time(data, self.trusted, nonce='n-once1', last_server_time=1_700_000_100),
-            HubTimeVerifyResult('2026-10-14', 1_700_000_050, False, 2, True),
         )
 
-    def test_v2_nonce_equal_server_time_accepted(self):
+    def test_v2_nonce_rejects_equal_server_time(self):
         data = self._pack_v2(server_time=1_700_000_100, nonce='n-once1')
-        self.assertEqual(
+        self.assertIsNone(
             verify_hub_time(data, self.trusted, nonce='n-once1', last_server_time=1_700_000_100),
-            HubTimeVerifyResult('2026-10-14', 1_700_000_100, False, 2, True),
         )
 
     def test_older_day_than_sealed_rejected(self):
@@ -130,10 +129,7 @@ class HubTimeTests(unittest.TestCase):
     def test_v1_poisoned_server_time_ignored(self):
         data = self._pack_v1()
         data['server_time'] = 9_999_999_999_999
-        self.assertEqual(
-            verify_hub_time(data, self.trusted, allow_v1=True),
-            HubTimeVerifyResult('2026-10-14', None, False, 1, False),
-        )
+        self.assertIsNone(verify_hub_time(data, self.trusted, allow_v1=True))
 
     def test_v1_day_equal_sealed_returns_seal_without_advancing(self):
         data = self._pack_v1(day='2026-10-14')
@@ -158,25 +154,35 @@ class HubTimeTests(unittest.TestCase):
             HubTimeVerifyResult('2026-10-14', far, False, 2, True),
         )
 
-    def test_nonce_mode_ignores_last_server_time_for_same_nonce_retry(self):
+    def test_v2_same_sig2_rejected_after_persisting_server_time(self):
+        server_time = 1_700_000_500
+        data = self._pack_v2(server_time=server_time)
+        first = verify_hub_time(data, self.trusted, last_server_time=1_700_000_100)
+        self.assertEqual(first, HubTimeVerifyResult('2026-10-14', server_time, False, 2, True))
+        self.assertIsNone(verify_hub_time(data, self.trusted, last_server_time=server_time))
+
+    def test_v2_same_sig2_with_nonce_rejected_after_persisting(self):
+        server_time = 1_700_000_500
+        nonce = 'once-only1'
+        data = self._pack_v2(server_time=server_time, nonce=nonce)
         sealed = '2026-10-14'
         far_day = '2026-10-30'
-        server_time = 1_700_000_500
-        nonce = 'walk-nonce1'
-        data = self._pack_v2(day=far_day, server_time=server_time, nonce=nonce)
+        data['calendar_day'] = far_day
+        data['sig2'] = self._sign(hub_time_message_v2(far_day, server_time, self.kid, nonce))
         first = verify_hub_time(
             data, self.trusted, sealed_day=sealed, max_jump_days=7, nonce=nonce,
         )
         self.assertEqual(first, HubTimeVerifyResult('2026-10-21', server_time, True, 2, True))
-        second = verify_hub_time(
-            data,
-            self.trusted,
-            sealed_day='2026-10-21',
-            max_jump_days=7,
-            nonce=nonce,
-            last_server_time=server_time + 1,
+        self.assertIsNone(
+            verify_hub_time(
+                data,
+                self.trusted,
+                sealed_day='2026-10-21',
+                max_jump_days=7,
+                nonce=nonce,
+                last_server_time=server_time,
+            ),
         )
-        self.assertEqual(second, HubTimeVerifyResult('2026-10-28', server_time, True, 2, True))
 
 
 if __name__ == '__main__':

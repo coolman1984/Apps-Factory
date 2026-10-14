@@ -9,6 +9,7 @@ import {
   hubCalendarSigned, hubTimeSigningMaterial, ownerCapabilities, loadSigningKeys,
   offlineRequestId, storedGrantMatches, trialUsedForOfflineProduct, wouldDowngradeGrant,
   currentTerm, defaultProduct, ownerProductsPayload, blankLongDigitRuns, refFingerprint,
+  originalTrialWindow,
 } from '../src/licence-api.js';
 import { importSigningKey } from '../src/afcodes.js';
 import { calendarDateInTz } from '../src/calendar.js';
@@ -624,6 +625,40 @@ test('owner force trial reissue refuses when trial window ended', async () => {
     "UPDATE licence_requests SET licence_expiry = '2020-01-14', status = 'delivered', code = NULL WHERE id = ?",
   ).bind(data.id).run();
   await assert.rejects(() => approveRequest(e, data.id, keys, { force: true }), /trial_expired/);
+});
+
+test('originalTrialWindow ignores paid customer row with blank licence_tier', async () => {
+  const e = env();
+  const device = 'ABCDE-FGHJK';
+  const dkey = deviceKey(device);
+  const t = 1;
+  await e.DB.prepare(
+    `INSERT INTO customers (id, device, product, shop, first_day, last_day, licence_expiry, kind, licence_tier, created_at)
+     VALUES ('cust-paid-blank', ?, 'trip-orders', 'S', '2026-01-01', '2026-01-14', '2026-01-14', 'monthly', '', ?)`,
+  ).bind(device, t).run();
+  await e.DB.prepare(
+    `INSERT INTO licence_requests (
+       id, poll_token_hash, product, kind, device, device_key, machine, nonce, shop, ref, version,
+       status, licence_tier, licence_expiry, created_at, updated_at
+     ) VALUES (?, 'h', 'trip-orders', 'trial', ?, ?, 'm', 'n-trial-win', '', '', '', 'delivered', '', '2026-02-01', ?, ?)`,
+  ).bind('req-trial-win', device, dkey, t, t).run();
+  const win = await originalTrialWindow(e, 'trip-orders', device);
+  assert.equal(win.first, '2026-01-19');
+  assert.equal(win.last, '2026-02-01');
+});
+
+test('originalTrialWindow ignores delivered monthly request with blank licence_tier', async () => {
+  const e = env();
+  const device = 'LMNOP-QRSTV';
+  const dkey = deviceKey(device);
+  const t = 1;
+  await e.DB.prepare(
+    `INSERT INTO licence_requests (
+       id, poll_token_hash, product, kind, device, device_key, machine, nonce, shop, ref, version,
+       status, licence_tier, licence_expiry, created_at, updated_at
+     ) VALUES (?, 'h', 'trip-orders', 'monthly', ?, ?, 'm', 'n-monthly', '', '', '', 'delivered', '', '2026-03-01', ?, ?)`,
+  ).bind('req-monthly-blank', device, dkey, t, t).run();
+  assert.equal(await originalTrialWindow(e, 'trip-orders', device), null);
 });
 
 test('offline force trial reissue keeps original first and last days', async () => {
