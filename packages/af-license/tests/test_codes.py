@@ -1,3 +1,4 @@
+import base64
 import hashlib
 import os
 import sys
@@ -68,6 +69,41 @@ class CodeTests(unittest.TestCase):
         self.assertEqual(self.read(c['code'], device=codes.device_code('other-pc', 'x')).reason, 'other_device')
         later = self.trial(edition='perpetual', first_day=date(2026, 12, 1))
         self.assertEqual(self.read(later['code']).state, 'not_yet_valid')
+
+    def test_malformed_trial_only_entry_does_not_break_read_code(self):
+        issued = self.trial(edition='standard', days=30)
+        mixed = frozenset({'not-a-valid-key!!!', 'also@@@bad'})
+        self.assertTrue(
+            codes.read_code(issued['code'], [self.pub], 'al-store', self.device, TODAY, trial_only_keys=mixed).full_access,
+        )
+
+    def test_canonical_trusted_key_whitespace_and_prefix(self):
+        issued = self.trial(edition='standard', days=30)
+        spaced = self.pub[:20] + '\n ' + self.pub[20:]
+        prefixed = f'trial-hub:{self.pub}'
+        self.assertTrue(codes.read_code(issued['code'], [spaced], 'al-store', self.device, TODAY).full_access)
+        self.assertTrue(codes.read_code(issued['code'], [prefixed], 'al-store', self.device, TODAY).full_access)
+
+    def test_bad_trusted_key_skipped_good_studio_key_still_verifies(self):
+        paid = self.trial(edition='standard', days=30)
+        keys = ['studio:!!!not-a-key', self.pub]
+        self.assertTrue(codes.read_code(paid['code'], keys, 'al-store', self.device, TODAY).full_access)
+
+    def test_canonical_key_bytes_std_slash_plus_spelling(self):
+        std_pub = None
+        url_pub = None
+        sign_pem = self.pem
+        for _ in range(500):
+            sign_pem, pub, _ = generate_keypair()
+            raw = base64.urlsafe_b64decode(pub + '=' * (-len(pub) % 4))
+            std = base64.b64encode(raw).decode('ascii')
+            if std != pub and ('+' in std or '/' in std):
+                std_pub, url_pub = std, pub
+                break
+        self.assertIsNotNone(std_pub, 'need a key whose std and url spellings differ')
+        issued = codes.issue_code(sign_pem, 'al-store', 'standard', TODAY, 30, device=self.device, issued=TODAY)
+        self.assertTrue(codes.read_code(issued['code'], [std_pub], 'al-store', self.device, TODAY).full_access)
+        self.assertTrue(codes.read_code(issued['code'], [url_pub], 'al-store', self.device, TODAY).full_access)
 
     def test_a_perpetual_code_is_never_unbound(self):
         with self.assertRaises(ValueError) as e:
@@ -169,3 +205,63 @@ class CodeTests(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class TrialOnlyKeyTest(unittest.TestCase):
+    """A trial-only key (e.g. a licence-hub Worker key) can only mint bound trials of at most 14 days incl. grace."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.pem, cls.pub, _ = generate_keypair()
+        cls.device = codes.device_code('machine-guid-123', 'install-abc')
+        cls.only = frozenset({cls.pub})
+
+    def read(self, code, today=TODAY):
+        return codes.read_code(code, [self.pub], 'al-store', self.device, today, trial_only_keys=self.only)
+
+    def issue(self, edition='trial', days=14, grace=0):
+        return codes.issue_code(self.pem, 'al-store', edition, TODAY, days, device=self.device, grace_days=grace, issued=TODAY)['code']
+
+    def test_fourteen_day_trial_accepted(self):
+        self.assertTrue(self.read(self.issue()).full_access)
+
+    def test_paid_edition_refused(self):
+        self.assertEqual(self.read(self.issue('standard', 30)).reason, 'trial_key_edition')
+
+    def test_longer_or_graced_trial_refused(self):
+        self.assertEqual(self.read(self.issue(days=20)).reason, 'trial_key_days')
+        self.assertEqual(self.read(self.issue(grace=60)).reason, 'trial_key_grace')
+
+    def test_unbound_trial_refused(self):
+        from unittest.mock import patch
+        with patch.object(codes, '_device_tag', lambda code: b'\0' * 6):
+            code = self.issue()
+        self.assertEqual(self.read(code).reason, 'trial_key_unbound')
+
+    def test_same_key_without_trial_only_flag_still_reads_paid(self):
+        code = self.issue('standard', 30)
+        self.assertTrue(codes.read_code(code, [self.pub], 'al-store', self.device, TODAY).full_access)
+
+    def test_trial_only_enforced_for_alternate_key_spellings(self):
+        raw = base64.urlsafe_b64decode(self.pub + '=' * (-len(self.pub) % 4))
+        padded = self.pub + '='
+        std = base64.b64encode(raw).decode('ascii')
+        spaced = f'paid:\n {std[:16]} {std[16:]}'
+        code = self.issue('standard', 30)
+        for only in (frozenset({padded}), frozenset({std}), frozenset({spaced})):
+            self.assertEqual(
+                codes.read_code(code, [self.pub], 'al-store', self.device, TODAY, trial_only_keys=only).reason,
+                'trial_key_edition',
+            )
+        for edition in ('pro', 'perpetual'):
+            paid = self.issue(edition, 30 if edition != 'perpetual' else 14)
+            self.assertEqual(
+                codes.read_code(paid, [self.pub], 'al-store', self.device, TODAY, trial_only_keys=frozenset({std})).reason,
+                'trial_key_edition',
+            )
+        perpetual = self.issue('perpetual', 30)
+        self.assertEqual(
+            codes.read_code(perpetual, [std], 'al-store', self.device, TODAY, trial_only_keys=frozenset({padded})).reason,
+            'trial_key_edition',
+        )
+
