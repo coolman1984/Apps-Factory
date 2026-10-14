@@ -39,18 +39,26 @@ let productFilter = '';
 let productLabels = {};
 let hubDefaultProduct = '';
 
-/** Reissue confirm: cancel must not POST approve; confirmed reissue sends force (no second trial). */
-export function approveAfterReissueConfirm(hasCustomer, userConfirmed) {
-  if (hasCustomer && !userConfirmed) return { abort: true, force: false };
-  if (hasCustomer && userConfirmed) return { abort: false, force: true };
-  return { abort: false, force: false };
+/** Build owner issue POST flags (legacy force is not sent; server maps it only when clients still send it). */
+export function ownerIssueFlags({ reissue = false, confirmDowngrade = false } = {}) {
+  const flags = {};
+  if (reissue) flags.reissue = true;
+  if (confirmDowngrade) flags.confirm_downgrade = true;
+  return flags;
 }
 
-/** Offline blocked responses: confirmed retry posts with force (re-sign trial, no new window). */
+/** Reissue confirm: cancel must not POST approve; confirmed reissue sends reissue only (no downgrade skip). */
+export function approveAfterReissueConfirm(hasCustomer, userConfirmed) {
+  if (hasCustomer && !userConfirmed) return { abort: true, reissue: false };
+  if (hasCustomer && userConfirmed) return { abort: false, reissue: true };
+  return { abort: false, reissue: false };
+}
+
+/** Offline blocked responses: confirmed retry posts with reissue (re-sign trial, no new window). */
 export function offlineAfterBlockedError(error, userConfirmed) {
-  if (error !== 'reissue_confirm' && error !== 'already_used') return { abort: false, force: false };
-  if (!userConfirmed) return { abort: true, force: false };
-  return { abort: false, force: true };
+  if (error !== 'reissue_confirm' && error !== 'already_used') return { abort: false, reissue: false };
+  if (!userConfirmed) return { abort: true, reissue: false };
+  return { abort: false, reissue: true };
 }
 
 export function downgradeConfirmMessageAr(current) {
@@ -305,19 +313,25 @@ function renderPendingList(host, items) {
         ok.disabled = false;
         return;
       }
-      let force = opts.force;
-      const approveBody = () => ({ id: item.id, csrf, force, ...grant });
+      let reissue = opts.reissue;
+      let confirmDowngrade = false;
+      const approveBody = () => ({
+        id: item.id,
+        csrf,
+        ...ownerIssueFlags({ reissue, confirmDowngrade }),
+        ...grant,
+      });
       let res = await api('/approve', {
         method: 'POST',
         headers: headers(),
         body: JSON.stringify(approveBody()),
       });
-      if (res && res.error === 'downgrade' && !force) {
+      if (res && res.error === 'downgrade' && !confirmDowngrade) {
         if (!confirm(downgradeConfirmMessageAr(res.current))) {
           ok.disabled = false;
           return;
         }
-        force = true;
+        confirmDowngrade = true;
         res = await api('/approve', {
           method: 'POST',
           headers: headers(),
@@ -385,11 +399,20 @@ export function wireOffline(form, out, tierHost) {
     const productEl = form.querySelector('[name="product"]');
     const product = productEl ? productEl.value : hubDefaultProduct;
     const grant = readGrant(tierHost || form.closest('.card') || document);
-    const offlineBody = (force) => ({ device, shop, product, csrf, force, ...grant });
+    let reissue = false;
+    let confirmDowngrade = false;
+    const offlineBody = () => ({
+      device,
+      shop,
+      product,
+      csrf,
+      ...ownerIssueFlags({ reissue, confirmDowngrade }),
+      ...grant,
+    });
     let data = await api('/offline', {
       method: 'POST',
       headers: headers(),
-      body: JSON.stringify(offlineBody(false)),
+      body: JSON.stringify(offlineBody()),
     });
     if (data && (data.error === 'reissue_confirm' || data.error === 'already_used')) {
       const confirmMsg = data.error === 'already_used'
@@ -397,20 +420,22 @@ export function wireOffline(form, out, tierHost) {
         : 'إعادة إصدار لهذا الجهاز؟ (فقدان الكود فقط)';
       const retry = offlineAfterBlockedError(data.error, confirm(confirmMsg));
       if (retry.abort) return;
+      reissue = retry.reissue;
       data = await api('/offline', {
         method: 'POST',
         headers: headers(),
-        body: JSON.stringify(offlineBody(retry.force)),
+        body: JSON.stringify(offlineBody()),
       });
     }
-    if (data && data.error === 'downgrade') {
+    if (data && data.error === 'downgrade' && !confirmDowngrade) {
       if (!confirm(downgradeConfirmMessageAr(data.current))) {
         return;
       }
+      confirmDowngrade = true;
       data = await api('/offline', {
         method: 'POST',
         headers: headers(),
-        body: JSON.stringify(offlineBody(true)),
+        body: JSON.stringify(offlineBody()),
       });
     }
     if (!data || !data.ok) {

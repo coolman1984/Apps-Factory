@@ -1191,6 +1191,38 @@ test('online delivered row blocks shorter monthly approve without force', async 
   assert.equal(pending.status, 'pending');
 });
 
+test('comb7: permanent customer pending monthly with reissue blocks downgrade until confirm_downgrade', async () => {
+  const e = env();
+  e.PAID_SIGNING_KEY = pemFromSeed(Buffer.alloc(32, 91));
+  const device = '7KD2M-QX9TP';
+  const dkey = deviceKey(device);
+  const keys = await signingKeys(88, 89);
+  const paidUntil = '2026-11-14';
+  await issueOfflineCustomer(e, keys, device, 'Shop', 'trip-orders', { grant: 'permanent' });
+  assert.deepEqual(await currentTerm(e, 'trip-orders', device), { tier: 'permanent', until: '' });
+  await e.DB.prepare(
+    'INSERT INTO licence_requests(id, poll_token_hash, product, kind, device, device_key, machine, nonce, shop, ref, version, status, created_at, updated_at) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+  ).bind('monthly-pending-comb7', 'hp-c7', 'trip-orders', 'monthly', device, dkey, MACHINE_A, 'n-c7', 'Shop', '', '', 'pending', 20, 20).run();
+  const grant = { grant: 'paid', paid_until: paidUntil };
+  await assert.rejects(
+    () => approveRequest(e, 'monthly-pending-comb7', keys, { ...grant, reissue: true }),
+    (err) => err.message === 'downgrade' && err.current?.tier === 'permanent',
+  );
+  await assert.rejects(
+    () => approveRequest(e, 'monthly-pending-comb7', keys, { ...grant, force: true }),
+    (err) => err.message === 'downgrade',
+  );
+  const pending = await e.DB.prepare('SELECT status FROM licence_requests WHERE id = ?').bind('monthly-pending-comb7').first();
+  assert.equal(pending.status, 'pending');
+  const signed = await approveRequest(e, 'monthly-pending-comb7', keys, {
+    ...grant,
+    reissue: true,
+    confirm_downgrade: true,
+  });
+  assert.ok(signed?.code);
+  assert.deepEqual(await currentTerm(e, 'trip-orders', device), { tier: 'permanent', until: '' });
+});
+
 test('offline manual compares online delivered paid for same product', async () => {
   const e = env();
   const device = '7KD2M-QX9TP';

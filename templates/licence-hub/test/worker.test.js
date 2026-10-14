@@ -140,6 +140,30 @@ test('GET /owner/api/capabilities returns per-product paid flags', async () => {
   assert.equal(data.products['al-store'].paid_available, true);
 });
 
+test('GET /owner/api/customers shows strongest currentTerm not newest issued row', async () => {
+  const e = env({ PAID_SIGNING_KEY: pemFromSeed(Buffer.alloc(32, 94)) });
+  const device = 'ABCD2EFGH3';
+  const dkey = deviceKey(device);
+  const t = 10;
+  await e.DB.prepare(
+    'INSERT INTO customers(id, product, shop, device, kind, licence_tier, licence_expiry, created_at) VALUES(?, ?, ?, ?, ?, ?, ?, ?)',
+  ).bind('cust-perm', 'trip-orders', 'Shop', device, 'permanent', 'permanent', '', t).run();
+  await e.DB.prepare(
+    `INSERT INTO licence_requests(id, poll_token_hash, product, kind, device, device_key, machine, nonce, shop, ref, version,
+      status, code, licence_tier, licence_expiry, created_at, updated_at)
+     VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  ).bind('perm-old', 'hp1', 'trip-orders', 'permanent', device, dkey, 'a'.repeat(64), 'n1', 'Shop', '', '', 'delivered', 'PERM-CODE', 'permanent', '', t, t).run();
+  await e.DB.prepare(
+    `INSERT INTO licence_requests(id, poll_token_hash, product, kind, device, device_key, machine, nonce, shop, ref, version,
+      status, code, licence_tier, licence_expiry, created_at, updated_at)
+     VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  ).bind('paid-newer', 'hp2', 'trip-orders', 'monthly', device, dkey, 'a'.repeat(64), 'n2', 'Shop', '', '', 'issued', 'PAID-CODE', 'paid', '2026-11-14', t + 5, t + 50).run();
+  const res = await ownerFetch(e, '/owner/api/customers');
+  const data = await res.json();
+  const row = (data.items || []).find((i) => i.device === device && i.product === 'trip-orders');
+  assert.equal(row.licence_tier, 'permanent');
+});
+
 test('GET /owner/api/customers lists one row per device and product', async () => {
   const e = env({ LICENCE_PRODUCTS: 'trip-orders,al-store' });
   const device = 'ABCD2EFGH3';
