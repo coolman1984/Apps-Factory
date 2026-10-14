@@ -1,4 +1,4 @@
-# af-license v0.1.0 • signed licences and update manifests
+# af-license v0.3.2 • signed licences and update manifests
 
 **Status:** `implemented` (unit-tested here). Not yet `verified` inside a shipped product or field-accepted.
 Controls: `BIZ-04`, `PROT-02`, `PROT-04`, `REL-02`. Spec: [docs/PROTECTION_UPDATES_AND_SUPPORT.md](../../docs/PROTECTION_UPDATES_AND_SUPPORT.md).
@@ -7,6 +7,7 @@ Controls: `BIZ-04`, `PROT-02`, `PROT-04`, `REL-02`. Spec: [docs/PROTECTION_UPDAT
 - Purpose-separated keys: a `licence` key and an `update` key. The purpose is inside the signed bytes.
 - Licence states: `active`, `grace`, `expired`, `not_yet_valid`, `invalid`. `expired`/`invalid` → the app switches to **read/export/backup**; it never deletes, hides or encrypts customer data.
 - Optional device binding with `fingerprint(...)`, and `clock_rolled_back(...)` for a tampered clock.
+- Shipped-build detection (`af_license.runtime.distributed_runtime`, 0.3.2): Nuitka `__compiled__` or `__uncompiled__`, or PyInstaller's `sys.frozen`, means a sold binary. A plain `python` source run does not. Pass `frozen=`, `executable=` or `compiled=` to override that in a test. A config flag must not be able to turn enforcement off once any of those markers is present.
 
 ```bash
 pip install -r requirements.txt

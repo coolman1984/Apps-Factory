@@ -39,11 +39,20 @@ def distributed_runtime(
     executable: Optional[str] = None,
     compiled: Optional[bool] = None,
 ) -> bool:
-    """True when this process is a shipped binary, not a plain ``python`` source run."""
+    """True when this process is a shipped binary, not a plain ``python`` source run.
+
+    Nuitka marks a compiled module with ``__compiled__`` and a bytecode module
+    shipped inside the same binary with ``__uncompiled__`` (Nuitka 4.3). Either
+    marker means Nuitka provided this module. PyInstaller sets ``sys.frozen``
+    and does not set those markers. An explicit ``frozen`` or ``compiled``
+    argument overrides the automatic check.
+    """
     if frozen is None:
         frozen = getattr(sys, 'frozen', False)
     if compiled is None:
-        compiled = bool(globals().get('__compiled__'))
+        # Presence, not truthiness: Nuitka's own check is ``"__compiled__" in globals()``,
+        # and 4.3's bytecode modules carry ``__uncompiled__`` instead.
+        compiled = '__compiled__' in globals() or '__uncompiled__' in globals()
     if frozen or compiled:
         return True
     exe = os.path.basename(executable if executable is not None else (sys.executable or '')).lower()

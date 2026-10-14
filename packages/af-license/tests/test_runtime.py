@@ -111,8 +111,56 @@ class DistributedRuntimeTest(unittest.TestCase):
     def test_plain_python_is_not_distributed(self):
         self.assertFalse(R.distributed_runtime(frozen=False, executable=sys.executable))
 
+    def test_plain_source_run_has_no_shipped_markers(self):
+        self.assertNotIn('__compiled__', vars(R))
+        self.assertNotIn('__uncompiled__', vars(R))
+        self.assertFalse(getattr(sys, 'frozen', False))
+        self.assertTrue(os.path.basename(sys.executable).lower().startswith('python'))
+        self.assertFalse(R.distributed_runtime())
+
     def test_frozen_is_distributed(self):
         self.assertTrue(R.distributed_runtime(frozen=True, executable=sys.executable))
+
+    def test_sys_frozen_without_an_explicit_argument(self):
+        old = getattr(sys, 'frozen', False)
+        sys.frozen = True
+        try:
+            self.assertTrue(R.distributed_runtime(executable=sys.executable))
+        finally:
+            if old:
+                sys.frozen = old
+            else:
+                del sys.frozen
+
+    def test_nuitka_compiled_and_uncompiled_markers(self):
+        for name in ('__compiled__', '__uncompiled__'):
+            setattr(R, name, {'version': '4.3'})
+            try:
+                self.assertTrue(R.distributed_runtime(frozen=False, executable=sys.executable))
+            finally:
+                delattr(R, name)
+
+    def test_explicit_compiled_argument_overrides_markers(self):
+        R.__uncompiled__ = {'version': '4.3'}
+        try:
+            self.assertFalse(
+                R.distributed_runtime(frozen=False, executable=sys.executable, compiled=False)
+            )
+            self.assertTrue(
+                R.distributed_runtime(frozen=False, executable=sys.executable, compiled=True)
+            )
+        finally:
+            del R.__uncompiled__
+
+    def test_uncompiled_marker_fail_closed_without_policy_module(self):
+        R.__uncompiled__ = {'version': '4.3'}
+        try:
+            pol = R.load_release_policy('_release_policy_missing', frozen=False, executable=sys.executable)
+            self.assertTrue(pol.commercial_build)
+            self.assertEqual(pol.trusted_keys, ())
+            self.assertEqual(pol.build_channel, 'commercial')
+        finally:
+            del R.__uncompiled__
 
     def test_non_python_executable(self):
         self.assertTrue(R.distributed_runtime(frozen=False, executable='/opt/MyApp/MyApp.exe'))

@@ -20,7 +20,7 @@ Product use below was read from the product clones on 2026-10-09 (Store, Teacher
 - **Used by:** none vendored yet (ported from Trip Orders hardening).
 
 ### af-license — signed licences, licence codes, update manifests
-- **Version:** 0.3.1 (`packages/af-license/af_license/__init__.py`; the package README header still says 0.1.0). 0.3.1 adds optional `af_license.runtime` (distributed fail-closed, commercial upgrade grace). 0.3.0 adds the `perpetual` code edition (never expires, refused by older readers). Ed25519 through the `cryptography` library; `requirements.txt` is for the factory side only.
+- **Version:** 0.3.2 (`packages/af-license/af_license/__init__.py`). 0.3.2 treats Nuitka's `__uncompiled__` marker like `__compiled__` in `distributed_runtime` (a bytecode module inside a shipped binary is still a sold build). 0.3.1 adds optional `af_license.runtime` (distributed fail-closed, commercial upgrade grace). 0.3.0 adds the `perpetual` code edition (never expires, refused by older readers). Ed25519 through the `cryptography` library; `requirements.txt` is for the factory side only.
 - **Vendor:** `python3 scripts/vendor_licence.py <product>` → `server/afcodes.py` and `server/ed25519.py` (stdlib verifier, public key only).
 - **Spec:** `docs/PROTECTION_UPDATES_AND_SUPPORT.md`; package `packages/af-license/README.md`. Controls LIC-01, BIZ-03.
 - **Used by:** Store (vendored codes, 0.3.0: trial, monthly subscription and permanent codes). Teachers, Yousef-Transportation and Mr.Ayman-HR carry their own Ed25519 code and are not on the vendored copy.
