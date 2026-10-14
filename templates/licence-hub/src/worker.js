@@ -133,7 +133,11 @@ async function ownerApi(request, env, url, session) {
       if (e?.message === 'date_out_of_range') return json({ error: 'date_out_of_range' }, 400);
       if (e?.message === 'paid_until_before_first') return json({ error: 'bad_paid_until', message: e.message }, 400);
       if (e?.message === 'downgrade') {
-        return json({ error: 'downgrade', current: e.current || undefined }, 409);
+        return json({
+          error: 'downgrade',
+          current: e.current || undefined,
+          trial_reissue: e.trial_reissue === true,
+        }, 409);
       }
       if (e?.message === 'downgrade_forbidden') {
         return json({ error: 'downgrade_forbidden', current: e.current || undefined }, 409);
@@ -178,7 +182,11 @@ async function ownerApi(request, env, url, session) {
       if (e?.message === 'date_out_of_range') return json({ error: 'date_out_of_range' }, 400);
       if (e?.message === 'paid_until_before_first') return json({ error: 'bad_paid_until', message: e.message }, 400);
       if (e?.message === 'downgrade') {
-        return json({ error: 'downgrade', current: e.current || undefined }, 409);
+        return json({
+          error: 'downgrade',
+          current: e.current || undefined,
+          trial_reissue: e.trial_reissue === true,
+        }, 409);
       }
       if (e?.message === 'downgrade_forbidden') {
         return json({ error: 'downgrade_forbidden', current: e.current || undefined }, 409);
