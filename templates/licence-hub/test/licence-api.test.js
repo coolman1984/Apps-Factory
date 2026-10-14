@@ -226,6 +226,10 @@ test('time returns signed hub calendar day without database access', async () =>
     assert.equal(res.headers.get('Cache-Control'), 'no-store');
     assert.equal(data.kid, 'trial-hub');
     assert.ok(data.sig);
+    assert.ok(data.sig2);
+    assert.equal(typeof data.server_time, 'number');
+    assert.equal(data.serverTime, data.server_time);
+    assert.equal(data.signed, true);
     assert.ok([before, after].includes(data.calendar_day));
   }
 });
@@ -698,10 +702,36 @@ test('hub calendar uses global signing keys only', async () => {
   assert.equal(hubTimeSigningMaterial(e), null);
   const out = await hubCalendarSigned(e);
   assert.equal(out.sig, undefined);
+  assert.equal(out.signed, false);
   e.LICENCE_SIGNING_KEY = pemFromSeed(Buffer.alloc(32, 87));
   const signed = await hubCalendarSigned(e);
   assert.ok(signed.sig);
+  assert.ok(signed.sig2);
   assert.equal(signed.kid, 'trial-hub');
+  assert.equal(signed.signed, true);
+});
+
+test('hub time echoes nonce when client sends ?nonce=', async () => {
+  const pem = pemFromSeed(Buffer.alloc(32, 78));
+  const e = { LICENCE_SIGNING_KEY: pem };
+  const req = new Request('https://hub.test/licence/time?nonce=abc123_-');
+  const res = await handleLicence(req, e, new URL(req.url));
+  const data = await res.json();
+  assert.equal(data.nonce, 'abc123_-');
+  assert.ok(data.sig2);
+});
+
+test('hub time rejects invalid nonce query', async () => {
+  const pem = pemFromSeed(Buffer.alloc(32, 79));
+  const e = { LICENCE_SIGNING_KEY: pem };
+  const req = new Request('https://hub.test/licence/time?nonce=not!valid');
+  const res = await handleLicence(req, e, new URL(req.url));
+  assert.equal(res.status, 400);
+});
+
+test('ownerProductsPayload includes calendar_tz', () => {
+  const e = { LICENCE_PRODUCTS: 'a', LICENCE_CALENDAR_TZ: 'Europe/London' };
+  assert.equal(ownerProductsPayload(e).calendar_tz, 'Europe/London');
 });
 
 test('ownerCapabilities reflects per-product paid key', () => {

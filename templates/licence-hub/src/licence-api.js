@@ -112,11 +112,16 @@ export function parseProductLabels(env) {
   }
 }
 
+export function hubCalendarTz(env) {
+  return String(env.LICENCE_CALENDAR_TZ || 'Africa/Cairo').trim() || 'Africa/Cairo';
+}
+
 export function ownerProductsPayload(env) {
   return {
     products: [...products(env)],
     labels: parseProductLabels(env),
     default_product: defaultProduct(env),
+    calendar_tz: hubCalendarTz(env),
   };
 }
 
@@ -331,14 +336,29 @@ export function hubTimeSigningMaterial(env) {
   return null;
 }
 
-export async function hubCalendarSigned(env) {
+export function parseHubTimeNonce(url) {
+  const raw = url.searchParams.get('nonce');
+  if (raw === null || raw === '') return { ok: true, nonce: null };
+  if (!/^[A-Za-z0-9_-]{1,64}$/.test(raw)) return { ok: false };
+  return { ok: true, nonce: raw };
+}
+
+export async function hubCalendarSigned(env, options = {}) {
   const day = hubCalendarDay(env);
   const material = hubTimeSigningMaterial(env);
   const serverTime = now();
-  if (!material) return { calendar_day: day, serverTime };
+  const unsigned = {
+    calendar_day: day,
+    serverTime,
+    server_time: serverTime,
+    signed: false,
+  };
+  if (!material) return unsigned;
   const key = await importSigningKey(material.pem);
-  const signed = await signHubCalendar(key, material.kid, day);
-  return { ...signed, serverTime };
+  const signed = await signHubCalendar(key, material.kid, day, serverTime, {
+    nonce: options.nonce || null,
+  });
+  return signed;
 }
 
 export function parseOwnerGrant(body = {}, env = {}) {
@@ -517,7 +537,9 @@ export async function handleLicence(request, env, url) {
     if (timeLimited(ip)) {
       return json({ error: 'rate' }, 429, { 'Retry-After': String(WINDOW - now() % WINDOW) });
     }
-    return json(await hubCalendarSigned(env));
+    const nonceParse = parseHubTimeNonce(url);
+    if (!nonceParse.ok) return json({ error: 'bad_nonce' }, 400);
+    return json(await hubCalendarSigned(env, { nonce: nonceParse.nonce }));
   }
 
   if (await limited(env, 'lic:ip:' + ip, 120)) return json({ error: 'rate' }, 429);
@@ -1058,7 +1080,12 @@ export function ownerCapabilities(env) {
   }
   const paidAny = Object.values(byProduct).some((p) => p.paid_available);
   const trialAny = Object.values(byProduct).some((p) => p.trial_available);
-  return { products: byProduct, paid_available: paidAny, trial_available: trialAny };
+  return {
+    products: byProduct,
+    paid_available: paidAny,
+    trial_available: trialAny,
+    calendar_tz: hubCalendarTz(env),
+  };
 }
 
 export async function purgeStaleCodes(env) {

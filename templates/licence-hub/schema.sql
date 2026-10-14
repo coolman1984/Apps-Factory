@@ -44,6 +44,7 @@ CREATE TABLE IF NOT EXISTS machine_trials (
   at         INTEGER NOT NULL
 );
 
+-- product DEFAULT is for fresh installs only; match LICENCE_DEFAULT_PRODUCT / first LICENCE_PRODUCTS in wrangler.toml.
 CREATE TABLE IF NOT EXISTS customers (
   id         TEXT PRIMARY KEY,
   product    TEXT NOT NULL DEFAULT 'trip-orders',

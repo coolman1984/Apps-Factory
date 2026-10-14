@@ -94,7 +94,8 @@ test('public calendar limits each IP to 120 requests per ten minutes without D1 
     assert.equal(res.status, 200);
     const body = await res.json();
     assert.ok(body.calendar_day);
-    assert.ok('kid' in body || !('sig' in body));
+    assert.equal(body.signed, false);
+    assert.equal(body.kid, undefined);
   }
   const blocked = await worker.fetch(request('192.0.2.1', '?retry=1'), e);
   assert.equal(blocked.status, 429);

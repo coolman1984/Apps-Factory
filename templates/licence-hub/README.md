@@ -15,8 +15,8 @@ This worker is **not** the factory telemetry relay (`/ingest`). Deploy it on its
 - توقيع التجربة (kid `trial-hub`, `LICENCE_SIGNING_KEY`) والاشتراك المدفوع/الدائم (kid `paid`, `PAID_SIGNING_KEY`) من لوحة المالك — تجربة ١٤ يومًا، مدفوع حتى تاريخ (شهر/٣/٦/سنة أو تاريخ مخصص)، أو دائم. بدون `PAID_SIGNING_KEY` تُعطَّل خيارات المدفوع برسالة عربية واضحة.
 - Signs trials (`trial-hub`, `LICENCE_SIGNING_KEY`) and paid/permanent hub codes (`paid`, `PAID_SIGNING_KEY`) from the owner panel — 14-day trial, paid-until-date presets, or permanent. If `PAID_SIGNING_KEY` is missing, paid options are disabled with a clear Arabic message (no crash).
 - One trial per PC online: locks both the normalized device code and the stable `machine` hash the app sends. Pending requests expire after a short TTL so a squatted poll token cannot block the real customer forever.
-- Public `GET /licence/time` (alias `GET /licence/clock` for Store clients) returns the business calendar day **signed** (`calendar_day`, `kid`, `sig`, `serverTime`). Hub calendar time is signed only with the **global** `LICENCE_SIGNING_KEY` (kid `trial-hub`) or, if that is unset, the global `PAID_SIGNING_KEY` (kid `paid`) — not per-product signing overrides. Every product build must trust those global public keys in `TO_RELEASE_PUBLIC_KEYS` / `licence_keys.txt`. Per-product `LICENCE_SIGNING_KEY_*` / `PAID_SIGNING_KEY_*` secrets apply to **activation codes** only. Unsigned hub time never moves expiry.
-- **Hub time replay:** the office app keeps a monotonic **sealed** business day (`licence_hub_sealed_calendar_max` in profile storage). A signed `calendar_day` that verifies cryptographically but is **older** than the sealed day is ignored — expiry cannot roll backward from a replayed hub response. Jump caps per poll still apply (`HUB_CALENDAR_MAX_JUMP_DAYS`). Regression: `tests/test_commercial_licence.py` (`PaidClockStateTamperTest.test_signed_hub_day_older_than_seal_is_rejected`).
+- Public `GET /licence/time` (alias `GET /licence/clock` for Store clients) returns the business calendar day with **v1** signature (`sig` over `AF-LICENCE-HUB-TIME/1|<day>|<kid>`) plus **v2** freshness (`server_time`, `sig2` over `AF-LICENCE-HUB-TIME/2|<day>|<server_time>|<kid>` or with `|<nonce>` when the client sends `?nonce=`). Response also includes legacy `serverTime` (same unix seconds as `server_time`). Hub calendar time is signed only with the **global** `LICENCE_SIGNING_KEY` (kid `trial-hub`) or, if that is unset, the global `PAID_SIGNING_KEY` (kid `paid`) — not per-product signing overrides. Every product build must trust those global public keys in `TO_RELEASE_PUBLIC_KEYS` / `licence_keys.txt`. Per-product `LICENCE_SIGNING_KEY_*` / `PAID_SIGNING_KEY_*` secrets apply to **activation codes** only. When no global signing key is configured, the hub returns `signed: false` — clients **must ignore** `calendar_day` for expiry.
+- **Hub time replay:** clients verify v2 with `af_license.hub_time.verify_hub_time` (monotonic `server_time` or matching `nonce`) and keep a monotonic **sealed** business day (`licence_hub_sealed_calendar_max`). A signed `calendar_day` that verifies cryptographically but is **older** than the sealed day is ignored — expiry cannot roll backward from a replayed hub response. Jump caps per poll still apply (`HUB_CALENDAR_MAX_JUMP_DAYS`). Regression: `packages/af-license/tests/test_hub_time.py`.
 - Multi-product hub: set `LICENCE_PRODUCTS` (comma-separated ids, e.g. `trip-orders,al-store`). Each request may carry `product`; when omitted, the hub uses `LICENCE_DEFAULT_PRODUCT` or the **first** id in `LICENCE_PRODUCTS`. **Yousef Transportation** sets `LICENCE_DEFAULT_PRODUCT=trip-orders` (or lists `trip-orders` first) so legacy clients without `product` keep working. Codes are always signed with that product’s tag — cross-product unlock is impossible. Optional per-product secrets: `LICENCE_SIGNING_KEY_AL_STORE`, `PAID_SIGNING_KEY_AL_STORE`, etc.
 - Owner UI labels: optional `LICENCE_PRODUCT_LABELS` JSON (`{"product-id":"Arabic label"}`) exposed on `GET /owner/api/products` with `labels` and `default_product`; the panel falls back to the raw product id when no label is set.
 - Route prefixes: `/licence/*`, `/api/licence/*`, and `/licence-hub/licence/*` are equivalent.
@@ -39,14 +39,15 @@ Never put the Licence Studio **paid** private key in `LICENCE_SIGNING_KEY`. Gene
 
 ```bash
 cd licence-hub
-npx wrangler d1 create trip-orders-licence
-# Put database_id in wrangler.toml
-npx wrangler d1 execute trip-orders-licence --file=schema.sql
+npx wrangler d1 create my-licence
+# Put database_id in wrangler.toml (name placeholders: my-licence-hub / my-licence)
+npx wrangler d1 execute my-licence --file=schema.sql
 # Legacy DBs only (see migrations/README.md) — run migrations BEFORE deploy.
-# On non-Yousef databases, edit migrations/0002 and 0003 DEFAULT values to match your
-# LICENCE_DEFAULT_PRODUCT (or first LICENCE_PRODUCTS id) before applying:
-# node scripts/apply-migrations.mjs ./local.sqlite
-# npx wrangler d1 execute trip-orders-licence --remote --file=migrations/0001_licence_tier_expiry.sql
+# Local SQLite: node scripts/apply-migrations.mjs [--default-product <id>] ./local.sqlite
+# Remote D1 (substitute __DEFAULT_PRODUCT__ in 0002/0003 SQL if not using the script):
+#   node scripts/apply-migrations.mjs --default-product my-product /path/to/export.sqlite
+#   npx wrangler d1 execute my-licence --remote --file=migrations/0001_licence_tier_expiry.sql
+#   (after substituting __DEFAULT_PRODUCT__ in 0002 and 0003, or use apply-migrations on a copy and upload)
 
 # Trial-only Ed25519 key (example — run locally, do not commit trial-hub.pem):
 openssl genpkey -algorithm ED25519 -out trial-hub.pem
@@ -78,7 +79,7 @@ This worker is **not** the factory telemetry relay (`/ingest`); deploy it on its
 | `/licence/request` | POST | Start activation. Fields: `product` (optional, default from `LICENCE_DEFAULT_PRODUCT` or first `LICENCE_PRODUCTS` entry), `kind` (`trial` \| `monthly` \| `permanent`), `device`, `machine`, `nonce`, `shop`, `ref`, `version`. Returns `id`, `poll_token`, `status`. |
 | `/licence/status` | GET | Poll with `?id=` and `Authorization: Bearer <poll_token>`. Returns `status`, optional `code` when `issued`, signed calendar fields, `reason` when refused. |
 | `/licence/ack` | POST | Client got the code; body `{ id }` + Bearer poll token. Clears stored code (`delivered`). |
-| `/licence/time` or `/licence/clock` | GET | Signed business calendar (`calendar_day`, `kid`, `sig`, `serverTime`). No auth. |
+| `/licence/time` or `/licence/clock` | GET | Business calendar (`calendar_day`, v1 `sig`, v2 `server_time`/`sig2`, `serverTime`, optional `?nonce=`). `signed: false` when no global key. No auth. |
 
 Poll every few seconds while `pending`; stop on `issued`, `refused`, or `expired`.
 

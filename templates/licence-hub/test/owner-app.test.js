@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   showIssuedCode, readGrant, tierPickerHtml, presetPaidUntil, mountOfflineTier, approveAfterReissueConfirm,
-  defaultTierSelection, customerTierLabelAr, downgradeConfirmMessageAr, productLabelAr,
+  defaultTierSelection, customerTierLabelAr, downgradeConfirmMessageAr, productLabelAr, setOwnerHubCalendarTz,
 } from '../public/owner/app.js';
 
 function panelEl() {
@@ -135,12 +135,14 @@ test('offline submit stays disabled until product list is loaded', async (t) => 
   assert.equal(submit.disabled, false);
 });
 
-test('presetPaidUntil clamps month overflow from Cairo today', () => {
+test('presetPaidUntil clamps month overflow using hub calendar tz', () => {
+  setOwnerHubCalendarTz('Pacific/Kiritimati');
   const orig = Date.prototype.toLocaleDateString;
   Date.prototype.toLocaleDateString = function (locales, opts) {
-    if (opts && opts.timeZone === 'Africa/Cairo') return '2026-01-31';
+    if (opts && opts.timeZone === 'Pacific/Kiritimati') return '2026-01-31';
     return orig.call(this, locales, opts);
   };
   assert.equal(presetPaidUntil('1m'), '2026-02-28');
   Date.prototype.toLocaleDateString = orig;
+  setOwnerHubCalendarTz('Africa/Cairo');
 });

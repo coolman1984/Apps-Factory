@@ -1,9 +1,14 @@
 'use strict';
 
-const CALENDAR_TZ = 'Africa/Cairo';
+let hubCalendarTz = 'Africa/Cairo';
 
-function calendarTodayCairo() {
-  return new Date().toLocaleDateString('en-CA', { timeZone: CALENDAR_TZ });
+/** Test hook: owner panel uses hub LICENCE_CALENDAR_TZ from /owner/api/products. */
+export function setOwnerHubCalendarTz(tz) {
+  hubCalendarTz = String(tz || 'Africa/Cairo').trim() || 'Africa/Cairo';
+}
+
+function calendarTodayInHubTz() {
+  return new Date().toLocaleDateString('en-CA', { timeZone: hubCalendarTz });
 }
 
 function daysInMonth(year, month1to12) {
@@ -92,6 +97,7 @@ async function session() {
   if (catalog) {
     productLabels = catalog.labels && typeof catalog.labels === 'object' ? catalog.labels : {};
     hubDefaultProduct = String(catalog.default_product || catalog.products?.[0] || '').trim();
+    if (catalog.calendar_tz) setOwnerHubCalendarTz(catalog.calendar_tz);
   }
   return s;
 }
@@ -149,7 +155,7 @@ export function tierPickerHtml(disabledPaid, customDate, requestId, requestKind)
 export function presetPaidUntil(preset) {
   const months = { '1m': 1, '3m': 3, '6m': 6, '1y': 12 }[preset];
   if (!months) return '';
-  return addCalendarMonths(calendarTodayCairo(), months);
+  return addCalendarMonths(calendarTodayInHubTz(), months);
 }
 
 function wireTierForm(root) {
