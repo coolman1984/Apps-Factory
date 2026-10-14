@@ -70,6 +70,13 @@ class CodeTests(unittest.TestCase):
         later = self.trial(edition='perpetual', first_day=date(2026, 12, 1))
         self.assertEqual(self.read(later['code']).state, 'not_yet_valid')
 
+    def test_malformed_trial_only_entry_does_not_break_read_code(self):
+        issued = self.trial(edition='standard', days=30)
+        mixed = frozenset({'not-a-valid-key!!!', 'also@@@bad'})
+        self.assertTrue(
+            codes.read_code(issued['code'], [self.pub], 'al-store', self.device, TODAY, trial_only_keys=mixed).full_access,
+        )
+
     def test_a_perpetual_code_is_never_unbound(self):
         with self.assertRaises(ValueError) as e:
             self.trial(edition='perpetual', device=None)

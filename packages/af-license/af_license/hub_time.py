@@ -16,11 +16,13 @@ v2 is required unless ``allow_v1=True``. Freshness rules (``last_server_time`` s
 - Without a request ``nonce``: ``server_time`` must be **strictly greater** than
   ``last_server_time`` (equal timestamps replay).
 - With a request ``nonce``: response ``nonce`` must match **and**
-  ``server_time >= last_server_time`` (nonce does not skip the high-water mark).
+  ``server_time`` must be **strictly greater** than ``last_server_time`` (same ``sig2`` cannot be re-applied).
 
 Day sealing (when ``sealed_day`` is set): responses with an earlier ``calendar_day`` are rejected.
 A day more than ``max_jump_days`` after ``sealed_day`` is capped to ``sealed_day + max_jump_days``
-(``day_jump_capped`` flag). v1 obeys the same sealing and can never lower the day.
+(``day_jump_capped`` flag). v1 obeys the same sealing and can never lower the day; v1 never
+returns ``server_time`` (unsigned in the v1 signature) and must not be used to advance
+``last_server_time``.
 """
 from __future__ import annotations
 
@@ -37,7 +39,8 @@ _NONCE_RE = re.compile(r'^[A-Za-z0-9_-]{1,64}$')
 class HubTimeVerifyResult(NamedTuple):
     calendar_day: str
     server_time: int | None
-    day_jump_capped: bool = False
+    day_jump_capped: bool
+    version: int
 
 
 def _b64url_decode(s: str) -> bytes | None:
@@ -136,7 +139,7 @@ def verify_hub_time(
         if nonce is not None:
             if not _NONCE_RE.match(nonce) or resp_nonce != nonce:
                 return None
-            if last_server_time is not None and server_time < int(last_server_time):
+            if last_server_time is not None and server_time <= int(last_server_time):
                 return None
             msg = hub_time_message_v2(day, server_time, kid, nonce)
         else:
@@ -152,7 +155,7 @@ def verify_hub_time(
         if sealed is None:
             return None
         out_day, capped = sealed
-        return HubTimeVerifyResult(out_day, server_time, capped)
+        return HubTimeVerifyResult(out_day, server_time, capped, 2)
 
     if not allow_v1:
         return None
@@ -165,13 +168,8 @@ def verify_hub_time(
         return None
     if not ed25519_verify(pub, hub_time_message_v1(day, kid), sig_bytes):
         return None
-    st = data.get('server_time')
-    try:
-        server_time = int(st) if st is not None else None
-    except (TypeError, ValueError):
-        server_time = None
     sealed = _apply_sealed_day(day, sealed_day, max_jump_days)
     if sealed is None:
         return None
     out_day, capped = sealed
-    return HubTimeVerifyResult(out_day, server_time, capped)
+    return HubTimeVerifyResult(out_day, None, capped, 1)

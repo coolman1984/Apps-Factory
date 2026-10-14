@@ -1048,7 +1048,14 @@ async function issueOfflineCustomerInner(env, keys, device, shop, productId, opt
   const issueBinds = replacing
     ? ['issued', signed.code, signed.device, t, meta.tier, meta.expiry || null, requestId, lock, requestId]
     : ['issued', signed.code, signed.device, t, requestId, lock, requestId];
-  const customerStmts = customerUpsertStmts(env, shop, signed, meta, t, requestId);
+  const customerStmts = customerUpsertStmts(
+    env,
+    blankLongDigitRuns(shop).slice(0, 60) || '—',
+    signed,
+    meta,
+    t,
+    requestId,
+  );
   const tierStmt = replacing
     ? null
     : env.DB.prepare(

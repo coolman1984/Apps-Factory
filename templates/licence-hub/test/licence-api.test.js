@@ -134,6 +134,20 @@ test('blankLongDigitRuns strips spaced and dashed phone-like runs', () => {
   assert.equal(blankLongDigitRuns('shop (010) 123-4567'), 'shop ');
 });
 
+test('offline issuance blanks phone-like shop on customers row', async () => {
+  const e = env();
+  const keys = await signingKeys(91);
+  const device = '7KD2M-QX9TP';
+  const dkey = deviceKey(device);
+  await issueOfflineCustomer(e, keys, device, '010 1234 5678', 'trip-orders');
+  const req = await e.DB.prepare('SELECT shop FROM licence_requests WHERE id = ?')
+    .bind(offlineRequestId('trip-orders', dkey)).first();
+  const cust = await e.DB.prepare('SELECT shop FROM customers WHERE device = ? AND product = ?')
+    .bind(device, 'trip-orders').first();
+  assert.equal(req.shop, '—');
+  assert.equal(cust.shop, '—');
+});
+
 test('losing concurrent approval never exposes issued code on status poll', async () => {
   const e = env();
   const keys = await signingKeys(19);

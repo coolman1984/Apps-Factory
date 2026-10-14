@@ -128,7 +128,13 @@ def key_tag(public_b64: str) -> bytes:
 def _trial_only_raw_keys(trial_only_keys: frozenset[str] | None) -> frozenset[bytes]:
     if not trial_only_keys:
         return frozenset()
-    return frozenset(_decode_ed25519_public_b64(k) for k in trial_only_keys)
+    out: set[bytes] = set()
+    for k in trial_only_keys:
+        try:
+            out.add(_decode_ed25519_public_b64(k))
+        except ValueError:
+            continue
+    return frozenset(out)
 
 
 def _day(n: int) -> date:
