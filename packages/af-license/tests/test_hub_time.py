@@ -69,11 +69,16 @@ class HubTimeTests(unittest.TestCase):
         self.assertIsNone(verify_hub_time(data, self.trusted, allow_v1=True))
 
     def test_v2_good_first_poll(self):
-        data = self._pack_v2(server_time=1_700_000_100)
+        nonce = 'first-poll1'
+        data = self._pack_v2(server_time=1_700_000_100, nonce=nonce)
         self.assertEqual(
-            verify_hub_time(data, self.trusted),
+            verify_hub_time(data, self.trusted, nonce=nonce),
             HubTimeVerifyResult('2026-10-14', 1_700_000_100, False, 2, True),
         )
+
+    def test_v2_first_contact_without_nonce_rejected(self):
+        data = self._pack_v2(server_time=1_700_000_100)
+        self.assertIsNone(verify_hub_time(data, self.trusted))
 
     def test_v2_replay_older_server_time_rejected(self):
         data = self._pack_v2(server_time=1_700_000_050)

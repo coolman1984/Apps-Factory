@@ -69,6 +69,30 @@ test('apply-migrations is safe to run twice on legacy-shaped db', () => {
   assert.ok(applied.includes('0003_customers_product'));
 });
 
+test('0001 backfills licence_tier from kind on legacy rows', () => {
+  const db = new DatabaseSync(':memory:');
+  db.exec(`CREATE TABLE licence_requests (
+    id TEXT PRIMARY KEY, poll_token_hash TEXT, kind TEXT, device TEXT, device_key TEXT,
+    machine TEXT, nonce TEXT, shop TEXT, ref TEXT, version TEXT, status TEXT,
+    stage TEXT, reason TEXT, code TEXT, licence_expiry TEXT, created_at INTEGER, updated_at INTEGER
+  );`);
+  db.exec(`CREATE TABLE customers (
+    id TEXT PRIMARY KEY, shop TEXT, device TEXT, kind TEXT, serial TEXT,
+    first_day TEXT, last_day TEXT, licence_expiry TEXT, created_at INTEGER
+  );`);
+  db.exec(`INSERT INTO licence_requests(id, poll_token_hash, kind, device, device_key, machine, nonce, shop, ref, version, status, licence_expiry, created_at, updated_at)
+    VALUES('t1','h','trial','d','dk','m','n','','','','pending',NULL,1,1),
+           ('m1','h','monthly','d2','dk2','m','n','','','','delivered','2028-01-01',1,1),
+           ('m2','h','monthly','d3','dk3','m','n','','','','delivered',NULL,1,1)`);
+  db.exec(`INSERT INTO customers(id, shop, device, kind, licence_expiry, created_at)
+    VALUES('c1','S','DEV','permanent',NULL,1)`);
+  applyMigrations(db);
+  assert.equal(db.prepare('SELECT licence_tier FROM licence_requests WHERE id = ?').get('t1').licence_tier, 'trial');
+  assert.equal(db.prepare('SELECT licence_tier FROM licence_requests WHERE id = ?').get('m1').licence_tier, 'paid');
+  assert.equal(db.prepare('SELECT licence_tier FROM licence_requests WHERE id = ?').get('m2').licence_tier, '');
+  assert.equal(db.prepare('SELECT licence_tier FROM customers WHERE id = ?').get('c1').licence_tier, 'permanent');
+});
+
 test('0003 dedupes duplicate customers before unique index', () => {
   const db = new DatabaseSync(':memory:');
   db.exec(`CREATE TABLE licence_requests (

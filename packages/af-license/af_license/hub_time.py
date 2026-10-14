@@ -17,6 +17,12 @@ Client persistence (required for safe expiry):
 
 v2 is required unless ``allow_v1=True``.
 
+**First contact:** when neither ``sealed_day`` nor ``last_server_time`` is stored yet, v2 verification
+requires the caller to pass a matching ``nonce`` argument (fresh random nonce on each hub poll).
+Without it, verification returns ``None`` so a captured older ``/licence/time`` body cannot seed
+``last_server_time`` before the client has sealed a calendar day. Clients must always send a fresh
+nonce on first contact.
+
 **Nonce mode (recommended):** the client sends a fresh random ``nonce`` on each request; the response
 ``nonce`` must match (additional binding, not a replay bypass). When ``last_server_time`` is known,
 ``server_time`` must still be **strictly greater** than ``last_server_time`` in both nonce and
@@ -24,9 +30,10 @@ no-nonce modes. Re-verifying the same v2 body after persisting fails for that re
 clamped to ``[sealed_day, sealed_day + max_jump_days]`` when ``sealed_day`` is set. Returns
 ``server_time`` for persistence.
 
-**No-nonce mode:** same ``server_time`` strict-increase rule; there is **no** upper bound on the gap
-so honest clients offline for weeks can recover. Day clamped the same way. Persist the returned
-``server_time``. A far-future ``server_time`` can only be produced with the hub private key.
+**No-nonce mode:** after first contact (when ``last_server_time`` or ``sealed_day`` is known), same
+``server_time`` strict-increase rule; there is **no** upper bound on the gap so honest clients
+offline for weeks can recover. Day clamped the same way. Persist the returned ``server_time``. A
+far-future ``server_time`` can only be produced with the hub private key.
 """
 from __future__ import annotations
 
@@ -145,7 +152,12 @@ def verify_hub_time(
             lst = int(last_server_time)
             if server_time <= lst:
                 return None
-        if nonce is not None:
+        first_contact = sealed_day is None and last_server_time is None
+        if first_contact:
+            if nonce is None or not _NONCE_RE.match(nonce) or resp_nonce != nonce:
+                return None
+            msg = hub_time_message_v2(day, server_time, kid, nonce)
+        elif nonce is not None:
             if not _NONCE_RE.match(nonce) or resp_nonce != nonce:
                 return None
             msg = hub_time_message_v2(day, server_time, kid, nonce)

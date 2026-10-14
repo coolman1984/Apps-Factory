@@ -9,7 +9,7 @@ import {
   hubCalendarSigned, hubTimeSigningMaterial, ownerCapabilities, loadSigningKeys,
   offlineRequestId, storedGrantMatches, trialUsedForOfflineProduct, wouldDowngradeGrant,
   currentTerm, defaultProduct, ownerProductsPayload, blankLongDigitRuns, refFingerprint,
-  originalTrialWindow,
+  originalTrialWindow, isActiveStrongTerm,
 } from '../src/licence-api.js';
 import { importSigningKey } from '../src/afcodes.js';
 import { calendarDateInTz } from '../src/calendar.js';
@@ -1405,4 +1405,58 @@ test('approve paid without PAID_SIGNING_KEY keeps pending request', async () => 
   const row = await e.DB.prepare('SELECT status, reason FROM licence_requests WHERE id = ?').bind('paid-miss').first();
   assert.equal(row.status, 'pending');
   assert.notEqual(row.reason, REASON_PAID_KEY_MISSING);
+});
+
+test('comb8: paid term with empty expiry is not an active strong term', () => {
+  const e = env();
+  assert.equal(isActiveStrongTerm({ tier: 'paid', until: '' }, e), false);
+  assert.equal(isActiveStrongTerm({ tier: 'paid', until: 'not-a-date' }, e), false);
+  assert.equal(isActiveStrongTerm({ tier: 'paid', until: '2099-12-31' }, e), true);
+});
+
+test('comb8: offline paid signing failure does not persist monthly kind on request row', async () => {
+  const e = env();
+  const device = '7KD2M-QX9TP';
+  const dkey = deviceKey(device);
+  const requestId = offlineRequestId('trip-orders', dkey);
+  const keys = await signingKeys(97, 98);
+  await assert.rejects(
+    () => issueOfflineCustomer(e, keys, device, 'Shop', 'trip-orders', { grant: 'paid', paid_until: '1999-01-01' }),
+    /paid_until_before_first/,
+  );
+  const row = await e.DB.prepare('SELECT kind, licence_tier, status FROM licence_requests WHERE id = ?').bind(requestId).first();
+  assert.ok(!row);
+  const e2 = env();
+  const device2 = 'ABCDE-FGHJK';
+  const requestId2 = offlineRequestId('trip-orders', deviceKey(device2));
+  e2.PAID_SIGNING_KEY = undefined;
+  const keysNoPaid = await signingKeys(100);
+  await assert.rejects(
+    () => issueOfflineCustomer(e2, keysNoPaid, device2, 'Shop', 'trip-orders', { grant: 'paid', paid_until: '2028-06-01' }),
+    /paid_signing_key_missing/,
+  );
+  const row2 = await e2.DB.prepare('SELECT kind, licence_tier, status FROM licence_requests WHERE id = ?').bind(requestId2).first();
+  assert.ok(!row2);
+});
+
+test('comb8: failed paid offline issue on delivered trial does not block trial reissue', async () => {
+  const e = env();
+  const device = 'LMNOP-QRSTV';
+  const dkey = deviceKey(device);
+  const requestId = offlineRequestId('trip-orders', dkey);
+  const keys = await signingKeys(101, 102);
+  const trial = await issueOfflineCustomer(e, keys, device, 'Shop', 'trip-orders', { grant: 'trial' });
+  assert.ok(trial.code);
+  await e.DB.prepare("UPDATE licence_requests SET status = 'delivered', code = NULL WHERE id = ?").bind(requestId).run();
+  await assert.rejects(
+    () => issueOfflineCustomer(e, keys, device, 'Shop', 'trip-orders', {
+      grant: 'paid', paid_until: '1999-01-01', reissue: true, confirm_downgrade: true,
+    }),
+    /paid_until_before_first/,
+  );
+  const row = await e.DB.prepare('SELECT kind, licence_tier FROM licence_requests WHERE id = ?').bind(requestId).first();
+  assert.equal(row.kind, 'trial');
+  assert.notEqual(row.kind, 'monthly');
+  const again = await issueOfflineCustomer(e, keys, device, 'Shop', 'trip-orders', { grant: 'trial', reissue: true });
+  assert.ok(again.code);
 });

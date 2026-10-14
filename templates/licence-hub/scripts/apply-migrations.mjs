@@ -93,6 +93,38 @@ function addColumnIfMissing(db, migrationId, table, column, ddl) {
   markApplied(db, migrationId);
 }
 
+/** Legacy rows: copy kind into licence_tier when tier column was added empty. */
+function backfillLicenceTierFromKind(db) {
+  const migrationId = '0001_backfill_licence_tier';
+  if (migrationApplied(db, migrationId)) return;
+  if (!columnExists(db, 'licence_requests', 'licence_tier')) return;
+  db.exec(
+    `UPDATE licence_requests SET licence_tier = 'trial' WHERE licence_tier = '' AND kind = 'trial'`,
+  );
+  db.exec(
+    `UPDATE licence_requests SET licence_tier = 'permanent' WHERE licence_tier = '' AND kind = 'permanent'`,
+  );
+  db.exec(
+    `UPDATE licence_requests SET licence_tier = 'paid'
+     WHERE licence_tier = '' AND kind = 'monthly'
+       AND licence_expiry IS NOT NULL AND TRIM(licence_expiry) != ''`,
+  );
+  if (columnExists(db, 'customers', 'licence_tier')) {
+    db.exec(
+      `UPDATE customers SET licence_tier = 'trial' WHERE licence_tier = '' AND kind = 'trial'`,
+    );
+    db.exec(
+      `UPDATE customers SET licence_tier = 'permanent' WHERE licence_tier = '' AND kind = 'permanent'`,
+    );
+    db.exec(
+      `UPDATE customers SET licence_tier = 'paid'
+       WHERE licence_tier = '' AND kind = 'monthly'
+         AND licence_expiry IS NOT NULL AND TRIM(licence_expiry) != ''`,
+    );
+  }
+  markApplied(db, migrationId);
+}
+
 function dedupeCustomersProductDevice(db) {
   const dupes = db.prepare(
     'SELECT product, device FROM customers GROUP BY product, device HAVING COUNT(*) > 1',
@@ -156,6 +188,7 @@ export function applyMigrations(db, options = {}) {
     'licence_expiry',
     'ALTER TABLE customers ADD COLUMN licence_expiry TEXT;',
   );
+  backfillLicenceTierFromKind(db);
   const productDdl = loadMigrationSql('0002_product_column.sql', defaultProduct).trim();
   addColumnIfMissing(db, '0002_product_column', 'licence_requests', 'product', productDdl);
   applyCustomersProductMigration(db, defaultProduct);

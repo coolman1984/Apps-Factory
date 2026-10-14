@@ -61,6 +61,11 @@ export function offlineAfterBlockedError(error, userConfirmed) {
   return { abort: false, reissue: true };
 }
 
+/** After downgrade confirm on offline issue, replace delivered/issued rows (not only weaker grant). */
+export function offlineFlagsAfterDowngradeConfirmed() {
+  return { confirmDowngrade: true, reissue: true };
+}
+
 export function downgradeConfirmMessageAr(current) {
   const tier = String(current?.tier || '').trim().toLowerCase();
   let label = 'تجربة';
@@ -431,7 +436,20 @@ export function wireOffline(form, out, tierHost) {
       if (!confirm(downgradeConfirmMessageAr(data.current))) {
         return;
       }
-      confirmDowngrade = true;
+      ({ confirmDowngrade, reissue } = offlineFlagsAfterDowngradeConfirmed());
+      data = await api('/offline', {
+        method: 'POST',
+        headers: headers(),
+        body: JSON.stringify(offlineBody()),
+      });
+    }
+    if (data && (data.error === 'reissue_confirm' || data.error === 'already_used')) {
+      const confirmMsg = data.error === 'already_used'
+        ? 'تجربة مستخدمة — إعادة إصدار نفس التجربة؟ (لن تُمدَّد المدة)'
+        : 'إعادة إصدار لهذا الجهاز؟ (فقدان الكود فقط)';
+      const retry = offlineAfterBlockedError(data.error, confirm(confirmMsg));
+      if (retry.abort) return;
+      reissue = retry.reissue;
       data = await api('/offline', {
         method: 'POST',
         headers: headers(),
