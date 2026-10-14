@@ -194,7 +194,7 @@ class TrialOnlyKeyTest(unittest.TestCase):
 
     def test_longer_or_graced_trial_refused(self):
         self.assertEqual(self.read(self.issue(days=20)).reason, 'trial_key_days')
-        self.assertEqual(self.read(self.issue(grace=60)).reason, 'trial_key_days')
+        self.assertEqual(self.read(self.issue(grace=60)).reason, 'trial_key_grace')
 
     def test_unbound_trial_refused(self):
         from unittest.mock import patch
