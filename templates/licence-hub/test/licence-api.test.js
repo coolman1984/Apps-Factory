@@ -9,7 +9,7 @@ import {
   hubCalendarSigned, hubTimeSigningMaterial, ownerCapabilities, loadSigningKeys,
   offlineRequestId, storedGrantMatches, trialUsedForOfflineProduct, wouldDowngradeGrant,
   currentTerm, defaultProduct, ownerProductsPayload, blankLongDigitRuns, refFingerprint,
-  originalTrialWindow, isActiveStrongTerm, wouldDowngradeTerm,
+  originalTrialWindow, isActiveStrongTerm,
 } from '../src/licence-api.js';
 import { importSigningKey } from '../src/afcodes.js';
 import { calendarDateInTz } from '../src/calendar.js';
@@ -138,10 +138,6 @@ test('blankLongDigitRuns strips spaced and dashed phone-like runs', () => {
 test('blankLongDigitRuns normalizes Arabic-Indic digit runs', () => {
   assert.equal(blankLongDigitRuns('٠١٠١٢٣٤٥٦٧٨'), '');
   assert.equal(blankLongDigitRuns('shop ۰۱۰۱۲۳۴۵۶۷'), 'shop ');
-});
-
-test('blankLongDigitRuns normalizes fullwidth digit runs', () => {
-  assert.equal(blankLongDigitRuns('０１０１２３４５６７８'), '');
 });
 
 test('offline issuance blanks phone-like shop on customers row', async () => {
@@ -1416,36 +1412,6 @@ test('comb8: paid term with empty expiry is not an active strong term', () => {
   assert.equal(isActiveStrongTerm({ tier: 'paid', until: '' }, e), false);
   assert.equal(isActiveStrongTerm({ tier: 'paid', until: 'not-a-date' }, e), false);
   assert.equal(isActiveStrongTerm({ tier: 'paid', until: '2099-12-31' }, e), true);
-});
-
-test('comb9: expired paid term is not a trial downgrade', () => {
-  const e = env();
-  const term = { tier: 'paid', until: '1999-01-01' };
-  assert.equal(wouldDowngradeTerm(term, { grant: 'trial' }, e), false);
-  assert.equal(wouldDowngradeTerm(term, { grant: 'trial' }), true);
-});
-
-test('comb9: expired paid customer trial approve succeeds without reissue', async () => {
-  const e = env();
-  const device = '7KD2M-QX9TP';
-  const dkey = deviceKey(device);
-  const keys = await signingKeys(103, 104);
-  await e.DB.prepare(
-    'INSERT INTO customers(id, shop, device, product, kind, licence_tier, licence_expiry, created_at) VALUES(?, ?, ?, ?, ?, ?, ?, ?)',
-  ).bind('c-exp-paid', 'Shop', device, 'trip-orders', 'monthly', 'paid', '1999-06-01', 1).run();
-  await e.DB.prepare(
-    `INSERT INTO licence_requests(id, poll_token_hash, product, kind, device, device_key, machine, nonce, shop, ref, version,
-      status, licence_tier, licence_expiry, created_at, updated_at)
-     VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-  ).bind('exp-paid-del', 'hp-exp', 'trip-orders', 'monthly', device, dkey, MACHINE_A, 'n-exp', 'Shop', '', '', 'delivered', 'paid', '1999-06-01', 8, 8).run();
-  await e.DB.prepare(
-    'INSERT INTO licence_requests(id, poll_token_hash, product, kind, device, device_key, machine, nonce, shop, ref, version, status, created_at, updated_at) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-  ).bind('trial-pending-comb9', 'hp-c9', 'trip-orders', 'trial', device, dkey, MACHINE_A, 'n-c9', 'Shop', '', '', 'pending', 9, 9).run();
-  const signed = await approveRequest(e, 'trial-pending-comb9', keys, { grant: 'trial' });
-  assert.ok(signed?.code);
-  const row = await e.DB.prepare('SELECT licence_tier, status FROM licence_requests WHERE id = ?').bind('trial-pending-comb9').first();
-  assert.equal(row.status, 'issued');
-  assert.equal(row.licence_tier, 'trial');
 });
 
 test('comb8: offline paid signing failure does not persist monthly kind on request row', async () => {

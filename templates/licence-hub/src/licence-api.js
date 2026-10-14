@@ -45,9 +45,9 @@ export function hubTrialDaysInclusive(raw) {
   return Math.floor(days);
 }
 
-/** Map Arabic-Indic, Eastern Arabic-Indic, and fullwidth digits to ASCII 0-9. */
+/** Map Arabic-Indic and Eastern Arabic-Indic digits to ASCII 0-9. */
 export function normalizeShopDigits(text) {
-  return String(text || '').replace(/[\u0660-\u0669\u06F0-\u06F9\uFF10-\uFF19]/g, (ch) => String(ch.charCodeAt(0) & 0xf));
+  return String(text || '').replace(/[\u0660-\u0669\u06F0-\u06F9]/g, (ch) => String(ch.charCodeAt(0) & 0xf));
 }
 
 /** Blank phone-like digit runs (>=7 digits; spaces/dashes/dots/parentheses allowed between digits). */
@@ -498,12 +498,8 @@ export async function currentTerm(env, productId, device) {
   return best;
 }
 
-export function wouldDowngradeTerm(term, grant, env = null) {
+export function wouldDowngradeTerm(term, grant) {
   if (!term?.tier) return false;
-  if (grant?.grant === 'trial' && env) {
-    const paidLike = term.tier === 'paid' || term.tier === 'monthly';
-    if (paidLike && !isActiveStrongTerm(term, env)) return false;
-  }
   const cur = grantStrengthFromRow({ licence_tier: term.tier, licence_expiry: term.until });
   const next = grantStrengthFromGrant(grant);
   if (next.level < cur.level) return true;
@@ -519,25 +515,16 @@ export function downgradeError(term) {
   return e;
 }
 
-/** True when a trial downgrade confirm should re-sign the stored trial window (not a fresh trial). */
-export async function trialReissueOnDowngrade(env, productId, device) {
-  const win = await originalTrialWindow(env, productId, device);
-  return Boolean(win && !trialWindowEnded(win.last, env));
-}
-
-export async function assertDowngradeAllowed(env, productId, device, knownTerm, grant, confirmDowngrade) {
-  if (confirmDowngrade) return;
-  if (!knownTerm || !wouldDowngradeTerm(knownTerm, grant, env)) return;
-  const err = downgradeError(knownTerm);
-  if (grant?.grant === 'trial') err.trial_reissue = await trialReissueOnDowngrade(env, productId, device);
-  throw err;
-}
-
 /** Legacy `force` means reissue only; downgrade needs explicit confirm_downgrade. */
 export function resolveIssueFlags(options = {}) {
   const reissue = options.reissue === true || options.force === true;
   const confirmDowngrade = options.confirm_downgrade === true;
   return { reissue, confirmDowngrade };
+}
+
+export function assertDowngradeAllowed(knownTerm, grant, confirmDowngrade) {
+  if (confirmDowngrade) return;
+  if (knownTerm && wouldDowngradeTerm(knownTerm, grant)) throw downgradeError(knownTerm);
 }
 
 /** Paid until calendar day inclusive; permanent always active. */
@@ -618,13 +605,10 @@ export function trialWindowEnded(lastIso, env) {
   return today > String(lastIso || '').trim();
 }
 
-async function trialSignOptions(env, grant, reissue, productId, device, confirmDowngrade = false) {
+async function trialSignOptions(env, grant, reissue, productId, device) {
   if (!reissue || grant.grant !== 'trial') return {};
   const win = await originalTrialWindow(env, productId, device);
-  if (!win || trialWindowEnded(win.last, env)) {
-    if (confirmDowngrade || !win) return {};
-    throw new Error('trial_expired');
-  }
+  if (!win || trialWindowEnded(win.last, env)) throw new Error('trial_expired');
   return { trialFirstDay: win.first, trialLastDay: win.last };
 }
 
@@ -1004,19 +988,19 @@ export async function approveRequest(env, requestId, keys, options = {}) {
       await ensureCustomerRecord(env, row, signedFromRow(row), now());
       return signedFromRow(row);
     }
-    await assertDowngradeAllowed(env, productId, row.device, knownTerm, grant, confirmDowngrade);
+    assertDowngradeAllowed(knownTerm, grant, confirmDowngrade);
     replaceMode = true;
   } else if (reissue && row.status === 'delivered') {
-    await assertDowngradeAllowed(env, productId, row.device, knownTerm, grant, confirmDowngrade);
+    assertDowngradeAllowed(knownTerm, grant, confirmDowngrade);
     replaceMode = true;
   } else {
-    await assertDowngradeAllowed(env, productId, row.device, knownTerm, grant, confirmDowngrade);
+    assertDowngradeAllowed(knownTerm, grant, confirmDowngrade);
   }
 
   if (grant.grant === 'trial' && !reissue && (await trialUsedOnline(env, productId, dkey, machineHash))) {
     const owns = await locksOwnedByRequest(env, productId, dkey, machineHash, requestId);
     if (!owns) {
-      await assertDowngradeAllowed(env, productId, row.device, knownTerm, grant, confirmDowngrade);
+      assertDowngradeAllowed(knownTerm, grant, confirmDowngrade);
       await refuseRequest(env, requestId, 'already_used');
       return null;
     }
@@ -1025,7 +1009,7 @@ export async function approveRequest(env, requestId, keys, options = {}) {
   const t = now();
   let signed;
   try {
-    const signOpts = await trialSignOptions(env, grant, reissue, productId, row.device, confirmDowngrade);
+    const signOpts = await trialSignOptions(env, grant, reissue, productId, row.device);
     signed = await signGrant(env, keys, grant, row, signOpts);
   } catch (e) {
     if (e?.message === 'bad_device_code') {
@@ -1071,17 +1055,11 @@ async function issueOfflineCustomerInner(env, keys, device, shop, productId, opt
   let ownsLock = false;
   let replacingIssued = false;
   if (existing?.status === 'delivered' && !reissue) {
-    await assertDowngradeAllowed(env, productId, device, knownTerm, grant, confirmDowngrade);
-    if (confirmDowngrade) {
-      replacingIssued = true;
-      const claim = await trialLockRow(env, lock);
-      ownsLock = Boolean(claim && claim.request_id === requestId);
-    } else {
-      throw new Error('reissue_confirm');
-    }
+    assertDowngradeAllowed(knownTerm, grant, confirmDowngrade);
+    throw new Error('reissue_confirm');
   }
   if (existing?.status === 'delivered' && reissue) {
-    await assertDowngradeAllowed(env, productId, device, knownTerm, grant, confirmDowngrade);
+    assertDowngradeAllowed(knownTerm, grant, confirmDowngrade);
     replacingIssued = true;
     const claim = await trialLockRow(env, lock);
     ownsLock = Boolean(claim && claim.request_id === requestId);
@@ -1093,12 +1071,12 @@ async function issueOfflineCustomerInner(env, keys, device, shop, productId, opt
         await ensureCustomerRecord(env, existing, signedFromRow(existing), now());
         return signedFromRow(existing);
       }
-      await assertDowngradeAllowed(env, productId, device, knownTerm, grant, confirmDowngrade);
+      assertDowngradeAllowed(knownTerm, grant, confirmDowngrade);
       ownsLock = true;
       replacingIssued = true;
     }
   } else {
-    await assertDowngradeAllowed(env, productId, device, knownTerm, grant, confirmDowngrade);
+    assertDowngradeAllowed(knownTerm, grant, confirmDowngrade);
   }
   if (grant.grant === 'trial' && !reissue && (await trialUsedForOfflineProduct(env, productId, dkey))) {
     const claim = await trialLockRow(env, lock);
@@ -1114,7 +1092,7 @@ async function issueOfflineCustomerInner(env, keys, device, shop, productId, opt
   const grantRow = { product: productId, device };
   let signed;
   try {
-    const signOpts = await trialSignOptions(env, grant, reissue, productId, device, confirmDowngrade);
+    const signOpts = await trialSignOptions(env, grant, reissue, productId, device);
     signed = await signGrant(env, keys, grant, grantRow, signOpts);
   } catch (e) {
     if (e?.message === 'no_signing_key') throw e;
@@ -1130,7 +1108,7 @@ async function issueOfflineCustomerInner(env, keys, device, shop, productId, opt
       await ensureCustomerRecord(env, row, signedFromRow(row), t);
       return signedFromRow(row);
     }
-    await assertDowngradeAllowed(env, productId, device, knownTerm, grant, confirmDowngrade);
+    assertDowngradeAllowed(knownTerm, grant, confirmDowngrade);
     if (replacingIssued || reissue) {
       ownsLock = true;
       return false;

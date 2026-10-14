@@ -61,37 +61,18 @@ export function offlineAfterBlockedError(error, userConfirmed) {
   return { abort: false, reissue: true };
 }
 
-/** After downgrade confirm: trial reissue only when hub still has the original trial window. */
-export function flagsAfterDowngradeConfirmed(downgradeRes, grant) {
-  const confirmDowngrade = true;
-  const g = String(grant?.grant || '').trim().toLowerCase();
-  if (g === 'trial') {
-    return { confirmDowngrade, reissue: downgradeRes?.trial_reissue === true };
-  }
-  return { confirmDowngrade, reissue: true };
+/** After downgrade confirm on offline issue, replace delivered/issued rows (not only weaker grant). */
+export function offlineFlagsAfterDowngradeConfirmed() {
+  return { confirmDowngrade: true, reissue: true };
 }
 
-/** @deprecated use flagsAfterDowngradeConfirmed */
-export function offlineFlagsAfterDowngradeConfirmed(downgradeRes, grant) {
-  return flagsAfterDowngradeConfirmed(downgradeRes, grant);
-}
-
-export function downgradeConfirmMessageAr(current, downgradeRes, grant) {
-  const g = String(grant?.grant || '').trim().toLowerCase();
+export function downgradeConfirmMessageAr(current) {
   const tier = String(current?.tier || '').trim().toLowerCase();
-  const until = String(current?.until || '').trim();
-  const paidExpired = (tier === 'paid' || tier === 'monthly') && until && g === 'trial' && downgradeRes?.trial_reissue !== true;
-  if (paidExpired) {
-    const label = until ? `مدفوع (انتهى ${until})` : 'مدفوع منتهٍ';
-    return `الترخيص الحالي: ${label}. ستُصدر تجربة جديدة (وليست إعادة إصدار لتجربة سابقة). هل تريد المتابعة؟`;
-  }
   let label = 'تجربة';
   if (tier === 'permanent') label = 'دائم';
   else if (tier === 'paid') {
+    const until = String(current?.until || '').trim();
     label = until ? `مدفوع حتى ${until}` : 'مدفوع';
-  }
-  if (g === 'trial' && downgradeRes?.trial_reissue === true) {
-    return `الترخيص الحالي: ${label}. إعادة إصدار نفس نافذة التجربة (لن تُمدَّد المدة). هل تريد المتابعة؟`;
   }
   return `الترخيص الحالي: ${label}. تحذير: هذا الإجراء يخفّض الترخيص (مدفوع أو دائم إلى تجربة أو مدة أقصر). هل تريد المتابعة؟`;
 }
@@ -351,11 +332,11 @@ function renderPendingList(host, items) {
         body: JSON.stringify(approveBody()),
       });
       if (res && res.error === 'downgrade' && !confirmDowngrade) {
-        if (!confirm(downgradeConfirmMessageAr(res.current, res, grant))) {
+        if (!confirm(downgradeConfirmMessageAr(res.current))) {
           ok.disabled = false;
           return;
         }
-        ({ confirmDowngrade, reissue } = flagsAfterDowngradeConfirmed(res, grant));
+        confirmDowngrade = true;
         res = await api('/approve', {
           method: 'POST',
           headers: headers(),
@@ -452,10 +433,10 @@ export function wireOffline(form, out, tierHost) {
       });
     }
     if (data && data.error === 'downgrade' && !confirmDowngrade) {
-      if (!confirm(downgradeConfirmMessageAr(data.current, data, grant))) {
+      if (!confirm(downgradeConfirmMessageAr(data.current))) {
         return;
       }
-      ({ confirmDowngrade, reissue } = flagsAfterDowngradeConfirmed(data, grant));
+      ({ confirmDowngrade, reissue } = offlineFlagsAfterDowngradeConfirmed());
       data = await api('/offline', {
         method: 'POST',
         headers: headers(),

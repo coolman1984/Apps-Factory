@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   showIssuedCode, readGrant, tierPickerHtml, presetPaidUntil, mountOfflineTier, approveAfterReissueConfirm,
-  offlineAfterBlockedError, flagsAfterDowngradeConfirmed, offlineFlagsAfterDowngradeConfirmed, ownerIssueFlags, defaultTierSelection, customerTierLabelAr, downgradeConfirmMessageAr, productLabelAr,
+  offlineAfterBlockedError, offlineFlagsAfterDowngradeConfirmed, ownerIssueFlags, defaultTierSelection, customerTierLabelAr, downgradeConfirmMessageAr, productLabelAr,
   setOwnerHubCalendarTz,
 } from '../public/owner/app.js';
 
@@ -33,19 +33,8 @@ test('offlineAfterBlockedError maps reissue and already_used to reissue retry', 
   assert.deepEqual(offlineAfterBlockedError('downgrade', true), { abort: false, reissue: false });
 });
 
-test('flagsAfterDowngradeConfirmed sets reissue for non-trial downgrades', () => {
-  assert.deepEqual(flagsAfterDowngradeConfirmed({}, { grant: 'paid' }), { confirmDowngrade: true, reissue: true });
-});
-
-test('flagsAfterDowngradeConfirmed omits trial reissue without stored trial window', () => {
-  assert.deepEqual(
-    flagsAfterDowngradeConfirmed({ trial_reissue: false }, { grant: 'trial' }),
-    { confirmDowngrade: true, reissue: false },
-  );
-  assert.deepEqual(
-    flagsAfterDowngradeConfirmed({ trial_reissue: true }, { grant: 'trial' }),
-    { confirmDowngrade: true, reissue: true },
-  );
+test('offlineFlagsAfterDowngradeConfirmed sets reissue for delivered replacement', () => {
+  assert.deepEqual(offlineFlagsAfterDowngradeConfirmed(), { confirmDowngrade: true, reissue: true });
 });
 
 test('ownerIssueFlags sends reissue and confirm_downgrade explicitly', () => {
@@ -55,19 +44,9 @@ test('ownerIssueFlags sends reissue and confirm_downgrade explicitly', () => {
 });
 
 test('downgradeConfirmMessageAr includes current paid term', () => {
-  const msg = downgradeConfirmMessageAr({ tier: 'paid', until: '2028-06-01' }, {}, { grant: 'paid' });
+  const msg = downgradeConfirmMessageAr({ tier: 'paid', until: '2028-06-01' });
   assert.match(msg, /2028-06-01/);
   assert.match(msg, /الترخيص الحالي/);
-});
-
-test('downgradeConfirmMessageAr describes fresh trial after expired paid', () => {
-  const msg = downgradeConfirmMessageAr(
-    { tier: 'paid', until: '1999-01-01' },
-    { trial_reissue: false },
-    { grant: 'trial' },
-  );
-  assert.match(msg, /تجربة جديدة/);
-  assert.match(msg, /1999-01-01/);
 });
 
 test('issued code panel is outside the pending list and stays after refresh', () => {
