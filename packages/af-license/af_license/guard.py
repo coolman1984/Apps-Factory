@@ -271,49 +271,50 @@ class ClockGuard:
         return (self.max_seen is not None
                 and self.max_seen - _utc(self._now()) > timedelta(hours=tolerance_hours))
 
-    def _apply_pinned_instant(self, pinned: datetime, tolerance_hours: float) -> None:
+    def _vendor_day_floor(self, day: date, tolerance_hours: float) -> datetime | None:
+        try:
+            end = datetime.combine(day, time.max, self._calendar_tz).astimezone(timezone.utc)
+        except (OverflowError, ValueError):
+            return None
+        return _utc(end + timedelta(hours=tolerance_hours))
+
+    def _apply_pinned_instant(self, day: date, pinned: datetime,
+                              tolerance_hours: float) -> None:
+        vendor_floor = self._vendor_day_floor(day, tolerance_hours)
+        if vendor_floor is None:
+            return
         trusted = _utc(pinned)
         previous = self.max_seen
         if previous is None:
             self.max_seen = trusted
             self._pending = True
             return
+        if previous <= vendor_floor:
+            return
+        repaired = max(vendor_floor, trusted)
         if previous - trusted > timedelta(hours=tolerance_hours):
-            self.max_seen = trusted
+            self.max_seen = repaired
             self._pending = True
         elif (self._calendar_day(previous) > self._calendar_day(trusted)
               and previous - trusted <= timedelta(hours=tolerance_hours)):
-            self.max_seen = trusted
+            self.max_seen = repaired
             self._pending = True
 
-    def _repair_max_seen(self, day: date, tolerance_hours: float,
-                         pinned_floor: datetime | None = None) -> None:
+    def _repair_max_seen(self, day: date, tolerance_hours: float) -> None:
         if self.max_seen is None:
             return
         try:
-            start = datetime.combine(day, time.min, self._calendar_tz).astimezone(timezone.utc)
             end = datetime.combine(day, time.max, self._calendar_tz).astimezone(timezone.utc)
         except (OverflowError, ValueError):
             return
-        floor = _utc(pinned_floor) if pinned_floor is not None else None
-        if pinned_floor is None:
-            seen_day = self._calendar_day(self.max_seen)
-            now_day = self._calendar_day(self._now())
-            if seen_day.year == now_day.year:
-                if (seen_day - day).days <= 1:
-                    return
-                if self.clock_back(tolerance_hours):
-                    return
-
-        def apply(candidate: datetime) -> None:
-            if floor is not None and candidate < floor:
-                candidate = floor
-            if candidate < self.max_seen:
-                self.max_seen = candidate
-                self._pending = True
-
+        vendor_floor = self._vendor_day_floor(day, tolerance_hours)
+        if vendor_floor is None:
+            return
+        if self.max_seen <= vendor_floor:
+            return
         if self.max_seen - end > timedelta(hours=tolerance_hours):
-            apply(start)
+            self.max_seen = vendor_floor
+            self._pending = True
 
     def note_server_day(self, day_str: str, tolerance_hours: float = 2) -> None:
         """Accept a *fresh authenticated* vendor day in the licence calendar.
@@ -375,8 +376,8 @@ class ClockGuard:
                 self._persist()
                 return
         if pinned_instant is not None:
-            self._apply_pinned_instant(pinned_instant, tolerance_hours)
-        self._repair_max_seen(day, tolerance_hours, pinned_floor=pinned_instant)
+            self._apply_pinned_instant(day, pinned_instant, tolerance_hours)
+        self._repair_max_seen(day, tolerance_hours)
         self._persist()
 
     def effective_day(self) -> date:

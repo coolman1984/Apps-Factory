@@ -6,7 +6,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, datetime, time, timedelta, timezone
 from pathlib import Path
 from unittest.mock import Mock, patch
 
@@ -32,6 +32,10 @@ class GuardTests(unittest.TestCase):
     def new_guard(self):
         return ClockGuard(self.path, now=lambda: self.wall, today=lambda: self.local,
                           calendar_tz=timezone.utc, monotonic_now=lambda: self.mono)
+
+    def vendor_floor(self, day, tolerance_hours=2):
+        end = datetime.combine(day, time.max, timezone.utc).astimezone(timezone.utc)
+        return end + timedelta(hours=tolerance_hours)
 
     def paid(self, last='2026-10-13', grace=0, **kwargs):
         terms = {'first_day': '2026-10-01', 'last_day': last, 'grace_days': grace}
@@ -228,7 +232,9 @@ class GuardTests(unittest.TestCase):
         self.guard = self.new_guard()
         self.assert_access(code, 'clock_back', False)
         self.guard.note_server_day('2026-10-13')
-        self.assertLessEqual(self.guard.max_seen, self.wall)
+        floor = self.vendor_floor(date(2026, 10, 13))
+        self.assertEqual(self.guard.max_seen, floor)
+        self.wall = floor - timedelta(hours=1)
         self.guard = self.new_guard()
         self.assert_access(code, 'active', True)
         self.assertEqual(code.terms['last_day'], '2026-10-31')
@@ -256,6 +262,7 @@ class GuardTests(unittest.TestCase):
         self.local = self.wall.date()
         self.guard.note_server_day('2026-11-01')
         self.guard = self.new_guard()
+        self.wall = self.vendor_floor(date(2026, 11, 1)) - timedelta(hours=1)
         # A repaired local clock never erases a vendor-observed expiry.
         self.assert_access(self.paid(), 'expired', False)
 
@@ -281,21 +288,22 @@ class GuardTests(unittest.TestCase):
         self.local = self.wall.date()
         self.guard.note_seen(at=datetime(2026, 10, 15, 1, 0, tzinfo=timezone.utc))
         self.assertTrue(self.guard.clock_back())
+        overshoot = datetime(2026, 10, 15, 1, 0, tzinfo=timezone.utc)
         server_instant = datetime(2026, 10, 14, 23, 0, tzinfo=timezone.utc)
         self.guard.note_server_time(server_instant)
-        self.assertEqual(self.guard.max_seen, server_instant)
-        self.assertFalse(self.guard.clock_back())
+        self.assertEqual(self.guard.max_seen, overshoot)
+        self.assertTrue(self.guard.clock_back())
         self.guard = self.new_guard()
-        self.assertEqual(self.guard.max_seen, server_instant)
-        self.assertFalse(self.guard.clock_back())
+        self.assertEqual(self.guard.max_seen, overshoot)
+        self.assertTrue(self.guard.clock_back())
 
-        self.guard.note_seen(at=datetime(2026, 10, 15, 1, 0, tzinfo=timezone.utc))
+        self.guard.note_seen(at=overshoot)
         self.assertTrue(self.guard.clock_back())
         hub_ts = int(server_instant.timestamp())
         hub = HubTimeVerifyResult('2026-10-14', hub_ts, True, 2, True)
         self.guard.note_hub_time(hub)
-        self.assertEqual(self.guard.max_seen, server_instant)
-        self.assertFalse(self.guard.clock_back())
+        self.assertEqual(self.guard.max_seen, overshoot)
+        self.assertTrue(self.guard.clock_back())
 
     def test_rev70_paid_tolerance_does_not_unlock_via_bare_day_snap(self):
         """REV70-2: 72 h tolerance must not bare-day snap a modest multi-day overshoot."""
@@ -305,7 +313,7 @@ class GuardTests(unittest.TestCase):
         future = self.wall + timedelta(hours=73)
         self.guard.note_seen(at=future)
         self.assertTrue(self.guard.clock_back(tol))
-        self.guard.note_server_day('2026-10-14')
+        self.guard.note_server_day('2026-10-14', tolerance_hours=tol)
         self.assertEqual(self.guard.max_seen, future)
         self.assertTrue(self.guard.clock_back(tol))
         self.assert_access(self.paid(last='2026-10-31'), 'clock_back', False, tolerance_hours=tol)
@@ -317,9 +325,13 @@ class GuardTests(unittest.TestCase):
         self.guard = self.new_guard()
         self.assertTrue(self.guard.clock_back())
         self.assert_access(self.paid(), 'clock_back', False)
+        repair_day = date(2026, 10, 13)
         self.guard.note_server_day('2026-10-13')
+        floor = self.vendor_floor(repair_day)
+        self.assertEqual(self.guard.max_seen, floor)
         self.assertTrue(self.guard.clock_back())
         self.guard = self.new_guard()
+        self.assertEqual(self.guard.max_seen, floor)
         self.assertTrue(self.guard.clock_back())
         self.assert_access(self.paid(), 'clock_back', False)
 
@@ -338,7 +350,11 @@ class GuardTests(unittest.TestCase):
         self.local = self.wall.date()
         self.guard = self.new_guard()
         self.assert_access(code, 'clock_back', False)
-        self.guard.note_server_time(datetime(2026, 10, 13, 0, 10, tzinfo=timezone.utc))
+        repair_instant = datetime(2026, 10, 13, 0, 10, tzinfo=timezone.utc)
+        forward_seen = datetime(2026, 10, 14, 1, 0, tzinfo=timezone.utc)
+        self.guard.note_server_time(repair_instant)
+        self.assertEqual(self.guard.max_seen, forward_seen)
+        self.wall = forward_seen - timedelta(hours=2)
         self.guard = self.new_guard()
         self.assert_access(code, 'active', True)
         self.wall = datetime(2026, 10, 14, 1, 0, tzinfo=timezone.utc)
@@ -347,7 +363,9 @@ class GuardTests(unittest.TestCase):
         self.local = self.wall.date()
         self.guard = self.new_guard()
         self.assert_access(code, 'clock_back', False)
-        self.guard.note_server_time(datetime(2026, 10, 13, 0, 10, tzinfo=timezone.utc))
+        self.guard.note_server_time(repair_instant)
+        self.assertEqual(self.guard.max_seen, forward_seen)
+        self.wall = forward_seen - timedelta(hours=2)
         self.guard = self.new_guard()
         self.assert_access(code, 'active', True)
 
@@ -406,10 +424,15 @@ class GuardTests(unittest.TestCase):
                 self.guard.note_server_time(value)
 
     def test_fresh_server_instant_repairs_same_day_future_time(self):
-        self.guard.note_seen(at=self.wall + timedelta(hours=9))
+        day = self.wall.date()
+        floor = self.vendor_floor(day)
+        self.guard.note_seen(at=floor + timedelta(hours=3))
         self.assert_access(self.paid(), 'clock_back', False)
         self.guard.note_server_time(self.wall)
+        self.assertEqual(self.guard.max_seen, floor)
+        self.wall = floor - timedelta(hours=1)
         self.guard = self.new_guard()
+        self.assertEqual(self.guard.max_seen, floor)
         self.assert_access(self.paid(), 'active', True)
 
     def anchor_guard(self):
@@ -662,7 +685,49 @@ class GuardTests(unittest.TestCase):
         self.guard = self.anchor_guard()
         self.assert_access(self.paid(), 'clock_back', False)
         self.guard.note_server_day('2026-10-13')
+        floor = self.vendor_floor(date(2026, 10, 13))
+        self.assertEqual(self.guard.max_seen, floor)
+        self.wall = floor - timedelta(hours=1)
         self.assert_access(self.paid(), 'active', True)
+
+    def test_signed_instant_lowers_only_to_vendor_day_floor(self):
+        """REV70-4: pinned repair never drops max_seen below end-of-day + tolerance."""
+        self.wall = datetime(2026, 10, 14, 12, 0, tzinfo=timezone.utc)
+        self.local = self.wall.date()
+        floor = self.vendor_floor(date(2026, 10, 14))
+        modest = datetime(2026, 10, 15, 1, 0, tzinfo=timezone.utc)
+        self.guard.note_seen(at=modest)
+        self.assertTrue(self.guard.clock_back())
+        self.guard.note_server_time(datetime(2026, 10, 14, 23, 0, tzinfo=timezone.utc))
+        self.assertEqual(self.guard.max_seen, modest)
+        self.assertTrue(self.guard.clock_back())
+
+        far_future = datetime(2026, 10, 18, 12, 0, tzinfo=timezone.utc)
+        self.guard.note_seen(at=far_future)
+        self.assertTrue(self.guard.clock_back())
+        self.guard.note_server_time(datetime(2026, 10, 14, 20, 0, tzinfo=timezone.utc))
+        self.assertEqual(self.guard.max_seen, floor)
+        self.wall = floor - timedelta(hours=1)
+        self.assertFalse(self.guard.clock_back())
+        self.guard = self.new_guard()
+        self.assertEqual(self.guard.max_seen, floor)
+
+    def test_bare_signed_day_repairs_same_year_future_to_floor(self):
+        """REV70-4: day-only proof repairs beyond tolerance down to the vendor floor."""
+        self.wall = datetime(2026, 10, 14, 12, 0, tzinfo=timezone.utc)
+        self.local = self.wall.date()
+        floor = self.vendor_floor(date(2026, 10, 14))
+        self.guard.note_seen(at=datetime(2026, 10, 16, 12, 0, tzinfo=timezone.utc))
+        self.assertTrue(self.guard.clock_back())
+        self.guard.note_server_day('2026-10-14')
+        self.assertEqual(self.guard.max_seen, floor)
+        self.assertTrue(self.guard.clock_back())
+        self.wall = floor - timedelta(hours=1)
+        self.assertFalse(self.guard.clock_back())
+        self.assert_access(self.paid(last='2026-10-31'), 'active', True)
+        self.guard = self.new_guard()
+        self.assertEqual(self.guard.max_seen, floor)
+        self.assertFalse(self.guard.clock_back())
 
     def test_anchor_callbacks_must_be_supplied_together(self):
         for kwargs in ({'load_anchor': lambda: None}, {'save_anchor': lambda day: None}):
