@@ -835,6 +835,23 @@ class GuardTests(unittest.TestCase):
         self.assertEqual(json.loads(self.path.read_text())['max_seen'],
                          datetime(2026, 10, 13, 12, 6, tzinfo=timezone.utc).isoformat())
 
+    def test_reviewer_probe_forward_note_seen_within_clock_interval_stays_active(self):
+        """Anchor sync within the 5-minute clock throttle must not break deletion_protected."""
+        anchor_seen = datetime(2026, 10, 13, 12, 0, tzinfo=timezone.utc)
+        code = self.paid()
+        self.guard = self.anchor_guard()
+        self.guard.note_seen(at=anchor_seen)
+        self.assertTrue(self.guard.deletion_protected)
+        self.wall += timedelta(minutes=1)
+        self.assert_access(code, 'active', True)
+        self.assertTrue(self.guard.deletion_protected)
+        self.wall += timedelta(minutes=5)
+        self.assert_access(code, 'active', True)
+        self.assertTrue(self.guard.deletion_protected)
+        self.wall += timedelta(minutes=6)
+        self.assert_access(code, 'active', True)
+        self.assertTrue(self.guard.deletion_protected)
+
     def test_anchor_restores_rollback_after_clock_file_removed_post_expiry(self):
         private, public, _ = generate_keypair()
         device = codes.device_code('rollback-anchor-pc')

@@ -175,6 +175,9 @@ class ClockGuard:
             self._save_anchor(_encode_anchor_record(self.server_day_max, disk_seen))
             self._anchor_day = self.server_day_max
             self._anchor_max_seen = disk_seen
+            if disk_seen is not None:
+                self._disk_high_water = (disk_seen if self._disk_high_water is None
+                                         else max(self._disk_high_water, disk_seen))
             self._anchor_out_of_sync = False
             return True
         except (OSError, ValueError, TypeError):
@@ -212,8 +215,11 @@ class ClockGuard:
             return False
         if self._disk_high_water is None and self._disk_max_seen() is not None:
             return False
-        return (self.server_day_max == self._anchor_day
-                and self._anchor_max_seen == self._disk_high_water)
+        if self._anchor_max_seen is None:
+            return False
+        if self._disk_high_water is not None and self._anchor_max_seen < self._disk_high_water:
+            return False
+        return self.server_day_max == self._anchor_day
 
     def _persist(self) -> None:
         """Retry I/O after five monotonic seconds, independent of wall time.
