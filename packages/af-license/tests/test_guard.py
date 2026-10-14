@@ -833,6 +833,83 @@ class GuardTests(unittest.TestCase):
         result = self.guard.evaluate(code)
         self.assertNotEqual((result['state'], result['full']), ('active', True))
 
+    def test_max_seen_only_anchor_discards_untrusted_clock_server_day(self):
+        _ = self.anchor_guard()
+        seen = datetime(2026, 10, 13, 12, 0, tzinfo=timezone.utc)
+        self.anchor_path.write_text(json.dumps({'max_seen': seen.isoformat()}))
+        self.path.write_text(json.dumps({
+            'max_seen': seen.isoformat(),
+            'server_day_max': '9999-12-31',
+        }))
+        self.guard = self.anchor_guard()
+        self.assertIsNone(self.guard.server_day_max)
+        self.assert_access(self.paid(last='2026-10-31'), 'active', True)
+        self.assertNotEqual(self.guard.effective_day(), date(9999, 12, 31))
+        self.guard.note_server_time(datetime(2026, 10, 14, 12, tzinfo=timezone.utc))
+        self.assertEqual(self.guard.server_day_max, date(2026, 10, 14))
+
+    def test_fresh_install_load_anchor_none_discards_clock_server_day(self):
+        seen = datetime(2026, 10, 13, 12, 0, tzinfo=timezone.utc)
+        self.path.write_text(json.dumps({
+            'max_seen': seen.isoformat(),
+            'server_day_max': '9999-12-31',
+        }))
+        self.guard = ClockGuard(self.path, now=lambda: self.wall, today=lambda: self.local,
+                                calendar_tz=timezone.utc, monotonic_now=lambda: self.mono,
+                                load_anchor=lambda: None, save_anchor=lambda _: None)
+        self.assertIsNone(self.guard.server_day_max)
+        self.assert_access(self.paid(last='2026-10-31'), 'active', True)
+        self.assertNotEqual(self.guard.effective_day(), date(9999, 12, 31))
+
+    def test_reviewer_probe_repair_without_clock_file_never_lowers_anchor(self):
+        future = datetime(2026, 10, 18, 12, 0, tzinfo=timezone.utc)
+        self.guard = self.anchor_guard()
+        self.guard.note_seen(at=future)
+        anchor_before = json.loads(self.anchor_path.read_text())
+        self.path.unlink()
+        floor = self.vendor_floor(date(2026, 10, 14))
+        self.wall = floor - timedelta(hours=1)
+        self.local = self.wall.date()
+        self.guard = self.anchor_guard()
+        self.guard.note_server_time(datetime(2026, 10, 14, 20, 0, tzinfo=timezone.utc))
+        self.assertFalse(self.guard.clock_back())
+        self.assert_access(self.paid(last='2026-10-31'), 'active', True)
+        anchor_after = json.loads(self.anchor_path.read_text())
+        self.assertEqual(anchor_after['max_seen'], anchor_before['max_seen'])
+        if self.path.exists():
+            self.assertEqual(json.loads(self.path.read_text())['max_seen'],
+                             anchor_before['max_seen'])
+
+    def test_failed_note_seen_save_then_repair_does_not_lower_disk(self):
+        self.guard = self.anchor_guard()
+        future = datetime(2026, 10, 18, 12, 0, tzinfo=timezone.utc)
+        self.guard.note_seen(at=future)
+        clock_before = json.loads(self.path.read_text())
+        anchor_before = json.loads(self.anchor_path.read_text())
+        self.guard.max_seen = future + timedelta(hours=1)
+        self.guard._pending = True
+        with patch('af_license.guard.os.replace', side_effect=OSError('disk busy')):
+            self.guard.note_seen()
+        self.assertEqual(json.loads(self.path.read_text())['max_seen'], clock_before['max_seen'])
+        floor = self.vendor_floor(date(2026, 10, 14))
+        self.wall = floor - timedelta(hours=1)
+        self.local = self.wall.date()
+        self.mono += 5
+        self.guard.note_server_time(datetime(2026, 10, 14, 20, 0, tzinfo=timezone.utc))
+        self.assertEqual(json.loads(self.path.read_text())['max_seen'], clock_before['max_seen'])
+        self.assertEqual(json.loads(self.anchor_path.read_text())['max_seen'],
+                         anchor_before['max_seen'])
+
+    def test_fresh_hub_far_server_time_seeds_max_seen_without_floor_snap(self):
+        server_dt = datetime(2026, 11, 13, 12, 0, tzinfo=timezone.utc)
+        self.wall = datetime(2026, 10, 14, 12, 0, tzinfo=timezone.utc)
+        self.local = self.wall.date()
+        result = HubTimeVerifyResult('2026-10-14', int(server_dt.timestamp()),
+                                     False, 2, True)
+        guard = self.new_guard()
+        guard.note_hub_time(result)
+        self.assertEqual(guard.max_seen, server_dt)
+
     def test_unconfirmed_clock_file_day_cannot_exceed_verified_anchor(self):
         self.guard = self.anchor_guard()
         self.guard.note_server_day('2026-10-13')

@@ -100,6 +100,7 @@ class ClockGuard:
         self.max_seen: datetime | None = None
         self.server_day_max: date | None = None
         self._written_max: datetime | None = None
+        self._disk_high_water: datetime | None = None
         self._pending = False
         self._retry_after: float | None = None
         self._load()
@@ -108,18 +109,19 @@ class ClockGuard:
                 self._retry_after = self._monotonic() + 5
 
     def _disk_max_seen(self) -> datetime | None:
-        """Persisted rollback watermark; in-run signed repair never lowers this."""
-        written, seen = self._written_max, self.max_seen
-        if written is None:
+        """Rollback watermark for persistence; in-run repair never lowers disk high-water."""
+        high, seen = self._disk_high_water, self.max_seen
+        if high is None:
             return seen
         if seen is None:
-            return written
-        return max(written, seen)
+            return high
+        return max(high, seen)
 
     def _calendar_day(self, moment: datetime) -> date:
         return moment.astimezone(self._calendar_tz).date()
 
     def _restore_anchor(self) -> bool:
+        clock_seen = self.max_seen
         try:
             value = self._load_anchor()
             if value is None:
@@ -131,14 +133,17 @@ class ClockGuard:
         self._anchor_ready = True
         self._anchor_day = day
         self._anchor_max_seen = anchor_seen
-        if day is not None:
+        if value is None or day is None:
+            if self.server_day_max is not None:
+                self.server_day_max = None
+                self._pending = True
+        elif day is not None:
             if self.server_day_max is not None and self.server_day_max > day:
                 self.server_day_max = day
                 self._pending = True
             elif self.server_day_max is None or day > self.server_day_max:
                 self.server_day_max = day
                 self._pending = True
-        clock_seen = self.max_seen
         if anchor_seen is None:
             restored = clock_seen
         elif clock_seen is None:
@@ -148,6 +153,10 @@ class ClockGuard:
         if restored != clock_seen:
             self._pending = True
         self.max_seen = restored
+        for candidate in (self._disk_high_water, anchor_seen, clock_seen):
+            if candidate is not None:
+                self._disk_high_water = (candidate if self._disk_high_water is None
+                                         else max(self._disk_high_water, candidate))
         return True
 
     def _sync_anchor(self) -> bool:
@@ -217,10 +226,12 @@ class ClockGuard:
             success = self._restore_anchor()
         if self._pending_server_day is not None:
             self._commit_server_day(self._pending_server_day)
-        if self._save_anchor is not None and self._anchor_ready:
-            success = self._sync_anchor() and success
+        clock_saved = True
         if self._pending:
-            success = self._save() and success
+            clock_saved = self._save()
+            success = clock_saved and success
+        if (self._save_anchor is not None and self._anchor_ready and clock_saved):
+            success = self._sync_anchor() and success
         self._retry_after = None if success else tick + 5
 
     def _load(self) -> None:
@@ -235,7 +246,7 @@ class ClockGuard:
             server_day = _day(server) if server is not None else None
         except (OSError, ValueError, TypeError, OverflowError, RecursionError):
             return
-        self.max_seen = self._written_max = max_seen
+        self.max_seen = self._written_max = self._disk_high_water = max_seen
         self.server_day_max = server_day
 
     def _save(self) -> bool:
@@ -258,6 +269,7 @@ class ClockGuard:
             temporary = None
             if disk_seen is not None:
                 self._written_max = disk_seen
+                self._disk_high_water = disk_seen
             self._pending = False
             return True
         except OSError:
@@ -309,19 +321,19 @@ class ClockGuard:
 
     def _apply_pinned_instant(self, day: date, pinned: datetime,
                               tolerance_hours: float,
-                              repair_floor: datetime | None = None) -> None:
+                              repair_floor: datetime | None = None) -> bool:
         vendor_floor = self._vendor_day_floor(day, tolerance_hours)
         if vendor_floor is None:
-            return
+            return False
         floor = repair_floor if repair_floor is not None else vendor_floor
         trusted = _utc(pinned)
         previous = self.max_seen
         if previous is None:
             self.max_seen = trusted
             self._pending = True
-            return
+            return True
         if previous <= floor:
-            return
+            return False
         repaired = max(floor, trusted)
         if previous - trusted > timedelta(hours=tolerance_hours):
             self.max_seen = repaired
@@ -330,6 +342,7 @@ class ClockGuard:
               and previous - trusted <= timedelta(hours=tolerance_hours)):
             self.max_seen = repaired
             self._pending = True
+        return False
 
     def _repair_max_seen(self, day: date, tolerance_hours: float,
                           repair_floor: datetime | None = None) -> None:
@@ -415,17 +428,19 @@ class ClockGuard:
         if self.server_day_max is not None and day < self.server_day_max:
             self._persist()
             return
+        seeded = False
+        if pinned_instant is not None:
+            seeded = self._apply_pinned_instant(day, pinned_instant, tolerance_hours,
+                                                repair_floor=repair_floor)
+        if not seeded:
+            if repair_floor is None:
+                self._repair_max_seen(day, tolerance_hours)
+            else:
+                self._repair_max_seen(day, tolerance_hours, repair_floor=repair_floor)
         if self.server_day_max is None or day > self.server_day_max:
             if not self._commit_server_day(day):
                 self._persist()
                 return
-        if pinned_instant is not None:
-            self._apply_pinned_instant(day, pinned_instant, tolerance_hours,
-                                         repair_floor=repair_floor)
-        if repair_floor is None:
-            self._repair_max_seen(day, tolerance_hours)
-        else:
-            self._repair_max_seen(day, tolerance_hours, repair_floor=repair_floor)
         self._persist()
 
     def effective_day(self) -> date:
