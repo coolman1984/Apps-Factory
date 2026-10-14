@@ -17,7 +17,12 @@ html_handling = "none"  # default auto-trailing-slash loops /owner/login.html <-
 crons = ["0 4 * * *"]
 
 [vars]
-LICENCE_PRODUCTS = "trip-orders,al-store"
+# Comma-separated product ids (examples: trip-orders, al-store)
+LICENCE_PRODUCTS = "my-product"
+# Optional: omitted `product` on licence requests (defaults to first LICENCE_PRODUCTS entry)
+# LICENCE_DEFAULT_PRODUCT = "trip-orders"
+# Optional Arabic labels for owner UI: {"my-product":"اسم المنتج","trip-orders":"طلبات الرحلات"}
+# LICENCE_PRODUCT_LABELS = "{}"
 TRIAL_DAYS = "14"
 SESSION_HOURS = "8"
 LICENCE_CALENDAR_TZ = "Africa/Cairo"

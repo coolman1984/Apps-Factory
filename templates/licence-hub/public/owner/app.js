@@ -31,6 +31,8 @@ let csrf = '';
 let paidAvailable = false;
 let productCapabilities = {};
 let productFilter = '';
+let productLabels = {};
+let hubDefaultProduct = '';
 
 /** Reissue confirm: cancel must not POST approve; force is only for explicit downgrade override (regression-tested). */
 export function approveAfterReissueConfirm(hasCustomer, userConfirmed) {
@@ -49,7 +51,8 @@ export function downgradeConfirmMessageAr(current) {
   return `الترخيص الحالي: ${label}. تحذير: هذا الإجراء يخفّض الترخيص (مدفوع أو دائم إلى تجربة أو مدة أقصر). هل تريد المتابعة؟`;
 }
 
-export function defaultTierSelection(requestKind) {
+export function defaultTierSelection(requestKind, paidAvailable = true) {
+  if (!paidAvailable) return { tier: 'trial' };
   if (requestKind === 'permanent') return { tier: 'permanent' };
   if (requestKind === 'monthly') return { tier: 'paid', paidUntil: presetPaidUntil('1m') };
   return { tier: 'trial' };
@@ -65,10 +68,16 @@ export function customerTierLabelAr(item) {
   return 'تجربة';
 }
 
-export function productLabelAr(productId) {
-  if (productId === 'trip-orders') return 'طلبات الرحلات (يوسف)';
-  if (productId === 'al-store') return 'المتجر';
-  return productId;
+export function productLabelAr(productId, labels) {
+  const id = String(productId ?? '').trim();
+  const map = labels ?? productLabels;
+  if (map && typeof map[id] === 'string' && map[id]) return map[id];
+  return id;
+}
+
+function productIdOrDefault(productId) {
+  const id = String(productId ?? '').trim();
+  return id || hubDefaultProduct;
 }
 
 async function session() {
@@ -79,11 +88,16 @@ async function session() {
     paidAvailable = Boolean(cap.paid_available);
     productCapabilities = cap.products || {};
   }
+  const catalog = await api('/products');
+  if (catalog) {
+    productLabels = catalog.labels && typeof catalog.labels === 'object' ? catalog.labels : {};
+    hubDefaultProduct = String(catalog.default_product || catalog.products?.[0] || '').trim();
+  }
   return s;
 }
 
 function paidForProduct(productId) {
-  const id = productId || 'trip-orders';
+  const id = productIdOrDefault(productId);
   const row = productCapabilities[id];
   if (row) return Boolean(row.paid_available);
   return paidAvailable;
@@ -106,7 +120,7 @@ function kindLabelAr(kind) {
 
 export function tierPickerHtml(disabledPaid, customDate, requestId, requestKind) {
   const tierName = 'tier-' + (requestId || 'offline');
-  const sel = defaultTierSelection(requestKind);
+  const sel = defaultTierSelection(requestKind, !disabledPaid);
   const paidOff = disabledPaid ? ' disabled' : '';
   const paidMsg = disabledPaid
     ? '<p class="err">إصدار المدفوع غير متاح — أضف PAID_SIGNING_KEY في Cloudflare.</p>' : '';
@@ -200,7 +214,7 @@ export async function loadUndelivered(host) {
   data.items.forEach((item) => {
     const li = document.createElement('li');
     const when = new Date(item.updated_at * 1000).toLocaleString('ar-EG');
-    const prod = productLabelAr(item.product || 'trip-orders');
+    const prod = productLabelAr(productIdOrDefault(item.product));
     li.innerHTML = '<div><strong>' + escape(item.shop || '—') + '</strong><div class="muted">' + escape(prod) + '</div><div class="muted" dir="ltr">' + escape(item.device) + '</div><div class="muted">' + when + '</div></div>';
     const btn = document.createElement('button');
     btn.className = 'btn primary';
@@ -213,7 +227,7 @@ export async function loadUndelivered(host) {
 }
 
 function productFilterHtml(items) {
-  const ids = [...new Set(items.map((i) => i.product || 'trip-orders'))];
+  const ids = [...new Set(items.map((i) => productIdOrDefault(i.product)))];
   if (ids.length < 2) return '';
   let opts = '<option value="">كل المنتجات</option>';
   ids.forEach((id) => {
@@ -236,12 +250,12 @@ export async function loadPending(host) {
       sel.value = productFilter;
       sel.addEventListener('change', () => {
         productFilter = sel.value;
-        renderPendingList(host, data.items.filter((i) => !productFilter || (i.product || 'trip-orders') === productFilter));
+        renderPendingList(host, data.items.filter((i) => !productFilter || productIdOrDefault(i.product) === productFilter));
       });
     }
   }
   const filtered = productFilter
-    ? data.items.filter((i) => (i.product || 'trip-orders') === productFilter)
+    ? data.items.filter((i) => productIdOrDefault(i.product) === productFilter)
     : data.items;
   renderPendingList(host, filtered);
 }
@@ -254,11 +268,11 @@ function renderPendingList(host, items) {
     return;
   }
   items.forEach((item) => {
-    const disablePaid = !paidForProduct(item.product || 'trip-orders');
+    const disablePaid = !paidForProduct(item.product);
     const li = document.createElement('li');
     const when = new Date(item.created_at * 1000).toLocaleString('ar-EG');
     const kindLabel = kindLabelAr(item.kind);
-    const prod = productLabelAr(item.product || 'trip-orders');
+    const prod = productLabelAr(productIdOrDefault(item.product));
     const usedNote = item.has_customer ? '<div class="err">هذا الجهاز لديه عميل مسجّل — استخدم «إعادة إصدار» إن فُقد الكود.</div>' : '';
     li.innerHTML = '<div><strong>' + escape(item.shop || '—') + '</strong><div class="muted">' + escape(prod) + ' · ' + escape(kindLabel) + ' · <span dir="ltr">' + escape(item.device) + '</span></div>' + usedNote + '<div class="muted">' + when + '</div></div>';
     li.innerHTML += tierPickerHtml(disablePaid, '', item.id, item.kind);
@@ -296,7 +310,7 @@ function renderPendingList(host, items) {
           body: JSON.stringify(approveBody()),
         });
       }
-      if (res && res.message === 'paid_key_missing') {
+      if (res && (res.error === 'paid_key_missing' || res.message === 'paid_key_missing')) {
         alert('إصدار المدفوع غير متاح على الخادم — راجع PAID_SIGNING_KEY.');
         ok.disabled = false;
         return;
@@ -339,7 +353,7 @@ export async function loadCustomers(host) {
     const li = document.createElement('li');
     const tierLabel = customerTierLabelAr(item);
     const left = item.days_left != null ? (' · باقي ' + item.days_left + ' يوم') : '';
-    const prod = productLabelAr(item.product || 'trip-orders');
+    const prod = productLabelAr(productIdOrDefault(item.product));
     li.innerHTML = '<div><strong>' + escape(item.shop) + '</strong><div class="muted">' + escape(prod) + ' · ' + escape(tierLabel) + '</div><div class="muted" dir="ltr">' + escape(item.device) + left + '</div></div>';
     ul.append(li);
   });
@@ -355,7 +369,7 @@ export function wireOffline(form, out, tierHost) {
     const device = form.device.value.trim();
     const shop = form.shop.value.trim();
     const productEl = form.querySelector('[name="product"]');
-    const product = productEl ? productEl.value : 'trip-orders';
+    const product = productEl ? productEl.value : hubDefaultProduct;
     const grant = readGrant(tierHost || form.closest('.card') || document);
     const offlineBody = (force) => ({ device, shop, product, csrf, force, ...grant });
     let data = await api('/offline', {
@@ -388,7 +402,7 @@ export function wireOffline(form, out, tierHost) {
 }
 
 function renderOfflineTierSlot(slot, form, selectedProduct) {
-  const product = selectedProduct || 'trip-orders';
+  const product = selectedProduct || hubDefaultProduct;
   const tierOnly = slot.querySelector('[data-tier-slot-tier]');
   const html = tierPickerHtml(!paidForProduct(product), '', 'offline');
   if (tierOnly) {
@@ -410,10 +424,12 @@ export function mountOfflineTier(host) {
     const products = await api('/products');
     const loaded = Boolean(products && Array.isArray(products.products));
     if (!loaded) return;
+    if (products.labels && typeof products.labels === 'object') productLabels = products.labels;
+    hubDefaultProduct = String(products.default_product || products.products[0] || '').trim();
     let productField = '';
-    let selected = 'trip-orders';
+    let selected = hubDefaultProduct;
     if (products.products.length) {
-      selected = products.products.includes('trip-orders') ? 'trip-orders' : products.products[0];
+      selected = String(products.default_product || products.products[0] || '').trim();
       const opts = products.products.map((p) =>
         '<option value="' + escape(p) + '"' + (p === selected ? ' selected' : '') + '>' + escape(productLabelAr(p)) + '</option>',
       ).join('');

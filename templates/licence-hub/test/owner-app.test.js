@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   showIssuedCode, readGrant, tierPickerHtml, presetPaidUntil, mountOfflineTier, approveAfterReissueConfirm,
-  defaultTierSelection, customerTierLabelAr, downgradeConfirmMessageAr,
+  defaultTierSelection, customerTierLabelAr, downgradeConfirmMessageAr, productLabelAr,
 } from '../public/owner/app.js';
 
 function panelEl() {
@@ -59,6 +59,18 @@ test('tier picker preselects grant from request kind', () => {
   assert.deepEqual(defaultTierSelection('monthly').tier, 'paid');
 });
 
+test('tier picker falls back to trial when paid radios are disabled', () => {
+  const monthly = tierPickerHtml(true, '', 'req-m', 'monthly');
+  assert.match(monthly, /value="trial"[^>]*checked/);
+  assert.doesNotMatch(monthly, /value="paid"[^>]*checked/);
+  assert.deepEqual(defaultTierSelection('monthly', false).tier, 'trial');
+});
+
+test('productLabelAr uses labels map and falls back to product id', () => {
+  assert.equal(productLabelAr('my-app', { 'my-app': 'تطبيقي' }), 'تطبيقي');
+  assert.equal(productLabelAr('trip-orders', {}), 'trip-orders');
+});
+
 test('customerTierLabelAr shows trial paid and permanent', () => {
   assert.equal(customerTierLabelAr({ licence_tier: 'trial' }), 'تجربة');
   assert.equal(customerTierLabelAr({ licence_tier: 'paid', licence_expiry: '2028-01-15' }), 'مدفوع حتى 2028-01-15');
@@ -94,7 +106,9 @@ test('offline submit stays disabled until product list is loaded', async (t) => 
     const path = String(url);
     if (path.includes('/session')) return { status: 200, json: async () => ({ csrf: 'x' }) };
     if (path.includes('/capabilities')) return { status: 200, json: async () => ({ products: { 'trip-orders': { paid_available: true } } }) };
-    if (path.includes('/products')) return { status: 200, json: async () => ({ products: ['trip-orders'] }) };
+    if (path.includes('/products')) {
+      return { status: 200, json: async () => ({ products: ['trip-orders'], labels: {}, default_product: 'trip-orders' }) };
+    }
     return { status: 404, json: async () => ({}) };
   });
   const tierWrap = { innerHTML: '', querySelector: () => null };

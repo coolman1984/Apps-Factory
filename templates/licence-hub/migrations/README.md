@@ -10,6 +10,8 @@ npx wrangler d1 execute <database> --remote --file=schema.sql
 
 ## Existing database (created before tier/expiry columns)
 
+**Product default:** `0002_product_column.sql` and `0003_customers_product.sql` use `DEFAULT 'trip-orders'` for legacy Yousef rows. Before running on another deployment, change those `DEFAULT` values to match your `LICENCE_DEFAULT_PRODUCT` (or the first id in `LICENCE_PRODUCTS`).
+
 Run migrations **before** deploying a worker that writes `licence_tier` / `licence_expiry`:
 
 ```bash
@@ -18,6 +20,7 @@ node scripts/apply-migrations.mjs --local /path/to/d1.sqlite
 # Production (wrangler one-shot; 0001/0002 are not re-run-safe on schema that already has columns):
 npx wrangler d1 execute <database> --remote --file=migrations/0001_licence_tier_expiry.sql
 npx wrangler d1 execute <database> --remote --file=migrations/0002_product_column.sql
+npx wrangler d1 execute <database> --remote --file=migrations/0003_customers_product.sql
 ```
 
 `scripts/apply-migrations.mjs` skips `ALTER` when `pragma_table_info` shows the column already exists (safe to re-run).
