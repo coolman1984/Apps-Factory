@@ -1,5 +1,8 @@
-import { handleLicence, approveRequest, refuseRequest, issueOfflineCustomer, purgeStaleCodes, REASON_PAID_IN_STUDIO } from './licence-api.js';
-import { importSigningKey } from './afcodes.js';
+import {
+  handleLicence, approveRequest, refuseRequest, issueOfflineCustomer, purgeStaleCodes,
+  REASON_PAID_IN_STUDIO, ownerCapabilities, loadSigningKeys, products, defaultProduct, ownerProductsPayload,
+  licencePathname, currentTerm,
+} from './licence-api.js';
 import {
   SESSION_COOKIE, CSRF_COOKIE, verifyPassword, parseCookies, cookieHeader, loadSession, createSession,
   destroySession, loginLimited, csrfOk,
@@ -33,47 +36,69 @@ async function fetchOwnerAsset(env, request, url) {
   return withSecurityHeaders(res);
 }
 
-async function signingKey(env) {
-  if (!env.LICENCE_SIGNING_KEY) throw new Error('no_signing_key');
-  return importSigningKey(env.LICENCE_SIGNING_KEY);
-}
-
 async function ownerApi(request, env, url, session) {
   const path = url.pathname.replace(/^\/owner\/api/, '') || '/';
 
   if (path === '/session' && request.method === 'GET') {
     return json({ csrf: session.csrf, expires: session.expires_at });
   }
+  if (path === '/capabilities' && request.method === 'GET') {
+    return json(ownerCapabilities(env));
+  }
   if (path === '/issued' && request.method === 'GET') {
     const id = url.searchParams.get('id') || '';
     if (!id) return json({ error: 'id' }, 400);
-    const row = await env.DB.prepare('SELECT id, code, status, device FROM licence_requests WHERE id = ?').bind(id).first();
+    const row = await env.DB.prepare('SELECT id, code, status, device, product, licence_tier FROM licence_requests WHERE id = ?').bind(id).first();
     if (!row || row.status !== 'issued' || !row.code) return json({ error: 'not_found' }, 404);
     return json({ ok: true, code: row.code, device: row.device });
   }
   if (path === '/undelivered' && request.method === 'GET') {
     const rows = await env.DB.prepare(
-      "SELECT id, shop, device, code, updated_at FROM licence_requests WHERE status = 'issued' AND code IS NOT NULL ORDER BY updated_at DESC LIMIT 50",
+      "SELECT id, shop, device, code, product, licence_tier, updated_at FROM licence_requests WHERE status = 'issued' AND code IS NOT NULL ORDER BY updated_at DESC LIMIT 50",
     ).all();
     return json({ items: rows.results || [] });
   }
   if (path === '/pending' && request.method === 'GET') {
     const rows = await env.DB.prepare(
-      "SELECT r.id, r.kind, r.shop, r.device, r.machine, r.version, r.created_at, CASE WHEN c.id IS NOT NULL THEN 1 ELSE 0 END AS has_customer FROM licence_requests r LEFT JOIN customers c ON c.device = r.device WHERE r.status IN ('pending', 'approved') ORDER BY r.created_at ASC LIMIT 50",
+      "SELECT r.id, r.kind, r.product, r.shop, r.device, r.machine, r.version, r.created_at, CASE WHEN c.id IS NOT NULL THEN 1 ELSE 0 END AS has_customer FROM licence_requests r LEFT JOIN customers c ON c.device = r.device AND c.product = r.product WHERE r.status IN ('pending', 'approved') ORDER BY r.created_at ASC LIMIT 50",
     ).all();
     return json({ items: rows.results || [] });
   }
   if (path === '/customers' && request.method === 'GET') {
-    const rows = await env.DB.prepare('SELECT shop, device, kind, first_day, last_day, created_at FROM customers ORDER BY created_at DESC LIMIT 200').all();
-    const items = (rows.results || []).map((r) => {
+    const rows = await env.DB.prepare(
+      `SELECT c.shop, c.device, c.product, c.kind, c.licence_tier, c.licence_expiry, c.last_day, c.created_at
+       FROM customers c
+       ORDER BY c.created_at DESC LIMIT 200`,
+    ).bind().all();
+    const items = [];
+    for (const c of rows.results || []) {
+      const term = await currentTerm(env, c.product, c.device);
+      const licenceTier = term?.tier || c.licence_tier || c.kind || '';
+      const licenceExpiry = term?.until || c.licence_expiry || c.last_day || '';
+      const lastDay = licenceExpiry || c.last_day || '';
       let daysLeft = null;
-      if (r.last_day) {
-        const end = Date.parse(r.last_day + 'T12:00:00Z');
+      if (lastDay && licenceTier !== 'permanent') {
+        const end = Date.parse(lastDay + 'T12:00:00Z');
         daysLeft = Math.max(0, Math.floor((end - Date.now()) / 86400000) + 1);
       }
-      return { ...r, days_left: daysLeft };
-    });
+      items.push({
+        shop: c.shop,
+        device: c.device,
+        product: c.product,
+        kind: licenceTier,
+        licence_tier: licenceTier,
+        licence_expiry: licenceExpiry,
+        last_day: lastDay,
+        created_at: c.created_at,
+        days_left: daysLeft,
+      });
+    }
     return json({ items });
+  }
+  if (path === '/products' && request.method === 'GET') {
+    const payload = ownerProductsPayload(env);
+    if (!payload) return json({ error: 'config' }, 503);
+    return json(payload);
   }
 
   if (request.method !== 'POST') return json({ error: 'method' }, 405);
@@ -82,16 +107,40 @@ async function ownerApi(request, env, url, session) {
   if (!csrfOk(session, request, body)) return json({ error: 'csrf' }, 403);
 
   if (path === '/approve') {
-    const key = await signingKey(env);
+    const reqRow = await env.DB.prepare('SELECT product FROM licence_requests WHERE id = ?').bind(body.id || '').first();
+    const keys = await loadSigningKeys(env, reqRow?.product || defaultProduct(env));
     try {
-      const signed = await approveRequest(env, body.id, key, { force: body.force === true });
+      const signed = await approveRequest(env, body.id, keys, {
+        force: body.force === true,
+        reissue: body.reissue === true,
+        confirm_downgrade: body.confirm_downgrade === true,
+        grant: body.grant,
+        preset: body.preset,
+        paid_until: body.paid_until,
+      });
       if (!signed) return json({ error: 'not_found' }, 404);
       if (signed.refused) {
-        return json({ error: signed.reason || REASON_PAID_IN_STUDIO, message: 'paid_in_studio' }, 400);
+        if (signed.reason === 'paid_signing_key_missing') {
+          return json({ error: 'paid_key_missing' }, 503);
+        }
+        const msg = signed.reason === REASON_PAID_IN_STUDIO ? 'paid_in_studio' : signed.reason;
+        return json({ error: signed.reason || REASON_PAID_IN_STUDIO, message: msg }, 400);
       }
       return json({ ok: true, code: signed.code });
     } catch (e) {
       if (e?.message === 'bad_device_code') return json({ error: 'bad_device', message: e.message }, 400);
+      if (e?.message === 'bad_grant') return json({ error: 'bad_grant' }, 400);
+      if (e?.message === 'date_out_of_range') return json({ error: 'date_out_of_range' }, 400);
+      if (e?.message === 'paid_until_before_first') return json({ error: 'bad_paid_until', message: e.message }, 400);
+      if (e?.message === 'downgrade') {
+        return json({ error: 'downgrade', current: e.current || undefined }, 409);
+      }
+      if (e?.message === 'downgrade_forbidden') {
+        return json({ error: 'downgrade_forbidden', current: e.current || undefined }, 409);
+      }
+      if (e?.message === 'reissue_confirm') return json({ error: 'reissue_confirm' }, 409);
+      if (e?.message === 'trial_expired') return json({ error: 'trial_expired' }, 409);
+      if (e?.message === 'no_signing_key') return json({ error: 'config' }, 503);
       throw e;
     }
   }
@@ -103,13 +152,40 @@ async function ownerApi(request, env, url, session) {
     const device = String(body.device || '').trim();
     const shop = String(body.shop || '').trim();
     if (!device) return json({ error: 'device' }, 400);
-    const key = await signingKey(env);
+    const allowed = products(env);
+    if (!allowed) return json({ error: 'config' }, 503);
+    const fallback = defaultProduct(env);
+    if (!fallback) return json({ error: 'config' }, 503);
+    const product = String(body.product || fallback).trim() || fallback;
+    if (!allowed.has(product)) return json({ error: 'product' }, 400);
+    const keys = await loadSigningKeys(env, product);
     try {
-      const signed = await issueOfflineCustomer(env, key, device, shop, 'trip-orders', { force: body.force === true });
+      const signed = await issueOfflineCustomer(env, keys, device, shop, product, {
+        force: body.force === true,
+        reissue: body.reissue === true,
+        confirm_downgrade: body.confirm_downgrade === true,
+        grant: body.grant,
+        preset: body.preset,
+        paid_until: body.paid_until,
+      });
       return json({ ok: true, code: signed.code, device: signed.device });
     } catch (e) {
       if (e?.message === 'already_used') return json({ error: 'already_used' }, 400);
+      if (e?.message === 'grant_conflict') return json({ error: 'grant_conflict' }, 409);
       if (e?.message === 'bad_device_code') return json({ error: 'bad_device' }, 400);
+      if (e?.message === 'paid_signing_key_missing') return json({ error: 'paid_key_missing' }, 400);
+      if (e?.message === 'bad_grant') return json({ error: 'bad_grant' }, 400);
+      if (e?.message === 'date_out_of_range') return json({ error: 'date_out_of_range' }, 400);
+      if (e?.message === 'paid_until_before_first') return json({ error: 'bad_paid_until', message: e.message }, 400);
+      if (e?.message === 'downgrade') {
+        return json({ error: 'downgrade', current: e.current || undefined }, 409);
+      }
+      if (e?.message === 'downgrade_forbidden') {
+        return json({ error: 'downgrade_forbidden', current: e.current || undefined }, 409);
+      }
+      if (e?.message === 'reissue_confirm') return json({ error: 'reissue_confirm' }, 409);
+      if (e?.message === 'trial_expired') return json({ error: 'trial_expired' }, 409);
+      if (e?.message === 'no_signing_key') return json({ error: 'config' }, 503);
       throw e;
     }
   }
@@ -182,8 +258,11 @@ export default {
   async fetch(request, env) {
     const url = new URL(request.url);
     try {
-      if (url.pathname.startsWith('/licence/')) {
-        const res = await handleLicence(request, env, url);
+      const licencePath = licencePathname(url.pathname);
+      if (licencePath.startsWith('/licence/')) {
+        const licUrl = new URL(url);
+        licUrl.pathname = licencePath;
+        const res = await handleLicence(request, env, licUrl);
         if (res) {
           Object.entries(HEADERS).forEach(([k, v]) => res.headers.set(k, v));
           return res;
@@ -191,7 +270,7 @@ export default {
       }
       const owner = await ownerPages(request, env, url);
       if (owner) return owner;
-      if (url.pathname === '/') return html('<p>Trip Orders licence hub</p>');
+      if (url.pathname === '/') return html('<p>Licence hub</p>');
       return new Response('Not found', { status: 404, headers: HEADERS });
     } catch (e) {
       return json({ error: 'server' }, 500);
