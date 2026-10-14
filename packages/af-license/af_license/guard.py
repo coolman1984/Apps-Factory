@@ -36,8 +36,8 @@ def _day(value: str) -> date:
     return result
 
 
-def _parse_anchor_value(value: str) -> tuple[date | None, datetime | None]:
-    """Plain YYYY-MM-DD or JSON with optional rollback ``max_seen``."""
+def _parse_anchor_value(value: str) -> tuple[date | None, datetime | None, int]:
+    """Plain YYYY-MM-DD or JSON with optional rollback ``max_seen`` and ``repair_gen``."""
     if value.startswith('{'):
         data = json.loads(value)
         if not isinstance(data, dict):
@@ -46,19 +46,30 @@ def _parse_anchor_value(value: str) -> tuple[date | None, datetime | None]:
         day = _day(day_raw) if day_raw is not None else None
         seen = data.get('max_seen')
         max_seen = _utc(datetime.fromisoformat(seen)) if seen is not None else None
-        return day, max_seen
-    return _day(value), None
+        gen = data.get('repair_gen', 0)
+        if not isinstance(gen, int) or isinstance(gen, bool) or gen < 0:
+            raise ValueError('bad_anchor')
+        return day, max_seen, gen
+    return _day(value), None, 0
 
 
-def _encode_anchor_record(day: date | None, max_seen: datetime | None) -> str:
+def _encode_anchor_record(day: date | None, max_seen: datetime | None,
+                          repair_gen: int = 0) -> str:
     if day is None and max_seen is None:
         raise ValueError('empty_anchor')
     if day is None:
-        return json.dumps({'max_seen': max_seen.isoformat()}, separators=(',', ':'))
+        payload = {'max_seen': max_seen.isoformat()}
+    elif max_seen is None:
+        return day.isoformat()
+    else:
+        payload = {'day': day.isoformat(), 'max_seen': max_seen.isoformat()}
+    if repair_gen:
+        payload['repair_gen'] = repair_gen
+    if day is None:
+        return json.dumps(payload, separators=(',', ':'))
     if max_seen is None:
         return day.isoformat()
-    return json.dumps({'day': day.isoformat(), 'max_seen': max_seen.isoformat()},
-                      separators=(',', ':'))
+    return json.dumps(payload, separators=(',', ':'))
 
 
 # Licence hub business calendar; products must match ``LICENCE_CALENDAR_TZ``.
@@ -95,7 +106,10 @@ class ClockGuard:
         self._anchor_ready = load_anchor is None
         self._anchor_day: date | None = None
         self._anchor_max_seen: datetime | None = None
+        self._anchor_repair_gen = 0
         self._anchor_out_of_sync = False
+        self._repair_gen = 0
+        self._persist_clock_before_anchor = False
         self._pending_server_day: date | None = None
         self.max_seen: datetime | None = None
         self.server_day_max: date | None = None
@@ -114,14 +128,15 @@ class ClockGuard:
         try:
             value = self._load_anchor()
             if value is None:
-                day, anchor_seen = None, None
+                day, anchor_seen, anchor_gen = None, None, 0
             else:
-                day, anchor_seen = _parse_anchor_value(value)
+                day, anchor_seen, anchor_gen = _parse_anchor_value(value)
         except (OSError, ValueError, TypeError, json.JSONDecodeError, OverflowError):
             return False
         self._anchor_ready = True
         self._anchor_day = day
         self._anchor_max_seen = anchor_seen
+        self._anchor_repair_gen = anchor_gen
         if day is not None:
             if self.server_day_max is not None and self.server_day_max > day:
                 self.server_day_max = day
@@ -129,8 +144,19 @@ class ClockGuard:
             elif self.server_day_max is None or day > self.server_day_max:
                 self.server_day_max = day
                 self._pending = True
-        if anchor_seen is not None:
+        if anchor_gen > self._repair_gen:
+            self._repair_gen = anchor_gen
+            if anchor_seen is not None:
+                self.max_seen = anchor_seen
+                self._pending = True
+        elif self._repair_gen > anchor_gen:
+            pass
+        elif anchor_seen is not None:
             if self.max_seen is None or anchor_seen > self.max_seen:
+                self.max_seen = anchor_seen
+                self._pending = True
+            elif (anchor_seen < self.max_seen and anchor_gen > 0
+                  and anchor_gen == self._repair_gen):
                 self.max_seen = anchor_seen
                 self._pending = True
         return True
@@ -141,12 +167,19 @@ class ClockGuard:
         if self.server_day_max is None and self.max_seen is None:
             return True
         if (self._anchor_day == self.server_day_max
-                and self._anchor_max_seen == self.max_seen):
+                and self._anchor_max_seen == self.max_seen
+                and self._anchor_repair_gen == self._repair_gen):
+            return True
+        if (self.max_seen is not None and self._anchor_max_seen is not None
+                and self.max_seen < self._anchor_max_seen
+                and self._repair_gen <= self._anchor_repair_gen):
             return True
         try:
-            self._save_anchor(_encode_anchor_record(self.server_day_max, self.max_seen))
+            self._save_anchor(_encode_anchor_record(self.server_day_max, self.max_seen,
+                                                    self._repair_gen))
             self._anchor_day = self.server_day_max
             self._anchor_max_seen = self.max_seen
+            self._anchor_repair_gen = self._repair_gen
             self._anchor_out_of_sync = False
             return True
         except (OSError, ValueError, TypeError):
@@ -183,7 +216,8 @@ class ClockGuard:
         if self._anchor_day is None and self._anchor_max_seen is None:
             return False
         return (self.server_day_max == self._anchor_day
-                and self.max_seen == self._anchor_max_seen)
+                and self.max_seen == self._anchor_max_seen
+                and self._repair_gen == self._anchor_repair_gen)
 
     def _persist(self) -> None:
         """Retry I/O after five monotonic seconds, independent of wall time.
@@ -198,10 +232,18 @@ class ClockGuard:
             success = self._restore_anchor()
         if self._pending_server_day is not None:
             self._commit_server_day(self._pending_server_day)
-        if self._save_anchor is not None and self._anchor_ready:
-            success = self._sync_anchor() and success
-        if self._pending:
-            success = self._save() and success
+        if self._persist_clock_before_anchor:
+            if self._pending:
+                success = self._save() and success
+            if self._save_anchor is not None and self._anchor_ready:
+                success = self._sync_anchor() and success
+        else:
+            if self._save_anchor is not None and self._anchor_ready:
+                success = self._sync_anchor() and success
+            if self._pending:
+                success = self._save() and success
+        if success:
+            self._persist_clock_before_anchor = False
         self._retry_after = None if success else tick + 5
 
     def _load(self) -> None:
@@ -214,10 +256,15 @@ class ClockGuard:
             server = state.get('server_day_max')
             max_seen = _utc(datetime.fromisoformat(seen)) if seen is not None else None
             server_day = _day(server) if server is not None else None
+            gen = state.get('repair_gen', 0)
+            repair_gen = int(gen) if isinstance(gen, int) and not isinstance(gen, bool) else 0
+            if repair_gen < 0:
+                repair_gen = 0
         except (OSError, ValueError, TypeError, OverflowError, RecursionError):
             return
         self.max_seen = self._written_max = max_seen
         self.server_day_max = server_day
+        self._repair_gen = repair_gen
 
     def _save(self) -> bool:
         temporary = None
@@ -228,9 +275,12 @@ class ClockGuard:
                                              prefix=self.state_path.name + '.',
                                              suffix='.tmp', delete=False) as stream:
                 temporary = stream.name
-                json.dump({'max_seen': self.max_seen.isoformat() if self.max_seen else None,
+                payload = {'max_seen': self.max_seen.isoformat() if self.max_seen else None,
                            'server_day_max': (self.server_day_max.isoformat()
-                                              if self.server_day_max else None)}, stream)
+                                              if self.server_day_max else None)}
+                if self._repair_gen:
+                    payload['repair_gen'] = self._repair_gen
+                json.dump(payload, stream)
                 stream.flush()
                 os.fsync(stream.fileno())
             os.replace(temporary, self.state_path)
@@ -278,43 +328,72 @@ class ClockGuard:
             return None
         return _utc(end + timedelta(hours=tolerance_hours))
 
+    def _record_signed_repair_lower(self, previous: datetime | None) -> None:
+        if (previous is not None and self.max_seen is not None
+                and self.max_seen < previous):
+            self._repair_gen += 1
+            self._persist_clock_before_anchor = True
+
+    def _signed_repair_floor(self, day: date, tolerance_hours: float,
+                             pinned: datetime) -> datetime | None:
+        vendor_floor = self._vendor_day_floor(day, tolerance_hours)
+        if vendor_floor is None:
+            return None
+        return max(vendor_floor, _utc(pinned))
+
     def _apply_pinned_instant(self, day: date, pinned: datetime,
-                              tolerance_hours: float) -> None:
+                              tolerance_hours: float,
+                              repair_floor: datetime | None = None) -> None:
         vendor_floor = self._vendor_day_floor(day, tolerance_hours)
         if vendor_floor is None:
             return
+        floor = repair_floor if repair_floor is not None else vendor_floor
         trusted = _utc(pinned)
         previous = self.max_seen
         if previous is None:
-            self.max_seen = trusted
+            self.max_seen = max(floor, trusted)
             self._pending = True
             return
-        if previous <= vendor_floor:
+        if previous <= floor:
             return
-        repaired = max(vendor_floor, trusted)
+        repaired = max(floor, trusted)
         if previous - trusted > timedelta(hours=tolerance_hours):
             self.max_seen = repaired
             self._pending = True
+            self._record_signed_repair_lower(previous)
         elif (self._calendar_day(previous) > self._calendar_day(trusted)
               and previous - trusted <= timedelta(hours=tolerance_hours)):
             self.max_seen = repaired
             self._pending = True
+            self._record_signed_repair_lower(previous)
 
-    def _repair_max_seen(self, day: date, tolerance_hours: float) -> None:
+    def _repair_max_seen(self, day: date, tolerance_hours: float,
+                          repair_floor: datetime | None = None) -> None:
         if self.max_seen is None:
+            return
+        vendor_floor = self._vendor_day_floor(day, tolerance_hours)
+        if vendor_floor is None:
+            return
+        floor = repair_floor if repair_floor is not None else vendor_floor
+        if repair_floor is not None:
+            if self.max_seen <= floor:
+                return
+            previous = self.max_seen
+            self.max_seen = floor
+            self._pending = True
+            self._record_signed_repair_lower(previous)
             return
         try:
             end = datetime.combine(day, time.max, self._calendar_tz).astimezone(timezone.utc)
         except (OverflowError, ValueError):
             return
-        vendor_floor = self._vendor_day_floor(day, tolerance_hours)
-        if vendor_floor is None:
-            return
         if self.max_seen <= vendor_floor:
             return
         if self.max_seen - end > timedelta(hours=tolerance_hours):
+            previous = self.max_seen
             self.max_seen = vendor_floor
             self._pending = True
+            self._record_signed_repair_lower(previous)
 
     def note_server_day(self, day_str: str, tolerance_hours: float = 2) -> None:
         """Accept a *fresh authenticated* vendor day in the licence calendar.
@@ -363,11 +442,16 @@ class ClockGuard:
         pinned = None
         if result.server_time is not None:
             pinned = datetime.fromtimestamp(result.server_time, tz=timezone.utc)
+        repair_floor = None
+        if result.day_jump_capped and pinned is not None:
+            repair_floor = self._signed_repair_floor(day, tolerance_hours, pinned)
         self._note_authenticated_calendar_day(day, tolerance_hours,
-                                                pinned_instant=pinned)
+                                                pinned_instant=pinned,
+                                                repair_floor=repair_floor)
 
     def _note_authenticated_calendar_day(self, day: date, tolerance_hours: float,
-                                         pinned_instant: datetime | None) -> None:
+                                         pinned_instant: datetime | None,
+                                         repair_floor: datetime | None = None) -> None:
         if self.server_day_max is not None and day < self.server_day_max:
             self._persist()
             return
@@ -376,8 +460,12 @@ class ClockGuard:
                 self._persist()
                 return
         if pinned_instant is not None:
-            self._apply_pinned_instant(day, pinned_instant, tolerance_hours)
-        self._repair_max_seen(day, tolerance_hours)
+            self._apply_pinned_instant(day, pinned_instant, tolerance_hours,
+                                         repair_floor=repair_floor)
+        if repair_floor is None:
+            self._repair_max_seen(day, tolerance_hours)
+        else:
+            self._repair_max_seen(day, tolerance_hours, repair_floor=repair_floor)
         self._persist()
 
     def effective_day(self) -> date:

@@ -34,9 +34,11 @@ licence_calendar = ZoneInfo(configured_licence_timezone)
 # retain_verified_time_anchor(record) durably retains the authenticated proof,
 # atomically and independently of licence_clock.json, bound to this product,
 # device and calendar. The guard passes either a plain YYYY-MM-DD vendor day
-# or a compact JSON object {"day":"YYYY-MM-DD","max_seen":"<aware-or-UTC-iso>"}
-# when rollback evidence must be mirrored. It never lowers an existing anchor
-# or invents a proof.
+# or a compact JSON object {"day":"YYYY-MM-DD","max_seen":"<aware-or-UTC-iso>",
+# "repair_gen":<n>} when rollback evidence must be mirrored. It never lowers an
+# existing anchor except after a signed vendor-time repair down to the repair
+# floor (then ``repair_gen`` advances so restore cannot resurrect a stale high
+# watermark). It never invents a proof.
 # It raises OSError/ValueError on failure. It must not mutate customer records.
 # Both functions check provenance; copying the guard's JSON is insufficient.
 guard = ClockGuard(
