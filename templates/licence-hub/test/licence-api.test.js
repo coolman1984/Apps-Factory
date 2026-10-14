@@ -134,6 +134,11 @@ test('blankLongDigitRuns strips spaced and dashed phone-like runs', () => {
   assert.equal(blankLongDigitRuns('shop (010) 123-4567'), 'shop ');
 });
 
+test('blankLongDigitRuns normalizes Arabic-Indic digit runs', () => {
+  assert.equal(blankLongDigitRuns('٠١٠١٢٣٤٥٦٧٨'), '');
+  assert.equal(blankLongDigitRuns('shop ۰۱۰۱۲۳۴۵۶۷'), 'shop ');
+});
+
 test('offline issuance blanks phone-like shop on customers row', async () => {
   const e = env();
   const keys = await signingKeys(91);
@@ -357,15 +362,20 @@ test('issued row without machine lock is not returned until claim is repaired', 
   assert.equal(lock.request_id, data.id);
 });
 
-test('purgeStaleCodes blanks old issued rows', async () => {
+test('purgeStaleCodes blanks old delivered trial rows but keeps issued', async () => {
   const e = env();
   const old = Math.floor(Date.now() / 1000) - 20 * 86400;
   await e.DB.prepare(
     'INSERT INTO licence_requests(id, poll_token_hash, product, kind, device, device_key, machine, nonce, shop, ref, version, status, code, created_at, updated_at) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-  ).bind('old', 'h', 'trip-orders', 'trial', '7KD2M-QX9TP', deviceKey('7KD2M-QX9TP'), MACHINE_A, 'n', '', '', '', 'delivered', 'CODE-OLD', old, old).run();
+  ).bind('old-del', 'h', 'trip-orders', 'trial', '7KD2M-QX9TP', deviceKey('7KD2M-QX9TP'), MACHINE_A, 'n', '', '', '', 'delivered', 'CODE-OLD', old, old).run();
+  await e.DB.prepare(
+    'INSERT INTO licence_requests(id, poll_token_hash, product, kind, device, device_key, machine, nonce, shop, ref, version, status, code, created_at, updated_at) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+  ).bind('old-iss', 'h2', 'trip-orders', 'trial', 'ABCDE-FGHJK', deviceKey('ABCDE-FGHJK'), MACHINE_B, 'n2', '', '', '', 'issued', 'CODE-KEEP', old, old).run();
   await purgeStaleCodes(e);
-  const row = await e.DB.prepare('SELECT code FROM licence_requests WHERE id = ?').bind('old').first();
-  assert.equal(row.code, null);
+  const delivered = await e.DB.prepare('SELECT code FROM licence_requests WHERE id = ?').bind('old-del').first();
+  const issued = await e.DB.prepare('SELECT code FROM licence_requests WHERE id = ?').bind('old-iss').first();
+  assert.equal(delivered.code, null);
+  assert.equal(issued.code, 'CODE-KEEP');
 });
 
 test('approve retry returns the same code', async () => {

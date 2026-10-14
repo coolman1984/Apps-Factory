@@ -139,12 +139,20 @@ def verify_hub_time(
         if nonce is not None:
             if not _NONCE_RE.match(nonce) or resp_nonce != nonce:
                 return None
-            if last_server_time is not None and server_time <= int(last_server_time):
-                return None
+            if last_server_time is not None:
+                lst = int(last_server_time)
+                if server_time <= lst:
+                    return None
+                if server_time > lst + max_jump_days * 86400:
+                    return None
             msg = hub_time_message_v2(day, server_time, kid, nonce)
         else:
-            if last_server_time is not None and server_time <= int(last_server_time):
-                return None
+            if last_server_time is not None:
+                lst = int(last_server_time)
+                if server_time <= lst:
+                    return None
+                if server_time > lst + max_jump_days * 86400:
+                    return None
             msg = hub_time_message_v2(day, server_time, kid, resp_nonce if resp_nonce else None)
         sig_bytes = _b64url_decode(str(sig2))
         if not sig_bytes or len(sig_bytes) != 64:
@@ -168,8 +176,10 @@ def verify_hub_time(
         return None
     if not ed25519_verify(pub, hub_time_message_v1(day, kid), sig_bytes):
         return None
-    sealed = _apply_sealed_day(day, sealed_day, max_jump_days)
-    if sealed is None:
-        return None
-    out_day, capped = sealed
-    return HubTimeVerifyResult(out_day, None, capped, 1)
+    if sealed_day:
+        sealed = _parse_calendar_day(sealed_day)
+        parsed = _parse_calendar_day(day)
+        if sealed is None or parsed is None or parsed != sealed:
+            return None
+        return HubTimeVerifyResult(sealed.isoformat(), None, False, 1)
+    return HubTimeVerifyResult(day, None, False, 1)

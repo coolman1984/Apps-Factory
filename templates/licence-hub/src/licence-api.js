@@ -44,9 +44,14 @@ export function hubTrialDaysInclusive(raw) {
   return Math.floor(days);
 }
 
+/** Map Arabic-Indic and Eastern Arabic-Indic digits to ASCII 0-9. */
+export function normalizeShopDigits(text) {
+  return String(text || '').replace(/[\u0660-\u0669\u06F0-\u06F9]/g, (ch) => String(ch.charCodeAt(0) & 0xf));
+}
+
 /** Blank phone-like digit runs (>=7 digits; spaces/dashes/dots/parentheses allowed between digits). */
 export function blankLongDigitRuns(text, minRun = 7) {
-  const s = String(text || '');
+  const s = normalizeShopDigits(text);
   if (minRun < 2) return s;
   const re = new RegExp(
     `(?:\\([\\s.\\-()]*)?\\d(?:[\\s.\\-()]*\\d){${minRun - 1},}(?:[\\s.\\-()]*\\))?`,
@@ -1157,6 +1162,6 @@ export async function purgeStaleCodes(env) {
   const cutoff = now() - days * 86400;
   await expireStalePending(env);
   await env.DB.prepare(
-    "UPDATE licence_requests SET code = NULL WHERE code IS NOT NULL AND updated_at < ? AND status IN ('delivered', 'issued') AND (licence_tier = '' OR licence_tier = 'trial')",
+    "UPDATE licence_requests SET code = NULL WHERE code IS NOT NULL AND updated_at < ? AND status = 'delivered' AND (licence_tier = '' OR licence_tier = 'trial')",
   ).bind(cutoff).run();
 }

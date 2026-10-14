@@ -140,6 +140,20 @@ class HubTimeTests(unittest.TestCase):
             HubTimeVerifyResult('2026-10-14', None, False, 1),
         )
 
+    def test_v1_cannot_advance_sealed_day(self):
+        data = self._pack_v1(day='2026-12-01')
+        self.assertIsNone(
+            verify_hub_time(data, self.trusted, sealed_day='2026-10-14', allow_v1=True, max_jump_days=7),
+        )
+
+    def test_v2_rejects_server_time_too_far_ahead_of_last(self):
+        last = 1_700_000_100
+        too_far = last + 7 * 86400 + 1
+        data = self._pack_v2(server_time=too_far)
+        self.assertIsNone(
+            verify_hub_time(data, self.trusted, last_server_time=last, max_jump_days=7),
+        )
+
     def test_nonce_replay_same_sig2_cannot_walk_sealed_day(self):
         sealed = '2026-10-14'
         far_day = '2026-10-30'

@@ -2,7 +2,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   showIssuedCode, readGrant, tierPickerHtml, presetPaidUntil, mountOfflineTier, approveAfterReissueConfirm,
-  defaultTierSelection, customerTierLabelAr, downgradeConfirmMessageAr, productLabelAr, setOwnerHubCalendarTz,
+  offlineAfterBlockedError, defaultTierSelection, customerTierLabelAr, downgradeConfirmMessageAr, productLabelAr,
+  setOwnerHubCalendarTz,
 } from '../public/owner/app.js';
 
 function panelEl() {
@@ -24,6 +25,12 @@ test('approveAfterReissueConfirm aborts when owner cancels reissue confirm', () 
   assert.deepEqual(approveAfterReissueConfirm(true, false), { abort: true, force: false });
   assert.deepEqual(approveAfterReissueConfirm(true, true), { abort: false, force: true });
   assert.deepEqual(approveAfterReissueConfirm(false, false), { abort: false, force: false });
+});
+
+test('offlineAfterBlockedError maps reissue and already_used to force retry', () => {
+  assert.deepEqual(offlineAfterBlockedError('reissue_confirm', false), { abort: true, force: false });
+  assert.deepEqual(offlineAfterBlockedError('already_used', true), { abort: false, force: true });
+  assert.deepEqual(offlineAfterBlockedError('downgrade', true), { abort: false, force: false });
 });
 
 test('downgradeConfirmMessageAr includes current paid term', () => {

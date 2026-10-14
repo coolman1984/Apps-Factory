@@ -24,6 +24,7 @@ import base64
 import binascii
 import hashlib
 import os
+import re
 import struct
 from dataclasses import dataclass, field
 from datetime import date, timedelta
@@ -104,15 +105,30 @@ def product_tag(product_id: str) -> bytes:
     return hashlib.sha256(b'AF-PRODUCT/1|' + product_id.encode('utf-8')).digest()[:4]
 
 
+_LABEL_PREFIX_RE = re.compile(r'^[a-z0-9][a-z0-9-]*:', re.I)
+
+
+def canonical_key_bytes(s: str) -> bytes | None:
+    """Normalize a trusted or trial-only Ed25519 public key to exactly 32 raw bytes."""
+    if not isinstance(s, str):
+        return None
+    text = s.strip()
+    if _LABEL_PREFIX_RE.match(text):
+        text = text.split(':', 1)[1]
+    text = ''.join(text.split())
+    text = text.rstrip('=').replace('+', '-').replace('/', '_')
+    pad = '=' * (-len(text) % 4)
+    try:
+        raw = base64.urlsafe_b64decode(text + pad)
+    except (binascii.Error, ValueError):
+        return None
+    return raw if len(raw) == 32 else None
+
+
 def _decode_ed25519_public_b64(text: str) -> bytes:
     """Raw 32-byte Ed25519 public key (urlsafe or standard base64, optional padding)."""
-    s = text.strip()
-    pad = '=' * (-len(s) % 4)
-    try:
-        raw = base64.urlsafe_b64decode(s + pad)
-    except (binascii.Error, ValueError):
-        raw = base64.b64decode(s + pad)
-    if len(raw) != 32:
+    raw = canonical_key_bytes(text)
+    if raw is None:
         raise ValueError('bad_public_key_length')
     return raw
 
@@ -130,10 +146,9 @@ def _trial_only_raw_keys(trial_only_keys: frozenset[str] | None) -> frozenset[by
         return frozenset()
     out: set[bytes] = set()
     for k in trial_only_keys:
-        try:
-            out.add(_decode_ed25519_public_b64(k))
-        except ValueError:
-            continue
+        raw = canonical_key_bytes(k)
+        if raw is not None:
+            out.add(raw)
     return frozenset(out)
 
 
@@ -216,7 +231,9 @@ def read_code(text: str, trusted_public_keys: list[str], product_id: str, device
         return bad('unknown_version')
     keys: dict[bytes, bytes] = {}
     for k in trusted_public_keys:
-        raw = _decode_ed25519_public_b64(k)
+        raw = canonical_key_bytes(k)
+        if raw is None:
+            continue
         keys[_key_tag_raw(raw)] = raw
     if ktag not in keys:
         return bad('unknown_key')

@@ -46,6 +46,13 @@ export function approveAfterReissueConfirm(hasCustomer, userConfirmed) {
   return { abort: false, force: false };
 }
 
+/** Offline blocked responses: confirmed retry posts with force (re-sign trial, no new window). */
+export function offlineAfterBlockedError(error, userConfirmed) {
+  if (error !== 'reissue_confirm' && error !== 'already_used') return { abort: false, force: false };
+  if (!userConfirmed) return { abort: true, force: false };
+  return { abort: false, force: true };
+}
+
 export function downgradeConfirmMessageAr(current) {
   const tier = String(current?.tier || '').trim().toLowerCase();
   let label = 'تجربة';
@@ -384,14 +391,16 @@ export function wireOffline(form, out, tierHost) {
       headers: headers(),
       body: JSON.stringify(offlineBody(false)),
     });
-    if (data && data.error === 'reissue_confirm') {
-      if (!confirm('إعادة إصدار لهذا الجهاز؟ (فقدان الكود فقط)')) {
-        return;
-      }
+    if (data && (data.error === 'reissue_confirm' || data.error === 'already_used')) {
+      const confirmMsg = data.error === 'already_used'
+        ? 'تجربة مستخدمة — إعادة إصدار نفس التجربة؟ (لن تُمدَّد المدة)'
+        : 'إعادة إصدار لهذا الجهاز؟ (فقدان الكود فقط)';
+      const retry = offlineAfterBlockedError(data.error, confirm(confirmMsg));
+      if (retry.abort) return;
       data = await api('/offline', {
         method: 'POST',
         headers: headers(),
-        body: JSON.stringify(offlineBody(true)),
+        body: JSON.stringify(offlineBody(retry.force)),
       });
     }
     if (data && data.error === 'downgrade') {
