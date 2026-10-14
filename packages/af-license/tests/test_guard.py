@@ -1,4 +1,5 @@
 """Clock protection with synthetic clocks and files; no customer data or network."""
+import base64
 import copy
 import json
 import subprocess
@@ -9,10 +10,13 @@ from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from unittest.mock import Mock, patch
 
+from cryptography.hazmat.primitives import serialization
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from af_license import ClockGuard, codes, generate_keypair
 from af_license.codes import CodeResult
 from af_license.guard import should_check_server
+from af_license.hub_time import HubTimeVerifyResult, hub_time_message_v2, verify_hub_time
 
 
 class GuardTests(unittest.TestCase):
@@ -366,13 +370,15 @@ class GuardTests(unittest.TestCase):
             if not self.anchor_path.exists():
                 return None  # fixture's confirmed fresh installation
             record = json.loads(self.anchor_path.read_text())
+            max_seen = record.get('max_seen') if isinstance(record, dict) else None
+            if isinstance(record, dict) and 'signed' not in record and max_seen:
+                return json.dumps({'max_seen': max_seen})
             signed = record['signed'] if isinstance(record, dict) and 'signed' in record else record
             result = codes.read_code(signed['code'], [self.anchor_public], 'anchor-test',
                                      self.anchor_device, today=self.local)
             if not result.valid:
                 raise ValueError('unverified_anchor')
             day = result.terms['issued']
-            max_seen = record.get('max_seen') if isinstance(record, dict) else None
             if max_seen:
                 return json.dumps({'day': day, 'max_seen': max_seen})
             return day
@@ -381,10 +387,13 @@ class GuardTests(unittest.TestCase):
             # Simulates receiving and retaining a genuinely signed server proof.
             if payload.startswith('{'):
                 data = json.loads(payload)
-                day = data['day']
+                day = data.get('day')
                 max_seen = data.get('max_seen')
             else:
                 day, max_seen = payload, None
+            if day is None:
+                self.anchor_path.write_text(json.dumps({'max_seen': max_seen}))
+                return
             signed = codes.issue_code(self.anchor_private, 'anchor-test', 'standard',
                                       date(2026, 10, 1), days=1, device=self.anchor_device,
                                       issued=date.fromisoformat(day))
@@ -394,9 +403,72 @@ class GuardTests(unittest.TestCase):
                           calendar_tz=timezone.utc, monotonic_now=lambda: self.mono,
                           load_anchor=load, save_anchor=save)
 
+    def test_authenticated_instant_never_lowers_max_seen_below_pin_same_day(self):
+        self.wall = datetime(2026, 10, 14, 10, tzinfo=timezone.utc)
+        self.local = self.wall.date()
+        future = datetime(2026, 10, 14, 20, tzinfo=timezone.utc)
+        self.guard.note_seen(at=future)
+        self.assertTrue(self.guard.clock_back())
+        self.guard.note_server_time(datetime(2026, 10, 14, 18, tzinfo=timezone.utc))
+        self.assertEqual(self.guard.max_seen, future)
+        self.assertTrue(self.guard.clock_back())
+        self.wall = datetime(2026, 10, 13, 23, tzinfo=timezone.utc)
+        self.local = self.wall.date()
+        self.assertTrue(self.guard.clock_back())
+
+    def test_anchor_mirrors_max_seen_before_vendor_day(self):
+        self.guard = self.anchor_guard()
+        self.assertFalse(self.guard.deletion_protected)
+        seen = datetime(2026, 10, 15, 8, tzinfo=timezone.utc)
+        self.guard.note_seen(at=seen)
+        self.assertTrue(self.guard.deletion_protected)
+        self.assertIsNone(self.guard.server_day_max)
+        record = json.loads(self.anchor_path.read_text())
+        self.assertEqual(record['max_seen'], seen.isoformat())
+        self.path.unlink()
+        self.wall = seen
+        self.local = self.wall.date()
+        self.guard = self.anchor_guard()
+        self.assertEqual(self.guard.max_seen, seen)
+        self.assertFalse(self.guard.clock_back())
+
+    def test_note_hub_time_uses_clamped_day_and_ignores_v1(self):
+        private, pub_b64, kid = generate_keypair()
+        trusted = {kid: pub_b64}
+        private_key = serialization.load_pem_private_key(private, password=None)
+
+        def b64url(raw):
+            return base64.urlsafe_b64encode(raw).decode().rstrip('=')
+        server_time = 1_700_000_500
+        far_day = '2026-10-30'
+        nonce = 'hub-guard01'
+        msg = hub_time_message_v2(far_day, server_time, kid, nonce)
+        data = {
+            'calendar_day': far_day,
+            'kid': kid,
+            'server_time': server_time,
+            'sig2': b64url(private_key.sign(msg)),
+            'signed': True,
+            'nonce': nonce,
+        }
+        sealed = '2026-10-14'
+        result = verify_hub_time(
+            data, trusted, sealed_day=sealed, max_jump_days=7, nonce=nonce,
+            last_server_time=1_700_000_100,
+        )
+        self.assertEqual(result, HubTimeVerifyResult('2026-10-21', server_time, True, 2, True))
+        self.guard.note_hub_time(result)
+        self.assertEqual(self.guard.server_day_max, date(2026, 10, 21))
+        self.assertNotEqual(self.guard.server_day_max, date(2026, 10, 30))
+        wrong = HubTimeVerifyResult(sealed, None, False, 1, False)
+        self.guard.note_hub_time(wrong)
+        self.assertEqual(self.guard.server_day_max, date(2026, 10, 21))
+
     def test_independent_verified_anchor_recovers_deleted_corrupt_and_old_state(self):
         self.guard = self.anchor_guard()
+        self.assertFalse(self.guard.deletion_protected)
         self.assert_access(self.paid(), 'active', True)
+        self.assertTrue(self.guard.deletion_protected)
         old = self.path.read_bytes()
         self.guard.note_server_day('2026-11-01')
         self.assertTrue(self.guard.deletion_protected)

@@ -125,7 +125,11 @@ def verify(document: dict, trusted_keys: dict[str, str], purpose: str, product: 
 
 
 def clock_rolled_back(now: datetime, last_seen: datetime, tolerance_hours: int = 24) -> bool:
-    """The app stores the latest time it has seen (in its database); a big step back means a tampered clock."""
+    """Coarse document-store tamper hint (default 24 hours).
+
+    ``ClockGuard`` uses a separate 2-hour default for paid-action gating; pass
+    the same product policy to both if you wire them together.
+    """
     return now < last_seen - timedelta(hours=tolerance_hours)
 
 

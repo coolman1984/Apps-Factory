@@ -50,11 +50,19 @@ def _parse_anchor_value(value: str) -> tuple[date | None, datetime | None]:
     return _day(value), None
 
 
-def _encode_anchor_record(day: date, max_seen: datetime | None) -> str:
+def _encode_anchor_record(day: date | None, max_seen: datetime | None) -> str:
+    if day is None and max_seen is None:
+        raise ValueError('empty_anchor')
+    if day is None:
+        return json.dumps({'max_seen': max_seen.isoformat()}, separators=(',', ':'))
     if max_seen is None:
         return day.isoformat()
     return json.dumps({'day': day.isoformat(), 'max_seen': max_seen.isoformat()},
                       separators=(',', ':'))
+
+
+# Licence hub business calendar; products must match ``LICENCE_CALENDAR_TZ``.
+HUB_DEFAULT_CALENDAR_TZ = 'Africa/Cairo'
 
 
 class ClockGuard:
@@ -128,8 +136,9 @@ class ClockGuard:
         return True
 
     def _sync_anchor(self) -> bool:
-        if (self._save_anchor is None or not self._anchor_ready
-                or self.server_day_max is None):
+        if self._save_anchor is None or not self._anchor_ready:
+            return True
+        if self.server_day_max is None and self.max_seen is None:
             return True
         if (self._anchor_day == self.server_day_max
                 and self._anchor_max_seen == self.max_seen):
@@ -166,15 +175,15 @@ class ClockGuard:
 
     @property
     def deletion_protected(self) -> bool:
-        """Independent anchor is available and contains the latest vendor day."""
+        """Independent anchor is available and mirrors the latest guard watermark."""
         if self._load_anchor is None or not self._anchor_ready:
             return False
         if self._anchor_out_of_sync:
             return False
-        if self.server_day_max is None and self._anchor_day is None:
-            return True
-        return (self.server_day_max is not None
-                and self._anchor_day == self.server_day_max)
+        if self._anchor_day is None and self._anchor_max_seen is None:
+            return False
+        return (self.server_day_max == self._anchor_day
+                and self.max_seen == self._anchor_max_seen)
 
     def _persist(self) -> None:
         """Retry I/O after five monotonic seconds, independent of wall time.
@@ -253,26 +262,47 @@ class ClockGuard:
         self._persist()
 
     def clock_back(self, tolerance_hours: float = 2) -> bool:
-        """Rollback is a current state, cleared when the clock is corrected."""
+        """Rollback is a current state, cleared when the clock is corrected.
+
+        Default tolerance is 2 hours for licence paid-action gating. This differs
+        from ``af_license.clock_rolled_back`` (24 hours), which is a separate
+        document-store helper for coarse tamper hints, not the guard contract.
+        """
         return (self.max_seen is not None
                 and self.max_seen - _utc(self._now()) > timedelta(hours=tolerance_hours))
 
-    def _repair_max_seen(self, day: date, tolerance_hours: float) -> None:
+    def _apply_pinned_instant(self, pinned: datetime, tolerance_hours: float) -> None:
+        trusted = _utc(pinned)
+        previous = self.max_seen
+        if previous is None:
+            self.max_seen = trusted
+            self._pending = True
+            return
+        if previous - trusted > timedelta(hours=tolerance_hours):
+            self.max_seen = trusted
+            self._pending = True
+
+    def _repair_max_seen(self, day: date, tolerance_hours: float,
+                         pinned_floor: datetime | None = None) -> None:
         if self.max_seen is None:
             return
-        now_utc = _utc(self._now())
         try:
             start = datetime.combine(day, time.min, self._calendar_tz).astimezone(timezone.utc)
             end = datetime.combine(day, time.max, self._calendar_tz).astimezone(timezone.utc)
         except (OverflowError, ValueError):
             return
-        if (day == self._today()
-                and self.max_seen - now_utc > timedelta(hours=tolerance_hours)):
-            self.max_seen = start
-            self._pending = True
-        elif self.max_seen - end > timedelta(hours=tolerance_hours):
-            self.max_seen = start
-            self._pending = True
+        floor = _utc(pinned_floor) if pinned_floor is not None else None
+
+        def apply(candidate: datetime) -> None:
+            if floor is not None and candidate < floor:
+                candidate = floor
+            if candidate < self.max_seen:
+                self.max_seen = candidate
+                self._pending = True
+
+        if (self._calendar_day(self.max_seen) > day
+                or self.max_seen - end > timedelta(hours=tolerance_hours)):
+            apply(start)
 
     def note_server_day(self, day_str: str, tolerance_hours: float = 2) -> None:
         """Accept a *fresh authenticated* vendor day in the licence calendar.
@@ -287,6 +317,45 @@ class ClockGuard:
             day = _day(day_str)
         except (ValueError, TypeError):
             return
+        self._note_authenticated_calendar_day(day, tolerance_hours, pinned_instant=None)
+
+    def note_server_time(self, moment: datetime, tolerance_hours: float = 2) -> None:
+        """Convert a fresh authenticated aware server instant to our calendar.
+
+        Prefer this API when the endpoint reports UTC; never pass a bare UTC
+        day to ``note_server_day`` for licences in another timezone. For signed
+        licence-hub responses use ``note_hub_time`` instead.
+        """
+        if not isinstance(moment, datetime) or moment.utcoffset() is None:
+            raise ValueError('aware_server_time_required')
+        day = self._calendar_day(moment)
+        self._note_authenticated_calendar_day(day, tolerance_hours, pinned_instant=moment)
+
+    def note_hub_time(self, result: 'HubTimeVerifyResult',
+                      tolerance_hours: float = 2) -> None:
+        """Apply a verified licence-hub time result to the guard.
+
+        Uses the clamped business ``calendar_day`` from the result (never a day
+        derived from ``server_time``). ``server_time`` updates rollback evidence
+        only. Non-sealing v1 results are ignored. Configure ``calendar_tz`` on
+        the guard to match the hub ``LICENCE_CALENDAR_TZ`` (often
+        ``ZoneInfo('Africa/Cairo')``).
+        """
+        from .hub_time import HubTimeVerifyResult as HubResult
+        if not isinstance(result, HubResult) or not result.sealable:
+            return
+        try:
+            day = _day(result.calendar_day)
+        except (ValueError, TypeError):
+            return
+        pinned = None
+        if result.server_time is not None:
+            pinned = datetime.fromtimestamp(result.server_time, tz=timezone.utc)
+        self._note_authenticated_calendar_day(day, tolerance_hours,
+                                                pinned_instant=pinned)
+
+    def _note_authenticated_calendar_day(self, day: date, tolerance_hours: float,
+                                         pinned_instant: datetime | None) -> None:
         if self.server_day_max is not None and day < self.server_day_max:
             self._persist()
             return
@@ -294,28 +363,10 @@ class ClockGuard:
             if not self._commit_server_day(day):
                 self._persist()
                 return
-        self._repair_max_seen(day, tolerance_hours)
+        if pinned_instant is not None:
+            self._apply_pinned_instant(pinned_instant, tolerance_hours)
+        self._repair_max_seen(day, tolerance_hours, pinned_floor=pinned_instant)
         self._persist()
-
-    def note_server_time(self, moment: datetime, tolerance_hours: float = 2) -> None:
-        """Convert a fresh authenticated aware server instant to our calendar.
-
-        Prefer this API when the endpoint reports UTC; never pass a bare UTC
-        day to ``note_server_day`` for licences in another timezone.
-        """
-        if not isinstance(moment, datetime) or moment.utcoffset() is None:
-            raise ValueError('aware_server_time_required')
-        day = self._calendar_day(moment)
-        if self.server_day_max is not None and day < self.server_day_max:
-            self._persist()
-            return
-        # A timestamp also proves the time within a day, unlike a bare day.
-        trusted = _utc(moment)
-        if (self.max_seen is not None
-                and self.max_seen - trusted > timedelta(hours=tolerance_hours)):
-            self.max_seen = trusted
-            self._pending = True
-        self.note_server_day(day.isoformat(), tolerance_hours)
 
     def effective_day(self) -> date:
         """Latest local or trusted vendor day, in one licence calendar.
