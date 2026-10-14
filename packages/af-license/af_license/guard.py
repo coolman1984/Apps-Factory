@@ -281,6 +281,10 @@ class ClockGuard:
         if previous - trusted > timedelta(hours=tolerance_hours):
             self.max_seen = trusted
             self._pending = True
+        elif (self._calendar_day(previous) > self._calendar_day(trusted)
+              and previous - trusted <= timedelta(hours=tolerance_hours)):
+            self.max_seen = trusted
+            self._pending = True
 
     def _repair_max_seen(self, day: date, tolerance_hours: float,
                          pinned_floor: datetime | None = None) -> None:
@@ -292,6 +296,14 @@ class ClockGuard:
         except (OverflowError, ValueError):
             return
         floor = _utc(pinned_floor) if pinned_floor is not None else None
+        if pinned_floor is None:
+            seen_day = self._calendar_day(self.max_seen)
+            now_day = self._calendar_day(self._now())
+            if seen_day.year == now_day.year:
+                if (seen_day - day).days <= 1:
+                    return
+                if self.clock_back(tolerance_hours):
+                    return
 
         def apply(candidate: datetime) -> None:
             if floor is not None and candidate < floor:
@@ -300,8 +312,7 @@ class ClockGuard:
                 self.max_seen = candidate
                 self._pending = True
 
-        if (self._calendar_day(self.max_seen) > day
-                or self.max_seen - end > timedelta(hours=tolerance_hours)):
+        if self.max_seen - end > timedelta(hours=tolerance_hours):
             apply(start)
 
     def note_server_day(self, day_str: str, tolerance_hours: float = 2) -> None:

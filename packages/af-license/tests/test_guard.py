@@ -259,12 +259,69 @@ class GuardTests(unittest.TestCase):
         # A repaired local clock never erases a vendor-observed expiry.
         self.assert_access(self.paid(), 'expired', False)
 
-    def test_fresh_server_day_matching_local_today_repairs_clock_back(self):
-        self.guard.note_seen(at=datetime(2026, 10, 14, 1, 0, tzinfo=timezone.utc))
+    def test_bare_server_day_does_not_repair_midnight_only_overshoot(self):
+        """REV70-2: day-only proof cannot snap max_seen before end-of-day + tolerance."""
+        self.wall = datetime(2026, 10, 14, 22, 0, tzinfo=timezone.utc)
+        self.local = self.wall.date()
+        self.guard.note_seen(at=datetime(2026, 10, 15, 0, 30, tzinfo=timezone.utc))
+        self.assertTrue(self.guard.clock_back())
+        self.guard.note_server_day('2026-10-14')
+        self.assertEqual(self.guard.max_seen, datetime(2026, 10, 15, 0, 30, tzinfo=timezone.utc))
+        self.assertTrue(self.guard.clock_back())
         self.assert_access(self.paid(last='2026-10-31'), 'clock_back', False)
-        self.guard.note_server_day('2026-10-13')
+        self.wall = datetime(2026, 10, 13, 23, 0, tzinfo=timezone.utc)
+        self.local = self.wall.date()
         self.guard = self.new_guard()
-        self.assert_access(self.paid(last='2026-10-31'), 'active', True)
+        self.assertTrue(self.guard.clock_back())
+        self.assert_access(self.paid(last='2026-10-31'), 'clock_back', False)
+
+    def test_rev70_server_time_and_hub_repair_within_tolerance_past_midnight(self):
+        """REV70-2 probes (UTC, 2 h tolerance): pinned instant, not bare-day snap."""
+        self.wall = datetime(2026, 10, 14, 21, 0, tzinfo=timezone.utc)
+        self.local = self.wall.date()
+        self.guard.note_seen(at=datetime(2026, 10, 15, 1, 0, tzinfo=timezone.utc))
+        self.assertTrue(self.guard.clock_back())
+        server_instant = datetime(2026, 10, 14, 23, 0, tzinfo=timezone.utc)
+        self.guard.note_server_time(server_instant)
+        self.assertEqual(self.guard.max_seen, server_instant)
+        self.assertFalse(self.guard.clock_back())
+        self.guard = self.new_guard()
+        self.assertEqual(self.guard.max_seen, server_instant)
+        self.assertFalse(self.guard.clock_back())
+
+        self.guard.note_seen(at=datetime(2026, 10, 15, 1, 0, tzinfo=timezone.utc))
+        self.assertTrue(self.guard.clock_back())
+        hub_ts = int(server_instant.timestamp())
+        hub = HubTimeVerifyResult('2026-10-14', hub_ts, True, 2, True)
+        self.guard.note_hub_time(hub)
+        self.assertEqual(self.guard.max_seen, server_instant)
+        self.assertFalse(self.guard.clock_back())
+
+    def test_rev70_paid_tolerance_does_not_unlock_via_bare_day_snap(self):
+        """REV70-2: 72 h tolerance must not bare-day snap a modest multi-day overshoot."""
+        tol = 72
+        self.wall = datetime(2026, 10, 14, 12, 0, tzinfo=timezone.utc)
+        self.local = self.wall.date()
+        future = self.wall + timedelta(hours=73)
+        self.guard.note_seen(at=future)
+        self.assertTrue(self.guard.clock_back(tol))
+        self.guard.note_server_day('2026-10-14')
+        self.assertEqual(self.guard.max_seen, future)
+        self.assertTrue(self.guard.clock_back(tol))
+        self.assert_access(self.paid(last='2026-10-31'), 'clock_back', False, tolerance_hours=tol)
+
+    def test_rollback_beyond_tolerance_survives_restart_until_clock_catches_up(self):
+        self.guard.note_seen(at=datetime(2026, 10, 16, 12, 0, tzinfo=timezone.utc))
+        self.wall = datetime(2026, 10, 13, 12, tzinfo=timezone.utc)
+        self.local = self.wall.date()
+        self.guard = self.new_guard()
+        self.assertTrue(self.guard.clock_back())
+        self.assert_access(self.paid(), 'clock_back', False)
+        self.guard.note_server_day('2026-10-13')
+        self.assertTrue(self.guard.clock_back())
+        self.guard = self.new_guard()
+        self.assertTrue(self.guard.clock_back())
+        self.assert_access(self.paid(), 'clock_back', False)
 
     def test_one_day_forward_mistake_repaired_by_server_day_and_time(self):
         private, public, _ = generate_keypair()
@@ -281,7 +338,7 @@ class GuardTests(unittest.TestCase):
         self.local = self.wall.date()
         self.guard = self.new_guard()
         self.assert_access(code, 'clock_back', False)
-        self.guard.note_server_day('2026-10-13')
+        self.guard.note_server_time(datetime(2026, 10, 13, 0, 10, tzinfo=timezone.utc))
         self.guard = self.new_guard()
         self.assert_access(code, 'active', True)
         self.wall = datetime(2026, 10, 14, 1, 0, tzinfo=timezone.utc)
