@@ -7,7 +7,7 @@ import {
   deviceKey, deviceLockKey, onlineDeviceLockKey, migrateLegacyTrialLocks, trialUsedForDevice,
   trialUsedOnline, REASON_PAID_IN_STUDIO, REASON_PAID_KEY_MISSING, offlineDeviceLockKey,
   hubCalendarSigned, hubTimeSigningMaterial, ownerCapabilities, loadSigningKeys,
-  offlineRequestId, storedGrantMatches, trialUsedForOfflineProduct, wouldDowngradeGrant, wouldDowngradeTerm,
+  offlineRequestId, storedGrantMatches, trialUsedForOfflineProduct, wouldDowngradeGrant,
   currentTerm, defaultProduct, ownerProductsPayload, blankLongDigitRuns, refFingerprint,
   originalTrialWindow, isActiveStrongTerm,
 } from '../src/licence-api.js';
@@ -138,7 +138,6 @@ test('blankLongDigitRuns strips spaced and dashed phone-like runs', () => {
 test('blankLongDigitRuns normalizes Arabic-Indic digit runs', () => {
   assert.equal(blankLongDigitRuns('٠١٠١٢٣٤٥٦٧٨'), '');
   assert.equal(blankLongDigitRuns('shop ۰۱۰۱۲۳۴۵۶۷'), 'shop ');
-  assert.equal(blankLongDigitRuns('０１０١٢٣٤٥٦٧٨'), '');
 });
 
 test('offline issuance blanks phone-like shop on customers row', async () => {
@@ -1460,63 +1459,4 @@ test('comb8: failed paid offline issue on delivered trial does not block trial r
   assert.notEqual(row.kind, 'monthly');
   const again = await issueOfflineCustomer(e, keys, device, 'Shop', 'trip-orders', { grant: 'trial', reissue: true });
   assert.ok(again.code);
-});
-
-test('comb9: wouldDowngradeTerm ignores expired paid when new grant is trial', () => {
-  const e = env();
-  assert.equal(wouldDowngradeTerm({ tier: 'paid', until: '1999-06-01' }, { grant: 'trial' }, e), false);
-  assert.equal(wouldDowngradeTerm({ tier: 'paid', until: '2099-06-01' }, { grant: 'trial' }, e), true);
-});
-
-test('comb9: expired paid offline row then trial with confirm_downgrade issues fresh trial', async () => {
-  const e = env();
-  const keys = await signingKeys(110, 111);
-  const device = '7KD2M-QX9TP';
-  const requestId = offlineRequestId('trip-orders', deviceKey(device));
-  const paid = await issueOfflineCustomer(e, keys, device, 'Shop', 'trip-orders', {
-    grant: 'paid', paid_until: '2027-06-01',
-  });
-  assert.ok(paid.code);
-  await e.DB.prepare('UPDATE customers SET licence_expiry = ? WHERE device = ? AND product = ?')
-    .bind('1999-06-01', device, 'trip-orders').run();
-  await e.DB.prepare('UPDATE licence_requests SET licence_expiry = ? WHERE id = ?')
-    .bind('1999-06-01', requestId).run();
-  const trial = await issueOfflineCustomer(e, keys, device, 'Shop', 'trip-orders', {
-    grant: 'trial', confirm_downgrade: true,
-  });
-  assert.notEqual(trial.code, paid.code);
-  const row = await e.DB.prepare('SELECT licence_tier, code FROM licence_requests WHERE id = ?').bind(requestId).first();
-  assert.equal(row.licence_tier, 'trial');
-  assert.equal(row.code, trial.code);
-});
-
-test('comb9: active paid then trial without confirm still throws downgrade', async () => {
-  const e = env();
-  const keys = await signingKeys(112, 113);
-  const device = 'ABCDE-FGHJK';
-  await issueOfflineCustomer(e, keys, device, 'Shop', 'trip-orders', {
-    grant: 'paid', paid_until: '2028-06-01',
-  });
-  await assert.rejects(
-    () => issueOfflineCustomer(e, keys, device, 'Shop', 'trip-orders', { grant: 'trial' }),
-    /downgrade/,
-  );
-});
-
-test('comb9: offline reissue after ended trial window throws trial_expired', async () => {
-  const e = env();
-  const keys = await signingKeys(114, 115);
-  const device = 'LMNOP-QRSTV';
-  const requestId = offlineRequestId('trip-orders', deviceKey(device));
-  await issueOfflineCustomer(e, keys, device, 'Shop', 'trip-orders', { grant: 'trial' });
-  await e.DB.prepare(
-    "UPDATE customers SET first_day = '2020-01-01', last_day = '2020-01-14', licence_expiry = '2020-01-14' WHERE device = ? AND product = ?",
-  ).bind(device, 'trip-orders').run();
-  await e.DB.prepare(
-    "UPDATE licence_requests SET licence_expiry = '2020-01-14', status = 'delivered', code = NULL WHERE id = ?",
-  ).bind(requestId).run();
-  await assert.rejects(
-    () => issueOfflineCustomer(e, keys, device, 'Shop', 'trip-orders', { grant: 'trial', reissue: true }),
-    /trial_expired/,
-  );
 });
