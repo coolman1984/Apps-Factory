@@ -3,7 +3,7 @@
 # Auth account lifecycle standard
 
 **Status:** `implemented` as `packages/af-auth` (stdlib, vendored). Pattern proven in Trip Orders v1.1.5; product-agnostic names and keys.
-Controls: `IAM-01`, `IAM-02`, `IAM-06`, `IAM-07` (with `packages/af-access` for permission catalogue and `admin_safety`).
+Controls: `IAM-01`, `IAM-02`, `IAM-06` (with `packages/af-access` for permission catalogue and `admin_safety`). `IAM-07` (personal sign-in links, vendor-signed admin recovery) remains **planned** — not implemented in `af-auth`.
 
 ## 1. Flows every product may adopt
 

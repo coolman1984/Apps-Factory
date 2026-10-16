@@ -1,7 +1,7 @@
 # af-auth v0.1.0 • sign-up approval, reset codes, lockout, admin safety
 
 **Status:** `implemented` (unit-tested; ported from Trip Orders v1.1.5 auth rules). Standard:
-[docs/AUTH_ACCOUNT_LIFECYCLE_STANDARD.md](../../docs/AUTH_ACCOUNT_LIFECYCLE_STANDARD.md). Controls `IAM-01`, `IAM-02`, `IAM-06`, `IAM-07`.
+[docs/AUTH_ACCOUNT_LIFECYCLE_STANDARD.md](../../docs/AUTH_ACCOUNT_LIFECYCLE_STANDARD.md). Controls `IAM-01`, `IAM-02`, `IAM-06` (`IAM-07` links/recovery: **planned**, not in this package).
 
 One file, standard library only, copied into each product (`python scripts/vendor_auth.py <product repo>` → `server/afauth.py`).
 
