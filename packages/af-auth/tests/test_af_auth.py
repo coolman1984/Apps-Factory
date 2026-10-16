@@ -79,6 +79,27 @@ class SignupFlow(unittest.TestCase):
         self.assertEqual(e.exception.key, 'autherr.signupRejectedReason')
         self.assertEqual(e.exception.vars.get('reason'), 'Not on the staff list')
 
+    def test_rejected_user_may_reregister(self):
+        s = store()
+        seed_admin(s)
+        s.register('retry', 'Retry User', PASS)
+        u = s.get_by_username('retry')
+        s.review(u['id'], 'reject', reason='Try again later')
+        r = s.register('retry', 'Retry User', PASS2)
+        self.assertTrue(r['ok'])
+        u2 = s.get_by_username('retry')
+        self.assertEqual(u2['status'], 'pending')
+        self.assertTrue(A.verify_password(PASS2, u2['pw_hash']))
+
+    def test_suspend_blocks_login(self):
+        s = store()
+        seed_admin(s)
+        u = add_user(s, 'suspendme')
+        s.review(u['id'], 'suspend', reason='Policy test')
+        with self.assertRaises(A.AuthError) as e:
+            s.login('suspendme', PASS2)
+        self.assertIn('suspended', str(e.exception).lower())
+
     def test_suspended_username_cannot_reregister(self):
         s = store()
         seed_admin(s)
@@ -146,6 +167,7 @@ class ResetCode(unittest.TestCase):
                 pass
         bindings = A.journal_clear_reset_hashes(s.journal_ops())
         self.assertEqual(len(bindings), 1)
+        self.assertTrue(all(bindings))
         s.rebuild_from_journal()
         with self.assertRaises(A.AuthError):
             s.reset_with_code('clr_bad', burned, 'Fresh-pass42')
@@ -161,6 +183,80 @@ class ResetCode(unittest.TestCase):
         s.rebuild_from_journal()
         with self.assertRaises(A.AuthError):
             s.reset_with_code('rejclr', burned, 'Fresh-pass42')
+
+    def test_suspend_journals_clear_reset(self):
+        s = store()
+        seed_admin(s)
+        u = add_user(s, 'susclr')
+        burned = s.issue_reset_code(u['id'])['code']
+        s.review(u['id'], 'suspend', reason='Policy test')
+        bindings = A.journal_clear_reset_hashes(s.journal_ops())
+        self.assertTrue(bindings and all(bindings))
+        s.rebuild_from_journal()
+        row = s.conn.execute('SELECT reset_hash FROM users WHERE username=?', ('susclr',)).fetchone()
+        self.assertFalse(row['reset_hash'])
+        with self.assertRaises(A.AuthError):
+            s.reset_with_code('susclr', burned, 'Fresh-pass42')
+
+    def test_rejected_reregister_journals_clear_reset_code(self):
+        s = store()
+        seed_admin(s)
+        s.register('rejagain', 'Rej Again', PASS)
+        u = s.get_by_username('rejagain')
+        s.review(u['id'], 'reject', reason='Not on the staff list')
+        stale = A.hash_password('STALE-CODE1')
+        s.conn.execute('UPDATE users SET reset_hash=?, reset_expires=? WHERE id=?',
+                       (stale, '2099-01-01T00:00:00', u['id']))
+        s.register('rejagain', 'Rej Again', PASS2)
+        bindings = A.journal_clear_reset_hashes(s.journal_ops())
+        self.assertIn(stale, bindings)
+        s.rebuild_from_journal()
+        row = s.conn.execute('SELECT reset_hash FROM users WHERE username=?', ('rejagain',)).fetchone()
+        self.assertFalse(row['reset_hash'])
+
+    def test_failed_commit_still_clears_reset_hash_after_wrong_guesses(self):
+        s = store()
+        seed_admin(s)
+        u = add_user(s, 'commitburn')
+        burned = s.issue_reset_code(u['id'])['code']
+        for _ in range(2):
+            try:
+                s.reset_with_code('commitburn', 'BADCODE1', 'Fresh-pass42')
+            except A.AuthError:
+                pass
+        inner = s.conn
+
+        class _FlakyConn:
+            def execute(self, sql, *args):
+                if str(sql).strip().upper() == 'COMMIT':
+                    raise sqlite3.OperationalError('simulated commit failure')
+                return inner.execute(sql, *args)
+
+            def __getattr__(self, name):
+                return getattr(inner, name)
+
+        s.conn = _FlakyConn()
+        try:
+            try:
+                s.reset_with_code('commitburn', 'BADCODE1', 'Fresh-pass42')
+            except (A.AuthError, sqlite3.OperationalError):
+                pass
+        finally:
+            s.conn = inner
+        s.rebuild_from_journal()
+        row = s.conn.execute('SELECT reset_hash FROM users WHERE username=?', ('commitburn',)).fetchone()
+        self.assertFalse(row['reset_hash'])
+        with self.assertRaises(A.AuthError):
+            s.reset_with_code('commitburn', burned, 'Fresh-pass42')
+
+    def test_reset_code_single_use(self):
+        s = store()
+        seed_admin(s)
+        u = add_user(s, 'once')
+        code = s.issue_reset_code(u['id'])['code']
+        s.reset_with_code('once', code, 'Fresh-pass42')
+        with self.assertRaises(A.AuthError):
+            s.reset_with_code('once', code, 'Another-pass99')
 
     def test_stale_clear_does_not_wipe_reissued_code(self):
         s = store()
@@ -179,6 +275,50 @@ class ResetCode(unittest.TestCase):
         row = s.conn.execute('SELECT reset_hash FROM users WHERE username=?', ('reissue',)).fetchone()
         self.assertTrue(row['reset_hash'])
         s.reset_with_code('reissue', code2, 'Fresh-pass55')
+
+
+class SecurityHelpers(unittest.TestCase):
+    def test_verify_password_rejects_extreme_iterations(self):
+        salt = '00' * 16
+        dk = 'aa' * 32
+        bad_low = f'pbkdf2_sha256$9999${salt}${dk}'
+        bad_high = f'pbkdf2_sha256$2000000${salt}${dk}'
+        self.assertFalse(A.verify_password('x', bad_low))
+        self.assertFalse(A.verify_password('x', bad_high))
+
+    def test_clear_reset_empty_binding_noop(self):
+        s = store()
+        seed_admin(s)
+        u = add_user(s, 'bound')
+        h = s.issue_reset_code(u['id'])
+        live = s.conn.execute('SELECT reset_hash FROM users WHERE id=?', (u['id'],)).fetchone()['reset_hash']
+        A.apply_user_command(s.conn, {'s': {'cmd': 'clear-reset-code', 'user': u['id'], 'reset_hash': ''}})
+        row = s.conn.execute('SELECT reset_hash FROM users WHERE id=?', (u['id'],)).fetchone()
+        self.assertEqual(row['reset_hash'], live)
+
+    def test_sole_admin_login_delay(self):
+        self.assertEqual(A.sole_admin_login_delay(4, 5, True), 0.0)
+        self.assertGreater(A.sole_admin_login_delay(5, 5, True), 0.0)
+        s = store()
+        seed_admin(s, password='Secure-pass9')
+        for _ in range(6):
+            try:
+                s.login('boss', 'wrong')
+            except A.AuthError:
+                pass
+        self.assertGreater(s.sole_admin_login_delay('boss'), 0.0)
+        self.assertGreaterEqual(A.http_auth_delay_seconds(s, 'boss'), 0.6)
+
+
+class Sessions(unittest.TestCase):
+    def test_session_idle_expiry(self):
+        s = A.AuthStore(':memory:')
+        s.idle = __import__('datetime').timedelta(seconds=1)
+        s.setup('boss', 'Boss', 'Secure-pass9')
+        token, _ = s.login('boss', 'Secure-pass9')
+        import time
+        time.sleep(1.5)
+        self.assertIsNone(s.session(token))
 
 
 class Lockout(unittest.TestCase):
@@ -200,6 +340,26 @@ class Lockout(unittest.TestCase):
             'SELECT failed FROM users WHERE id=?', (u['id'],)).fetchone()[0]) >= 5)
         with self.assertRaises(A.AuthError):
             s.login('victim', 'Secure-pass9')
+
+    def test_replicated_save_cannot_clear_lockout_or_reset(self):
+        s = store()
+        seed_admin(s)
+        u = add_user(s, 'localsafe')
+        code = s.issue_reset_code(u['id'])['code']
+        for _ in range(6):
+            try:
+                s.login('localsafe', 'wrong')
+            except A.AuthError:
+                pass
+        self.assertTrue(s.is_locked(u['id']))
+        live_reset = s.conn.execute('SELECT reset_hash FROM users WHERE id=?', (u['id'],)).fetchone()['reset_hash']
+        s.save_user_replicated(u['id'], {'failed': 0, 'locked_until': None, 'reset_hash': '', 'full_name': 'Localsafe'})
+        self.assertTrue(s.is_locked(u['id']))
+        self.assertEqual(
+            s.conn.execute('SELECT reset_hash FROM users WHERE id=?', (u['id'],)).fetchone()['reset_hash'],
+            live_reset,
+        )
+        s.reset_with_code('localsafe', code, 'Fresh-pass42')
 
     def test_lock_survives_replicated_save(self):
         s = store()
