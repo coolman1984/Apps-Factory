@@ -1340,7 +1340,7 @@
       "requirement": "Personal sign-in links for phone helpers (never admin); administrator recovery only with a vendor-signed one-time code",
       "acceptance_evidence": "Link cannot get admin; recovery code single-use",
       "required_if_applies": true,
-      "implementation_status": "implemented"
+      "implementation_status": "planned"
     },
     {
       "id": "MSG-01",

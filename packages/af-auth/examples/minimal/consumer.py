@@ -8,7 +8,7 @@ import af_auth as auth
 
 def run_checks() -> bool:
     s = auth.AuthStore(':memory:', {'manage_permission': 'people.manage'})
-    s.setup('owner', 'Site Owner', 'K9-Secure-pass')
+    s.setup('owner', 'Site Owner', 'K9-Secure-pass', ip='127.0.0.1')
     owner = s.get_by_username('owner')
     assert 'people.manage' in owner['perms']
     s.register('staff', 'Staff Member', 'K9-Secure-pass')
