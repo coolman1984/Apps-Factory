@@ -4,8 +4,10 @@ import os
 import sqlite3
 import sys
 import tempfile
+import threading
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 PKG = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PKG))
@@ -21,7 +23,7 @@ def store():
 
 
 def seed_admin(s: A.AuthStore, username='boss', password='Secure-pass9'):
-    s.setup(username, 'System Owner', password)
+    s.setup(username, 'System Owner', password, ip='127.0.0.1')
     return s.get_by_username(username)
 
 
@@ -98,6 +100,7 @@ class SignupFlow(unittest.TestCase):
         s.review(u['id'], 'suspend', reason='Policy test')
         with self.assertRaises(A.AuthError) as e:
             s.login('suspendme', PASS2)
+        self.assertEqual(e.exception.key, 'autherr.suspended')
         self.assertIn('suspended', str(e.exception).lower())
 
     def test_suspended_username_cannot_reregister(self):
@@ -314,7 +317,16 @@ class Sessions(unittest.TestCase):
     def test_session_idle_expiry(self):
         s = A.AuthStore(':memory:')
         s.idle = __import__('datetime').timedelta(seconds=1)
-        s.setup('boss', 'Boss', 'Secure-pass9')
+        s.setup('boss', 'Boss', 'Secure-pass9', ip='127.0.0.1')
+        token, _ = s.login('boss', 'Secure-pass9')
+        import time
+        time.sleep(1.5)
+        self.assertIsNone(s.session(token))
+
+    def test_session_max_age_expiry(self):
+        s = A.AuthStore(':memory:')
+        s.max_age = __import__('datetime').timedelta(seconds=1)
+        s.setup('boss', 'Boss', 'Secure-pass9', ip='127.0.0.1')
         token, _ = s.login('boss', 'Secure-pass9')
         import time
         time.sleep(1.5)
@@ -397,6 +409,258 @@ class Lockout(unittest.TestCase):
                 pass
         self.assertFalse(s.is_locked(boss['id']))
         s.login('boss', 'Secure-pass9')
+
+
+class SetupLocal(unittest.TestCase):
+    def test_setup_rejects_remote_ip(self):
+        s = store()
+        with self.assertRaises(A.AuthError) as e:
+            s.setup('boss', 'System Owner', 'Secure-pass9', ip='203.0.113.50')
+        self.assertEqual(e.exception.key, 'autherr.setupRemote')
+        self.assertFalse(s.has_users())
+
+
+class LastManagerSave(unittest.TestCase):
+    def test_sole_manager_save_deleted_refused(self):
+        s = store()
+        boss = seed_admin(s)
+        with self.assertRaises(A.AuthError) as e:
+            s.save_user_replicated(boss['id'], {'deleted': 1})
+        self.assertEqual(e.exception.key, 'autherr.lastAdmin')
+
+    def test_sole_manager_save_suspended_refused(self):
+        s = store()
+        boss = seed_admin(s)
+        with self.assertRaises(A.AuthError) as e:
+            s.save_user_replicated(boss['id'], {'status': 'suspended'})
+        self.assertEqual(e.exception.key, 'autherr.lastAdmin')
+
+    def test_sole_manager_save_active_string_zero_refused(self):
+        s = store()
+        boss = seed_admin(s)
+        with self.assertRaises(A.AuthError) as e:
+            s.save_user_replicated(boss['id'], {'active': '0'})
+        self.assertEqual(e.exception.key, 'autherr.lastAdmin')
+
+
+class SignupLimits(unittest.TestCase):
+    def test_pending_signup_cap(self):
+        s = store()
+        seed_admin(s)
+        cap = A.MAX_PENDING_SIGNUPS
+        for i in range(cap):
+            s.register(f'pending{i}', f'Pending {i}', PASS)
+        with self.assertRaises(A.AuthError) as e:
+            s.register('one_too_many', 'One Too Many', PASS)
+        self.assertEqual(e.exception.key, 'autherr.signupQueue')
+
+
+class Integrity(unittest.TestCase):
+    def test_duplicate_username_maps_to_auth_error(self):
+        s = store()
+        seed_admin(s)
+        uid = __import__('uuid').uuid4().hex
+        row = {
+            'username': 'boss', 'full_name': 'Duplicate', 'pw_hash': A.hash_password(PASS),
+            'perms': '[]', 'active': 1, 'status': 'approved', 'deleted': 0,
+            'created_at': A.now(), 'created_by': 'test', 'updated_at': A.now(), 'updated_by': 'test',
+        }
+        with self.assertRaises(A.AuthError) as e:
+            s._commit([{'e': 'users', 'id': uid, 'op': 'insert', 's': row, 'r': {'id': uid, **row}}])
+        self.assertEqual(e.exception.key, 'autherr.usernameTaken')
+
+
+class LoginAndResetRaces(unittest.TestCase):
+    def test_login_password_swap_during_verify_fails(self):
+        s = store()
+        boss = seed_admin(s, password='Secure-pass9')
+        gate = threading.Event()
+        done = threading.Event()
+        real_verify = A.verify_password
+
+        def slow_verify(pw, stored):
+            ok = real_verify(pw, stored)
+            if ok and pw == 'Secure-pass9':
+                gate.set()
+                done.wait(timeout=5)
+            return ok
+
+        def swap_password():
+            gate.wait(timeout=5)
+            s.save_user_replicated(boss['id'], {'pw_hash': A.hash_password('Other-pass99')})
+            done.set()
+
+        with patch.object(A, 'verify_password', side_effect=slow_verify):
+            t = threading.Thread(target=swap_password)
+            t.start()
+            with self.assertRaises(A.AuthError) as e:
+                s.login('boss', 'Secure-pass9')
+            self.assertEqual(e.exception.key, 'autherr.wrong')
+            t.join(timeout=5)
+        with self.assertRaises(A.AuthError):
+            s.login('boss', 'Secure-pass9')
+
+    def test_suspend_during_login_verify_denies_session(self):
+        s = store()
+        seed_admin(s)
+        u = add_user(s, 'raceuser')
+        gate = threading.Event()
+        done = threading.Event()
+        real_verify = A.verify_password
+
+        def slow_verify(pw, stored):
+            ok = real_verify(pw, stored)
+            if ok and pw == PASS2:
+                gate.set()
+                done.wait(timeout=5)
+            return ok
+
+        def suspend():
+            gate.wait(timeout=5)
+            s.review(u['id'], 'suspend', reason='Race')
+            done.set()
+
+        with patch.object(A, 'verify_password', side_effect=slow_verify):
+            t = threading.Thread(target=suspend)
+            t.start()
+            with self.assertRaises(A.AuthError) as e:
+                s.login('raceuser', PASS2)
+            self.assertEqual(e.exception.key, 'autherr.suspended')
+            t.join(timeout=5)
+        self.assertIsNone(s.conn.execute(
+            'SELECT 1 FROM sessions WHERE user_id=?', (u['id'],),
+        ).fetchone())
+
+    def test_approve_during_reregister_from_hash_fails(self):
+        s = store()
+        seed_admin(s)
+        s.register('retryrace', 'Retry Race', PASS)
+        u = s.get_by_username('retryrace')
+        s.review(u['id'], 'reject', reason='Try again later')
+        gate = threading.Event()
+        done = threading.Event()
+        real_hash = A.hash_password
+
+        def slow_hash(pw):
+            gate.set()
+            done.wait(timeout=5)
+            return real_hash(pw)
+
+        def approve():
+            gate.wait(timeout=5)
+            s.review(u['id'], 'approve', perms=VIEW)
+            done.set()
+
+        with patch.object(A, 'hash_password', side_effect=slow_hash):
+            t = threading.Thread(target=approve)
+            t.start()
+            with self.assertRaises(A.AuthError) as e:
+                s.register('retryrace', 'Retry Race', PASS2)
+            self.assertEqual(e.exception.key, 'autherr.signupState')
+            t.join(timeout=5)
+        u2 = s.get_by_username('retryrace')
+        self.assertEqual(u2['status'], 'approved')
+        self.assertTrue(A.verify_password(PASS, u2['pw_hash']))
+
+    def test_concurrent_reset_code_single_winner(self):
+        s = store()
+        seed_admin(s)
+        u = add_user(s, 'resetrace')
+        code = s.issue_reset_code(u['id'])['code']
+        results = []
+        barrier = threading.Barrier(2)
+
+        def attempt():
+            barrier.wait(timeout=5)
+            try:
+                s.reset_with_code('resetrace', code, 'Fresh-pass42')
+                results.append('ok')
+            except A.AuthError:
+                results.append('fail')
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=2) as ex:
+            list(ex.map(lambda _: attempt(), range(2)))
+        self.assertEqual(results.count('ok'), 1)
+        self.assertEqual(results.count('fail'), 1)
+
+
+class PasswordSave(unittest.TestCase):
+    def test_pw_hash_save_logs_out_sessions(self):
+        s = store()
+        seed_admin(s, password='Secure-pass9')
+        token, _ = s.login('boss', 'Secure-pass9')
+        boss = s.get_by_username('boss')
+        s.save_user_replicated(boss['id'], {'pw_hash': A.hash_password('Fresh-pass42')})
+        self.assertIsNone(s.session(token))
+        s.login('boss', 'Fresh-pass42')
+
+
+class ResetBurnCallback(unittest.TestCase):
+    def test_burn_after_commit_invokes_on_commit_with_binding(self):
+        seen = []
+
+        def on_commit(batch):
+            seen.append(batch)
+
+        s = A.AuthStore(':memory:', {'on_commit': on_commit})
+        seed_admin(s)
+        u = add_user(s, 'burncb')
+        s.issue_reset_code(u['id'])
+        for _ in range(3):
+            try:
+                s.reset_with_code('burncb', 'BADCODE1', 'Fresh-pass42')
+            except A.AuthError:
+                pass
+        burn_batches = [b for b in seen if A.journal_clear_reset_hashes(b)]
+        self.assertEqual(len(burn_batches), 1)
+        bindings = A.journal_clear_reset_hashes(burn_batches[0])
+        self.assertEqual(len(bindings), 1)
+        self.assertTrue(bindings[0])
+
+
+class SoleAdminResetLock(unittest.TestCase):
+    def test_sole_admin_wrong_reset_clears_existing_lock(self):
+        s = store()
+        boss = seed_admin(s, password='Secure-pass9')
+        future = (A.now()[:10] + 'T23:59:59')
+        s.conn.execute('UPDATE users SET locked_until=? WHERE id=?', (future, boss['id']))
+        s.issue_reset_code(boss['id'])
+        try:
+            s.reset_with_code('boss', 'BADCODE1', 'Fresh-pass42')
+        except A.AuthError:
+            pass
+        row = s.conn.execute('SELECT locked_until FROM users WHERE id=?', (boss['id'],)).fetchone()
+        self.assertFalse(row['locked_until'])
+
+
+class ResetAccountState(unittest.TestCase):
+    def test_reset_blocked_if_account_suspended_in_transaction(self):
+        s = store()
+        seed_admin(s)
+        u = add_user(s, 'resetsus')
+        code = s.issue_reset_code(u['id'])['code']
+        gate = threading.Event()
+        done = threading.Event()
+        real_verify = A.verify_password
+
+        def slow_verify(pw, stored):
+            ok = real_verify(pw, stored)
+            if ok and pw == code:
+                gate.set()
+                done.wait(timeout=5)
+            return ok
+
+        def suspend():
+            gate.wait(timeout=5)
+            s.save_user_replicated(u['id'], {'status': 'suspended', 'active': 0})
+            done.set()
+
+        with patch.object(A, 'verify_password', side_effect=slow_verify):
+            t = threading.Thread(target=suspend)
+            t.start()
+            with self.assertRaises(A.AuthError):
+                s.reset_with_code('resetsus', code, 'Fresh-pass42')
+            t.join(timeout=5)
 
 
 class ExampleConsumer(unittest.TestCase):
