@@ -31,6 +31,11 @@ MAX_PENDING_SIGNUPS = 25
 REQUEST_CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
 DEFAULT_MANAGE = 'users.manage'
 ITERATIONS = 600_000
+MIN_PBKDF2_ITERATIONS = 100_000
+MAX_PBKDF2_ITERATIONS = 1_000_000
+DEFAULT_SESSION_IDLE_MINUTES = 30
+DEFAULT_SESSION_MAX_HOURS = 12
+HTTP_AUTH_BASE_DELAY_SECONDS = 0.6
 COMMON = {
     'password', 'password1', 'password123', '12345678', '123456789', '1234567890', '11111111', '00000000',
     'qwerty123', 'qwertyuiop', 'abc12345', 'admin123', 'admin1234', 'administrator', 'welcome1', 'welcome123',
@@ -73,7 +78,10 @@ def verify_password(pw: str, stored: str) -> bool:
         algo, n, salt, dk = stored.split('$')
         if algo != 'pbkdf2_sha256':
             return False
-        test = hashlib.pbkdf2_hmac('sha256', pw.encode('utf-8'), bytes.fromhex(salt), int(n))
+        n_int = int(n)
+        if n_int < MIN_PBKDF2_ITERATIONS or n_int > MAX_PBKDF2_ITERATIONS:
+            return False
+        test = hashlib.pbkdf2_hmac('sha256', pw.encode('utf-8'), bytes.fromhex(salt), n_int)
         return hmac.compare_digest(test.hex(), dk)
     except (ValueError, AttributeError):
         return False
@@ -203,10 +211,11 @@ def apply_user_command(conn: sqlite3.Connection, cmd: Mapping[str, Any]) -> None
     elif name == 'clear-reset-code':
         uid = s.get('user')
         bound = s.get('reset_hash')
-        if bound:
-            cur = conn.execute('SELECT reset_hash FROM users WHERE id=?', (uid,)).fetchone()
-            if not cur or cur['reset_hash'] != bound:
-                return
+        if not bound:
+            return
+        cur = conn.execute('SELECT reset_hash FROM users WHERE id=?', (uid,)).fetchone()
+        if not cur or cur['reset_hash'] != bound:
+            return
         conn.execute('UPDATE users SET reset_hash=?, reset_expires=? WHERE id=?', ('', '', uid))
     elif name == 'logout':
         conn.execute('DELETE FROM sessions WHERE user_id=?', (s.get('user'),))
@@ -219,6 +228,31 @@ def journal_clear_reset_hashes(ops: Iterable[Mapping[str, Any]]) -> List[str]:
         if s.get('cmd') == 'clear-reset-code':
             out.append(s.get('reset_hash') or '')
     return out
+
+
+def sole_admin_login_delay(
+    failed: int,
+    max_failed: int,
+    sole_admin: bool,
+) -> float:
+    """Extra delay after wrong passwords for the only administrator (seconds). Never hard-locks."""
+    if not sole_admin or failed < max_failed:
+        return 0.0
+    return float(min(2, 2 ** min(4, failed - max_failed)))
+
+
+def http_auth_delay_seconds(store: 'AuthStore', username: str) -> float:
+    """Products should sleep this long after login/reset AuthError (see Trip Orders app.py)."""
+    with store.lock:
+        r = store.conn.execute(
+            'SELECT id, failed, perms FROM users WHERE username=? AND deleted=0',
+            ((username or '').strip(),),
+        ).fetchone()
+        if not r:
+            return HTTP_AUTH_BASE_DELAY_SECONDS
+        sole = sole_admin_id(store._rows(), store.manage) == r['id'] and store.manage in json.loads(r['perms'] or '[]')
+        extra = sole_admin_login_delay(int(r['failed'] or 0), store.max_failed, sole)
+    return HTTP_AUTH_BASE_DELAY_SECONDS + extra
 
 
 def login_failure_update(
@@ -276,6 +310,8 @@ class AuthStore:
         self.max_failed = max(3, int(cfg.get('max_failed_logins', 5)))
         self.lock_minutes = max(1, int(cfg.get('lockout_minutes', 15)))
         self.min_len = max(8, int(cfg.get('min_password_length', 8)))
+        self.idle = timedelta(minutes=max(1, float(cfg.get('session_idle_minutes', DEFAULT_SESSION_IDLE_MINUTES))))
+        self.max_age = timedelta(hours=max(1, float(cfg.get('session_max_hours', DEFAULT_SESSION_MAX_HOURS))))
         self.manage = str(cfg.get('manage_permission', DEFAULT_MANAGE))
         self.lock = threading.RLock()
         self.conn = sqlite3.connect(path, check_same_thread=False, isolation_level=None)
@@ -308,15 +344,47 @@ class AuthStore:
             out.extend(batch)
         return out
 
-    def _commit(self, ops: List[dict], apply_local: Optional[Callable[[], None]] = None) -> None:
+    def _commit(
+        self,
+        ops: List[dict],
+        apply_local: Optional[Callable[[], None]] = None,
+        check: Optional[Callable[[sqlite3.Connection], Optional[List[dict]]]] = None,
+    ) -> None:
+        self._write(ops, apply_local=apply_local, check=check)
+
+    def _write(
+        self,
+        ops: List[dict],
+        apply_local: Optional[Callable[[], None]] = None,
+        check: Optional[Callable[[sqlite3.Connection], Optional[List[dict]]]] = None,
+    ) -> None:
         with self.lock:
-            if apply_local:
-                apply_local()
-            for op in ops:
-                self._apply_op(op)
-            self._journal.append(list(ops))
-            if self._on_commit:
-                self._on_commit(ops)
+            self.conn.execute('BEGIN IMMEDIATE')
+            try:
+                extra = check(self.conn) if check else None
+                batch = list(ops)
+                if extra:
+                    batch = batch + list(extra)
+                if apply_local:
+                    apply_local()
+                for op in batch:
+                    self._apply_op(op)
+                self._journal.append(batch)
+                self.conn.execute('COMMIT')
+                if self._on_commit:
+                    self._on_commit(batch)
+            except sqlite3.IntegrityError:
+                try:
+                    self.conn.execute('ROLLBACK')
+                except sqlite3.OperationalError:
+                    pass
+                raise AuthError('This user name is already taken.', key='autherr.usernameTaken')
+            except Exception:
+                try:
+                    self.conn.execute('ROLLBACK')
+                except sqlite3.OperationalError:
+                    pass
+                raise
 
     def _apply_op(self, op: dict) -> None:
         e = op.get('e')
@@ -349,8 +417,12 @@ class AuthStore:
                 for op in batch:
                     self._apply_op(op)
 
-    def _rows(self) -> List[dict]:
-        return [dict(r) for r in self.conn.execute('SELECT * FROM users WHERE deleted=0')]
+    def _rows(self, conn: Optional[sqlite3.Connection] = None) -> List[dict]:
+        c = conn or self.conn
+        return [dict(r) for r in c.execute('SELECT * FROM users WHERE deleted=0')]
+
+    def _rows_as_users(self, conn: Optional[sqlite3.Connection] = None) -> List[dict]:
+        return [self._user(r) for r in (conn or self.conn).execute('SELECT * FROM users WHERE deleted=0')]
 
     def _user(self, row: Optional[sqlite3.Row]) -> Optional[dict]:
         if not row:
@@ -395,10 +467,13 @@ class AuthStore:
             'status_by': 'First setup', 'request_code': '', 'notes': '', 'created_at': ts, 'created_by': 'First setup',
             'updated_at': ts, 'updated_by': 'First setup',
         }
-        self.conn.execute(
-            f'INSERT INTO users (id, {", ".join(row)}) VALUES (?, {", ".join("?" * len(row))})',
-            (uid, *row.values()),
-        )
+
+        def check(c: sqlite3.Connection) -> List[dict]:
+            if c.execute('SELECT COUNT(*) FROM users').fetchone()[0]:
+                raise AuthError('The administrator account already exists. Please log in.', key='autherr.adminExists')
+            return [{'e': 'users', 'id': uid, 'op': 'insert', 's': row, 'r': {'id': uid, **row}}]
+
+        self._write([], check=check)
         return uid
 
     def register(self, username: str, full_name: str, password: str, ip: str = '', title: str = '', notes: str = '') -> dict:
@@ -411,17 +486,16 @@ class AuthStore:
             raise AuthError('Enter the full name.', key='autherr.fullname')
         check_password(password, username, full_name, self.min_len)
         with self.lock:
-            pending_n = self.conn.execute("SELECT COUNT(*) FROM users WHERE deleted=0 AND status='pending'").fetchone()[0]
             existing = self.conn.execute('SELECT * FROM users WHERE username=?', (username,)).fetchone()
-        if pending_n >= MAX_PENDING_SIGNUPS:
-            raise AuthError('Too many sign-up requests are waiting.', key='autherr.signupQueue')
+        if existing:
+            ex = self._user(existing)
+            if signup_username_blocked(ex):
+                raise AuthError('This user name is already taken.', key='autherr.usernameTaken')
         ts = now()
         code = request_code()
         h = hash_password(password)
         if existing:
             ex = self._user(existing)
-            if signup_username_blocked(ex):
-                raise AuthError('This user name is already taken.', key='autherr.usernameTaken')
             uid = ex['id']
             st = ex.get('status') or 'approved'
             row = {
@@ -430,17 +504,22 @@ class AuthStore:
                 'status': 'pending', 'status_reason': '', 'status_at': ts, 'status_by': 'Self sign-up', 'request_code': code,
                 'notes': (notes or '')[:500], 'updated_at': ts, 'updated_by': 'Self sign-up',
             }
-            ops: List[dict] = [{'e': 'users', 'id': uid, 'op': 'update', 's': row}]
-            bound = (ex.get('reset_hash') or '') if ex else ''
-            extra_ops: List[dict] = []
 
-            def apply_local():
-                self.conn.execute('UPDATE users SET failed=0, locked_until=NULL, reset_hash=?, reset_expires=? WHERE id=?',
-                                  ('', '', uid))
+            def check_reregister(c: sqlite3.Connection) -> List[dict]:
+                if c.execute("SELECT COUNT(*) FROM users WHERE deleted=0 AND status='pending'").fetchone()[0] >= MAX_PENDING_SIGNUPS:
+                    raise AuthError('Too many sign-up requests are waiting.', key='autherr.signupQueue')
+                cur = c.execute('SELECT status, reset_hash FROM users WHERE id=? AND deleted=0', (uid,)).fetchone()
+                if not cur or (cur['status'] or 'approved') != 'rejected':
+                    raise AuthError('This sign-up request is no longer waiting.', key='autherr.signupState')
+                bound = cur['reset_hash'] or ''
+                c.execute('UPDATE users SET failed=0, locked_until=NULL, reset_hash=?, reset_expires=? WHERE id=?',
+                          ('', '', uid))
+                ops = [{'e': 'users', 'id': uid, 'op': 'update', 's': row, 'c': {'status': [st, 'pending']}}]
+                if bound:
+                    ops.append(clear_reset_code_op(uid, bound))
+                return ops
 
-            if bound:
-                extra_ops.append(clear_reset_code_op(uid, bound))
-            self._commit(ops + extra_ops, apply_local=apply_local)
+            self._write([], check=check_reregister)
             return {'ok': True, 'request_code': code}
         uid = uuid.uuid4().hex
         row = {
@@ -450,7 +529,15 @@ class AuthStore:
             'notes': (notes or '')[:500], 'created_at': ts, 'created_by': 'Self sign-up', 'updated_at': ts,
             'updated_by': 'Self sign-up',
         }
-        self._commit([{'e': 'users', 'id': uid, 'op': 'insert', 's': row, 'r': {'id': uid, **row}}])
+
+        def check_insert(c: sqlite3.Connection) -> List[dict]:
+            if c.execute("SELECT COUNT(*) FROM users WHERE deleted=0 AND status='pending'").fetchone()[0] >= MAX_PENDING_SIGNUPS:
+                raise AuthError('Too many sign-up requests are waiting.', key='autherr.signupQueue')
+            if c.execute('SELECT 1 FROM users WHERE username=?', (username,)).fetchone():
+                raise AuthError('This user name is already taken.', key='autherr.usernameTaken')
+            return [{'e': 'users', 'id': uid, 'op': 'insert', 's': row, 'r': {'id': uid, **row}}]
+
+        self._write([], check=check_insert)
         return {'ok': True, 'request_code': code}
 
     def review(self, uid: str, decision: str, reason: str = '', perms: Optional[Sequence[str]] = None) -> dict:
@@ -469,13 +556,7 @@ class AuthStore:
         reason = str(reason or '').strip()[:400]
         if decision == 'reject' and len(reason) < 3:
             raise AuthError('Write the reason for refusing the sign-up.')
-        rows = [dict(r) for r in self._rows()]
         use_perms = sorted(perms or ['overview.view'])
-        if decision == 'approve':
-            if loses_last_manager(u, rows, True, use_perms, self.manage):
-                raise AuthError('At least one active user must keep the right to manage users.', key='autherr.lastAdmin')
-        elif loses_last_manager(u, rows, False, manage=self.manage):
-            raise AuthError('At least one active user must keep the right to manage users.', key='autherr.lastAdmin')
         ts = now()
         ops: List[dict] = []
         if decision == 'approve':
@@ -502,15 +583,50 @@ class AuthStore:
             ops.append({'e': 'users', 'id': uid, 'op': 'update', 's': row})
             ops.append({'e': 'userCommands', 'id': uuid.uuid4().hex, 'op': 'insert', 'noaudit': True,
                         's': {'cmd': 'logout', 'user': uid}})
-        bound = u.get('reset_hash') or ''
-        if decision in ('reject', 'suspend') and bound:
-            ops.append(clear_reset_code_op(uid, bound))
-        self._commit(ops)
+
+        def check_review(c: sqlite3.Connection) -> Optional[List[dict]]:
+            cur_u = self._user(c.execute('SELECT * FROM users WHERE id=? AND deleted=0', (uid,)).fetchone())
+            if not cur_u:
+                raise AuthError('This user no longer exists.')
+            rows = self._rows_as_users(c)
+            if decision == 'approve':
+                if loses_last_manager(cur_u, rows, True, use_perms, self.manage):
+                    raise AuthError('At least one active user must keep the right to manage users.', key='autherr.lastAdmin')
+            elif loses_last_manager(cur_u, rows, False, manage=self.manage):
+                raise AuthError('At least one active user must keep the right to manage users.', key='autherr.lastAdmin')
+            extra: List[dict] = []
+            if decision in ('reject', 'suspend'):
+                cur = c.execute('SELECT reset_hash FROM users WHERE id=?', (uid,)).fetchone()
+                bound = (cur['reset_hash'] or '') if cur else ''
+                if bound:
+                    extra.append(clear_reset_code_op(uid, bound))
+            return extra or None
+
+        self._commit(ops, check=check_review)
         return self.get(uid) or {}
 
     def save_user_replicated(self, uid: str, fields: Mapping[str, Any]) -> None:
         """Administrator save of replicated fields; local lockout counters are never cleared."""
-        self._commit([{'e': 'users', 'id': uid, 'op': 'update', 's': dict(fields)}])
+        fields = dict(fields)
+        if 'perms' in fields and isinstance(fields['perms'], list):
+            fields['perms'] = json.dumps(fields['perms'])
+
+        def check_save(c: sqlite3.Connection) -> None:
+            cur_u = self._user(c.execute('SELECT * FROM users WHERE id=? AND deleted=0', (uid,)).fetchone())
+            if not cur_u:
+                raise AuthError('This user no longer exists.')
+            new_active = fields.get('active', cur_u['active'])
+            if isinstance(new_active, int):
+                new_active = bool(new_active)
+            new_perms = fields.get('perms')
+            if new_perms is not None and isinstance(new_perms, str):
+                new_perms = json.loads(new_perms)
+            elif new_perms is not None:
+                new_perms = list(new_perms)
+            if loses_last_manager(cur_u, self._rows_as_users(c), bool(new_active), new_perms, self.manage):
+                raise AuthError('At least one active user must keep the right to manage users.', key='autherr.lastAdmin')
+
+        self._commit([{'e': 'users', 'id': uid, 'op': 'update', 's': fields}], check=check_save)
 
     def issue_reset_code(self, uid: str) -> dict:
         u = self.get(uid)
@@ -542,11 +658,14 @@ class AuthStore:
             try:
                 row = self.conn.execute('SELECT failed, locked_until FROM users WHERE id=?', (u['id'],)).fetchone()
                 locked_until = row['locked_until']
+                sole = sole_admin_id(self._rows(), self.manage) == u['id'] and self.manage in u['perms']
+                if sole and locked_until:
+                    self.conn.execute('UPDATE users SET locked_until=NULL WHERE id=?', (u['id'],))
+                    locked_until = None
                 if locked_until and _parse(locked_until) > datetime.now():
                     self.conn.execute('ROLLBACK')
                     mins = max(1, round((_parse(locked_until) - datetime.now()).total_seconds() / 60))
                     raise AuthError(f'Account locked for {mins} more minute(s).', key='autherr.locked', mins=mins)
-                sole = sole_admin_id(self._rows(), self.manage) == u['id'] and self.manage in u['perms']
                 if not ok:
                     failed, locked = login_failure_update(int(row['failed'] or 0), sole, self.max_failed, self.lock_minutes)
                     if sole:
@@ -558,14 +677,20 @@ class AuthStore:
                         raise AuthError(f'Too many wrong passwords. Locked for {self.lock_minutes} minutes.', key='autherr.lockedNow',
                                         mins=self.lock_minutes)
                     raise AuthError(generic, key='autherr.wrong')
-                msg = status_message(u.get('status') or 'approved', u.get('status_reason') or '')
+                live = self.conn.execute(
+                    'SELECT status, status_reason, active, deleted FROM users WHERE id=?', (u['id'],),
+                ).fetchone()
+                if not live or live['deleted']:
+                    self.conn.execute('ROLLBACK')
+                    raise AuthError(generic, key='autherr.wrong')
+                msg = status_message(live['status'] or 'approved', live['status_reason'] or '')
                 if msg:
                     self.conn.execute('ROLLBACK')
-                    key = 'autherr.signupPending' if u.get('status') == 'pending' else 'autherr.signupRejected'
-                    if u.get('status') == 'rejected' and (u.get('status_reason') or '').strip():
+                    key = 'autherr.signupPending' if live['status'] == 'pending' else 'autherr.signupRejected'
+                    if live['status'] == 'rejected' and (live['status_reason'] or '').strip():
                         key = 'autherr.signupRejectedReason'
-                    raise AuthError(msg, key=key, reason=u.get('status_reason') or '')
-                if not u['active']:
+                    raise AuthError(msg, key=key, reason=live['status_reason'] or '')
+                if not live['active']:
                     self.conn.execute('ROLLBACK')
                     raise AuthError('This account is disabled.', key='autherr.disabled')
                 token = secrets.token_urlsafe(32)
@@ -583,6 +708,45 @@ class AuthStore:
         fresh = self.get(u['id'])
         return token, fresh or u
 
+    def session(self, token: str, ip: str = '', touch: bool = True) -> Optional[dict]:
+        if not token:
+            return None
+        th = hashlib.sha256(token.encode('ascii', 'ignore')).hexdigest()
+        with self.lock:
+            s = self.conn.execute('SELECT * FROM sessions WHERE token_hash=?', (th,)).fetchone()
+            if not s:
+                return None
+            t = datetime.now()
+            reason = ''
+            if t - _parse(s['last_seen']) > self.idle:
+                reason = 'idle'
+            elif t - _parse(s['created']) > self.max_age:
+                reason = 'max_age'
+            u = self.get(s['user_id'])
+            if not reason and u and (u.get('status') or 'approved') != 'approved':
+                reason = 'status'
+            if not reason and (not u or not u['active']):
+                reason = 'disabled'
+            if reason:
+                self.conn.execute('DELETE FROM sessions WHERE token_hash=?', (th,))
+                return None
+            if touch and (t - _parse(s['last_seen'])).total_seconds() > 20:
+                self.conn.execute('UPDATE sessions SET last_seen=? WHERE token_hash=?', (t.isoformat(timespec='seconds'), th))
+        return u
+
+    def sole_admin_login_delay(self, username: str) -> float:
+        with self.lock:
+            r = self.conn.execute(
+                'SELECT id, failed, perms FROM users WHERE username=? AND deleted=0', ((username or '').strip(),),
+            ).fetchone()
+            if not r or sole_admin_id(self._rows(), self.manage) != r['id']:
+                return 0.0
+            perms = json.loads(r['perms'] or '[]')
+            if self.manage not in perms:
+                return 0.0
+            failed = int(r['failed'] or 0)
+        return sole_admin_login_delay(failed, self.max_failed, True)
+
     def is_locked(self, uid: str) -> bool:
         with self.lock:
             r = self.conn.execute('SELECT locked_until FROM users WHERE id=?', (uid,)).fetchone()
@@ -597,8 +761,6 @@ class AuthStore:
             verify_password(code or 'x', _DUMMY)
             raise AuthError(generic, key='autherr.resetWrong')
         ok_code = False
-        burn_hash = None
-        notify_ops: List[dict] = []
         with self.lock:
             self.conn.execute('BEGIN IMMEDIATE')
             try:
@@ -618,6 +780,8 @@ class AuthStore:
                 if ok_code:
                     self.conn.execute('ROLLBACK')
                 else:
+                    if expired:
+                        verify_password(code or 'x', _DUMMY)
                     sole = sole_admin_id(self._rows(), self.manage) == u['id'] and self.manage in u['perms']
                     failed, locked, burn, _ = reset_guess_update(
                         int(row['failed'] or 0), sole, self.max_failed, self.lock_minutes,
@@ -630,9 +794,13 @@ class AuthStore:
                     else:
                         self.conn.execute('UPDATE users SET failed=?, locked_until=?, reset_hash=?, reset_expires=? WHERE id=?',
                                           (failed, locked, rh, re, u['id']))
+                    journal_batch: List[dict] = []
                     if burn:
-                        burn_hash = row['reset_hash']
-                        notify_ops.append(clear_reset_code_op(u['id'], burn_hash))
+                        op = clear_reset_code_op(u['id'], row['reset_hash'])
+                        self._apply_op(op)
+                        journal_batch.append(op)
+                    if journal_batch:
+                        self._journal.append(journal_batch)
                     self.conn.execute('COMMIT')
             except AuthError:
                 try:
@@ -645,32 +813,35 @@ class AuthStore:
                     self.conn.execute('ROLLBACK')
                 except sqlite3.OperationalError:
                     pass
-                if notify_ops:
-                    self._commit(notify_ops)
                 raise
-        if notify_ops:
-            self._commit(notify_ops)
         if not ok_code:
             raise AuthError(generic, key='autherr.resetWrong')
         check_password(new_password, u['username'], u['full_name'], self.min_len)
         ts = now()
         new_hash = hash_password(new_password)
         uid = u['id']
-        with self.lock:
-            row = self.conn.execute('SELECT reset_hash, reset_expires FROM users WHERE id=?', (uid,)).fetchone()
-            if not row or not row['reset_hash'] or not verify_password(code, row['reset_hash']):
+
+        def check_ok(c: sqlite3.Connection) -> List[dict]:
+            live = c.execute('SELECT reset_hash, reset_expires FROM users WHERE id=?', (uid,)).fetchone()
+            if not live or not live['reset_hash'] or not live['reset_expires']:
                 raise AuthError(generic, key='autherr.resetWrong')
-            burned = row['reset_hash']
+            if _parse(live['reset_expires']) < datetime.now():
+                raise AuthError(generic, key='autherr.resetWrong')
+            if not verify_password(code, live['reset_hash']):
+                raise AuthError(generic, key='autherr.resetWrong')
+            burned = live['reset_hash']
+            c.execute(
+                'UPDATE users SET failed=0, locked_until=NULL, reset_hash=?, reset_expires=? WHERE id=? AND reset_hash=?',
+                ('', '', uid, burned),
+            )
+            if c.execute('SELECT changes()').fetchone()[0] == 0:
+                raise AuthError(generic, key='autherr.resetWrong')
+            return [clear_reset_code_op(uid, burned)]
+
         ops = [
             {'e': 'users', 'id': uid, 'op': 'update',
              's': {'pw_hash': new_hash, 'must_change': 0, 'pw_changed_at': ts, 'updated_at': ts, 'updated_by': 'Reset code'}},
             {'e': 'userCommands', 'id': uuid.uuid4().hex, 'op': 'insert', 'noaudit': True, 's': {'cmd': 'logout', 'user': uid}},
-            clear_reset_code_op(uid, burned),
         ]
-
-        def apply_local() -> None:
-            self.conn.execute('UPDATE users SET failed=0, locked_until=NULL, reset_hash=?, reset_expires=? WHERE id=?',
-                              ('', '', uid))
-
-        self._commit(ops, apply_local=apply_local)
+        self._write(ops, check=check_ok)
         return {'ok': True}
