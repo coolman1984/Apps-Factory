@@ -32,3 +32,5 @@ failed, locked = afauth.login_failure_update(row['failed'], sole, max_failed, lo
 ```
 
 Wire replicated writes through your journal; append `afauth.clear_reset_code_op(uid, reset_hash)` whenever a code is burned.
+
+On login or reset `AuthError`, sleep `afauth.http_auth_delay_seconds(store, username)` (or `0.6 + store.sole_admin_login_delay(username)`) so the sole manager account is throttled without hard lockout.
