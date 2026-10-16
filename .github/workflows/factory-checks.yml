@@ -59,6 +59,12 @@ jobs:
           python -m unittest discover -s tools/key-vault/tests -v
       - name: Key escrow worker tests (template)
         run: node --experimental-sqlite --test templates/key-escrow-worker/test/worker.test.mjs
+      - name: Auth lifecycle tests (af-auth)
+        working-directory: packages/af-auth
+        run: |
+          python -m unittest discover -s tests -v
+          node --check af-auth.js
+          node --test tests/core.test.mjs
       - name: Access gate tests (af-access)
         working-directory: packages/af-access
         run: python -m unittest discover -s tests -v
