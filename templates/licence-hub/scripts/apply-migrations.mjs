@@ -192,7 +192,39 @@ export function applyMigrations(db, options = {}) {
   const productDdl = loadMigrationSql('0002_product_column.sql', defaultProduct).trim();
   addColumnIfMissing(db, '0002_product_column', 'licence_requests', 'product', productDdl);
   applyCustomersProductMigration(db, defaultProduct);
+  applyTrialGrantsMigration(db);
+  applyTrialGrantsBackfillStagingMigration(db);
   return defaultProduct;
+}
+
+/** SQL files applied via wrangler one-shot (see migrations/README.md). */
+export const WRANGLER_MIGRATION_SQL_FILES = [
+  '0001_licence_tier_expiry.sql',
+  '0002_product_column.sql',
+  '0003_customers_product.sql',
+  '0004_trial_grants.sql',
+  '0005_trial_grants_backfill_staging.sql',
+];
+
+function tableExists(db, name) {
+  const row = db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?").get(name);
+  return Boolean(row);
+}
+
+function applyTrialGrantsMigration(db) {
+  const migrationId = '0004_trial_grants';
+  if (migrationApplied(db, migrationId)) return;
+  const sql = readFileSync(join(root, 'migrations', '0004_trial_grants.sql'), 'utf8');
+  db.exec(sql);
+  markApplied(db, migrationId);
+}
+
+function applyTrialGrantsBackfillStagingMigration(db) {
+  const migrationId = '0005_trial_grants_backfill_staging';
+  if (migrationApplied(db, migrationId)) return;
+  const sql = readFileSync(join(root, 'migrations', '0005_trial_grants_backfill_staging.sql'), 'utf8');
+  db.exec(sql);
+  markApplied(db, migrationId);
 }
 
 function parseCli(argv) {
