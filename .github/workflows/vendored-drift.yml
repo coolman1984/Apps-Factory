@@ -52,7 +52,7 @@ jobs:
       - name: Vendored copies are byte-identical to the factory packages
         run: |
           python -m unittest discover -s packages/af-license/tests -k test_vendored_copy_in_known_products_matches -v
-          for pkg in af-access af-guide af-consent af-telemetry; do
+          for pkg in af-auth af-access af-guide af-consent af-telemetry; do
             python -m unittest discover -s "packages/$pkg/tests" -k VendoredCopies -v
           done
       - name: Al-Store contracts (heartbeat fields, licence code from the studio) must run, not skip
