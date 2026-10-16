@@ -72,3 +72,46 @@ CREATE TABLE IF NOT EXISTS login_attempts (
   count  INTEGER NOT NULL,
   PRIMARY KEY (ip, window)
 );
+
+CREATE TABLE IF NOT EXISTS trial_grants (
+  product        TEXT NOT NULL,
+  subject_kind   TEXT NOT NULL CHECK (subject_kind IN ('m', 'd')),
+  subject        TEXT NOT NULL,
+  first_day      TEXT NOT NULL,
+  last_day       TEXT NOT NULL,
+  created_at     TEXT NOT NULL,
+  source_request TEXT,
+  PRIMARY KEY (product, subject_kind, subject)
+);
+
+CREATE TRIGGER IF NOT EXISTS trial_grants_no_update
+BEFORE UPDATE ON trial_grants
+BEGIN
+  SELECT RAISE(ABORT, 'trial_grants is insert-only');
+END;
+
+CREATE TRIGGER IF NOT EXISTS trial_grants_no_delete
+BEFORE DELETE ON trial_grants
+BEGIN
+  SELECT RAISE(ABORT, 'trial_grants is insert-only');
+END;
+
+CREATE TABLE IF NOT EXISTS trial_grants_backfill_staging (
+  product        TEXT NOT NULL,
+  subject_kind   TEXT NOT NULL CHECK (subject_kind IN ('m', 'd')),
+  subject        TEXT NOT NULL,
+  first_day      TEXT NOT NULL,
+  last_day       TEXT NOT NULL,
+  source_request TEXT,
+  PRIMARY KEY (product, subject_kind, subject)
+);
+
+CREATE TABLE IF NOT EXISTS trial_grants_backfill_progress (
+  id          INTEGER PRIMARY KEY CHECK (id = 1),
+  phase       TEXT NOT NULL,
+  after_rowid INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS trial_issue_batch_sentinel (
+  singleton INTEGER PRIMARY KEY CHECK (singleton = -1)
+);
