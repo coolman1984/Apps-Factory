@@ -1,0 +1,269 @@
+"""Unit and regression tests for af-auth (Trip Orders v1.1.5 auth rules)."""
+import concurrent.futures
+import os
+import sqlite3
+import sys
+import tempfile
+import unittest
+from pathlib import Path
+
+PKG = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(PKG))
+import af_auth as A  # noqa: E402
+
+PASS = 'Office-pass88'
+PASS2 = 'Office-pass12'
+VIEW = ['overview.view']
+
+
+def store():
+    return A.AuthStore(':memory:')
+
+
+def seed_admin(s: A.AuthStore, username='boss', password='Secure-pass9'):
+    s.setup(username, 'System Owner', password)
+    return s.get_by_username(username)
+
+
+def add_user(s: A.AuthStore, username, password=PASS2, perms=None, status='approved'):
+    if not s.has_users():
+        seed_admin(s)
+    uid = __import__('uuid').uuid4().hex
+    perms = perms or VIEW
+    row = {
+        'username': username, 'full_name': username.title(), 'pw_hash': A.hash_password(password),
+        'perms': __import__('json').dumps(perms), 'active': 1 if status == 'approved' else 0,
+        'status': status, 'deleted': 0, 'must_change': 0, 'created_at': A.now(), 'created_by': 'test',
+        'updated_at': A.now(), 'updated_by': 'test',
+    }
+    s._commit([{'e': 'users', 'id': uid, 'op': 'insert', 's': row, 'r': {'id': uid, **row}}])
+    return s.get(uid)
+
+
+class Policy(unittest.TestCase):
+    def test_sole_admin_never_locked(self):
+        failed, locked = A.login_failure_update(4, True, 5, 15)
+        self.assertEqual(failed, 5)
+        self.assertIsNone(locked)
+
+    def test_reset_guess_sole_admin_no_lock(self):
+        failed, locked, burn, _ = A.reset_guess_update(7, True, 5, 15, 3, False)
+        self.assertIsNone(locked)
+        self.assertTrue(burn)
+
+
+class SignupFlow(unittest.TestCase):
+    def test_pending_until_approved(self):
+        s = store()
+        seed_admin(s)
+        r = s.register('newhire', 'New Hire', PASS)
+        self.assertEqual(len(r['request_code']), 6)
+        with self.assertRaises(A.AuthError) as e:
+            s.login('newhire', 'wrong')
+        self.assertNotIn('waiting', str(e.exception).lower())
+        with self.assertRaises(A.AuthError) as e2:
+            s.login('newhire', PASS)
+        self.assertIn('waiting', str(e2.exception).lower())
+        u = s.get_by_username('newhire')
+        s.review(u['id'], 'approve', perms=VIEW)
+        s.login('newhire', PASS)
+
+    def test_refused_shows_reason(self):
+        s = store()
+        seed_admin(s)
+        s.register('refused1', 'Refused One', PASS)
+        u = s.get_by_username('refused1')
+        s.review(u['id'], 'reject', reason='Not on the staff list')
+        with self.assertRaises(A.AuthError) as e:
+            s.login('refused1', PASS)
+        self.assertEqual(e.exception.key, 'autherr.signupRejectedReason')
+        self.assertEqual(e.exception.vars.get('reason'), 'Not on the staff list')
+
+    def test_suspended_username_cannot_reregister(self):
+        s = store()
+        seed_admin(s)
+        u = add_user(s, 'wasactive')
+        s.review(u['id'], 'suspend', reason='Policy test')
+        with self.assertRaises(A.AuthError) as e:
+            s.register('wasactive', 'New Try', PASS)
+        self.assertIn('taken', str(e.exception).lower())
+
+    def test_cannot_suspend_sole_admin(self):
+        s = store()
+        boss = seed_admin(s)
+        with self.assertRaises(A.AuthError) as e:
+            s.review(boss['id'], 'suspend', reason='Test')
+        self.assertEqual(e.exception.key, 'autherr.lastAdmin')
+
+
+class ResetCode(unittest.TestCase):
+    def test_reset_flow(self):
+        s = store()
+        seed_admin(s)
+        u = add_user(s, 'resetme')
+        code = s.issue_reset_code(u['id'])['code']
+        spaced = code[:4] + '-' + code[4:]
+        s.reset_with_code('resetme', spaced, 'Fresh-pass42')
+        s.login('resetme', 'Fresh-pass42')
+
+    def test_reset_clears_login_lockout(self):
+        s = store()
+        seed_admin(s)
+        u = add_user(s, 'resetlock')
+        for _ in range(6):
+            try:
+                s.login('resetlock', 'wrong')
+            except A.AuthError:
+                pass
+        self.assertTrue(s.is_locked(u['id']))
+        code = s.issue_reset_code(u['id'])['code']
+        s.reset_with_code('resetlock', code, 'Fresh-pass99')
+        s.login('resetlock', 'Fresh-pass99')
+
+    def test_clear_reset_replicates_on_success(self):
+        s = store()
+        seed_admin(s)
+        u = add_user(s, 'clr_ok')
+        code = s.issue_reset_code(u['id'])['code']
+        s.reset_with_code('clr_ok', code, 'Fresh-pass42')
+        bindings = A.journal_clear_reset_hashes(s.journal_ops())
+        self.assertTrue(bindings and all(bindings))
+        s.rebuild_from_journal()
+        row = s.conn.execute('SELECT reset_hash FROM users WHERE username=?', ('clr_ok',)).fetchone()
+        self.assertFalse(row['reset_hash'])
+        with self.assertRaises(A.AuthError):
+            s.reset_with_code('clr_ok', code, 'Another-pass99')
+
+    def test_three_wrong_guesses_burn_code(self):
+        s = store()
+        seed_admin(s)
+        u = add_user(s, 'clr_bad')
+        burned = s.issue_reset_code(u['id'])['code']
+        for _ in range(3):
+            try:
+                s.reset_with_code('clr_bad', 'BADCODE1', 'Fresh-pass42')
+            except A.AuthError:
+                pass
+        bindings = A.journal_clear_reset_hashes(s.journal_ops())
+        self.assertEqual(len(bindings), 1)
+        s.rebuild_from_journal()
+        with self.assertRaises(A.AuthError):
+            s.reset_with_code('clr_bad', burned, 'Fresh-pass42')
+
+    def test_reject_journals_clear_reset(self):
+        s = store()
+        seed_admin(s)
+        u = add_user(s, 'rejclr')
+        burned = s.issue_reset_code(u['id'])['code']
+        s.conn.execute('UPDATE users SET status=? WHERE id=?', ('pending', u['id']))
+        s.review(u['id'], 'reject', reason='Not on the staff list')
+        self.assertTrue(A.journal_clear_reset_hashes(s.journal_ops()))
+        s.rebuild_from_journal()
+        with self.assertRaises(A.AuthError):
+            s.reset_with_code('rejclr', burned, 'Fresh-pass42')
+
+    def test_stale_clear_does_not_wipe_reissued_code(self):
+        s = store()
+        seed_admin(s)
+        u = add_user(s, 'reissue')
+        s.issue_reset_code(u['id'])
+        stale = s.conn.execute('SELECT reset_hash FROM users WHERE id=?', (u['id'],)).fetchone()['reset_hash']
+        for _ in range(3):
+            try:
+                s.reset_with_code('reissue', 'BADCODE1', 'Fresh-pass42')
+            except A.AuthError:
+                pass
+        code2 = s.issue_reset_code(u['id'])['code']
+        s._commit([A.clear_reset_code_op(u['id'], stale)])
+        s.rebuild_from_journal()
+        row = s.conn.execute('SELECT reset_hash FROM users WHERE username=?', ('reissue',)).fetchone()
+        self.assertTrue(row['reset_hash'])
+        s.reset_with_code('reissue', code2, 'Fresh-pass55')
+
+
+class Lockout(unittest.TestCase):
+    def test_parallel_wrong_logins_lock(self):
+        s = store()
+        seed_admin(s)
+        add_user(s, 'victim', password='Secure-pass9')
+
+        def wrong():
+            try:
+                s.login('victim', 'wrong-password')
+            except A.AuthError:
+                pass
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=10) as ex:
+            list(ex.map(lambda _: wrong(), range(10)))
+        u = s.get_by_username('victim')
+        self.assertTrue(s.is_locked(u['id']) or int(s.conn.execute(
+            'SELECT failed FROM users WHERE id=?', (u['id'],)).fetchone()[0]) >= 5)
+        with self.assertRaises(A.AuthError):
+            s.login('victim', 'Secure-pass9')
+
+    def test_lock_survives_replicated_save(self):
+        s = store()
+        seed_admin(s)
+        u = add_user(s, 'locksave')
+        code = s.issue_reset_code(u['id'])['code']
+        s.reset_with_code('locksave', code, 'Fresh-pass42')
+        for _ in range(6):
+            try:
+                s.login('locksave', 'wrong')
+            except A.AuthError:
+                pass
+        self.assertTrue(s.is_locked(u['id']))
+        s.save_user_replicated(u['id'], {'full_name': 'Lock Save Renamed'})
+        self.assertTrue(s.is_locked(u['id']))
+
+    def test_sole_admin_reset_guesses_not_locked(self):
+        s = store()
+        boss = seed_admin(s, password='Secure-pass9')
+        s.issue_reset_code(boss['id'])
+        for _ in range(8):
+            try:
+                s.reset_with_code('boss', 'BADCODE1', 'Fresh-pass42')
+            except A.AuthError:
+                pass
+        self.assertFalse(s.is_locked(boss['id']))
+
+    def test_sole_admin_login_not_locked(self):
+        s = store()
+        boss = seed_admin(s, password='Secure-pass9')
+        for _ in range(8):
+            try:
+                s.login('boss', 'wrong-only')
+            except A.AuthError:
+                pass
+        self.assertFalse(s.is_locked(boss['id']))
+        s.login('boss', 'Secure-pass9')
+
+
+class ExampleConsumer(unittest.TestCase):
+    """Products import afauth and wire catalogue manage permission."""
+
+    def test_consumer_wires_manage_permission(self):
+        import importlib.util
+        ex = PKG / 'examples' / 'minimal' / 'consumer.py'
+        spec = importlib.util.spec_from_file_location('consumer', ex)
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        self.assertTrue(mod.run_checks())
+
+
+class VendoredCopies(unittest.TestCase):
+    def test_known_products_hold_a_fresh_copy(self):
+        import hashlib
+        src = (PKG / 'af_auth.py').read_bytes()
+        root = PKG.parents[2]
+        for name in ('Store', 'Teachers', 'Yousef-Transportation'):
+            copy_ = Path(os.environ.get(f'AF_{name.upper().replace("-", "_")}_REPO', root / name)) / 'server' / 'afauth.py'
+            if not copy_.exists():
+                continue
+            body = copy_.read_bytes().split(b'\n', 2)[2]
+            self.assertEqual(hashlib.sha256(body).hexdigest(), hashlib.sha256(src).hexdigest(),
+                             f'{copy_} is stale: run python scripts/vendor_auth.py <product repo>')
+
+
+if __name__ == '__main__':
+    unittest.main()
