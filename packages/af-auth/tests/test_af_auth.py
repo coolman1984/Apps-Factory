@@ -442,6 +442,53 @@ class LastManagerSave(unittest.TestCase):
             s.save_user_replicated(boss['id'], {'active': '0'})
         self.assertEqual(e.exception.key, 'autherr.lastAdmin')
 
+    def test_sole_manager_save_active_affinity_zero_spellings_refused(self):
+        s = store()
+        boss = seed_admin(s)
+        for val in ('00', '0.0', '+0', '-0', '0e0'):
+            with self.assertRaises(A.AuthError) as e:
+                s.save_user_replicated(boss['id'], {'active': val})
+            self.assertEqual(e.exception.key, 'autherr.lastAdmin')
+            self.assertEqual(s.conn.execute('SELECT active FROM users WHERE id=?', (boss['id'],)).fetchone()[0], 1)
+
+    def test_sole_manager_save_deleted_false_string_stored_as_integer_zero(self):
+        s = store()
+        boss = seed_admin(s)
+        s.save_user_replicated(boss['id'], {'deleted': 'false'})
+        self.assertEqual(s.conn.execute('SELECT deleted FROM users WHERE id=?', (boss['id'],)).fetchone()[0], 0)
+        self.assertIsNotNone(s.get_by_username('boss'))
+        s.login('boss', 'Secure-pass9')
+
+    def test_sole_manager_save_invalid_pw_hash_refused(self):
+        s = store()
+        boss = seed_admin(s)
+        for bad in ('', 'x'):
+            with self.assertRaises(A.AuthError) as e:
+                s.save_user_replicated(boss['id'], {'pw_hash': bad})
+            self.assertEqual(e.exception.key, 'autherr.lastAdmin')
+        s.login('boss', 'Secure-pass9')
+
+
+class SoleManagerPredicate(unittest.TestCase):
+    def test_status_only_suspend_second_manager_keeps_sole_boss_unlocked(self):
+        s = store()
+        boss = seed_admin(s, password='Secure-pass9')
+        helper = add_user(s, 'helper', perms=[*VIEW, A.DEFAULT_MANAGE])
+        s.save_user_replicated(helper['id'], {'status': 'suspended'})
+        rows = s.conn.execute('SELECT * FROM users WHERE deleted=0').fetchall()
+        rows = [dict(r) for r in rows]
+        self.assertEqual(A.sole_admin_id(rows), boss['id'])
+        for _ in range(8):
+            try:
+                s.login('boss', 'wrong-only')
+            except A.AuthError:
+                pass
+        self.assertFalse(s.is_locked(boss['id']))
+        s.login('boss', 'Secure-pass9')
+        with self.assertRaises(A.AuthError) as e:
+            s.login('helper', PASS2)
+        self.assertEqual(e.exception.key, 'autherr.suspended')
+
 
 class SignupLimits(unittest.TestCase):
     def test_pending_signup_cap(self):
