@@ -36,6 +36,7 @@ MAX_PBKDF2_ITERATIONS = 1_000_000
 DEFAULT_SESSION_IDLE_MINUTES = 30
 DEFAULT_SESSION_MAX_HOURS = 12
 HTTP_AUTH_BASE_DELAY_SECONDS = 0.6
+LOCAL_SETUP_IPS = frozenset({'127.0.0.1', '::1', '::ffff:127.0.0.1', 'localhost'})
 COMMON = {
     'password', 'password1', 'password123', '12345678', '123456789', '1234567890', '11111111', '00000000',
     'qwerty123', 'qwertyuiop', 'abc12345', 'admin123', 'admin1234', 'administrator', 'welcome1', 'welcome123',
@@ -143,19 +144,79 @@ def sole_admin_id(rows: Iterable[Mapping[str, Any]], manage: str = DEFAULT_MANAG
     return admins[0] if len(admins) == 1 else None
 
 
-def count_active_managers(rows: Iterable[Mapping[str, Any]], exclude: Optional[str] = None, manage: str = DEFAULT_MANAGE) -> int:
+def is_local_setup_ip(ip: str) -> bool:
+    addr = (ip or '').strip()
+    return addr in LOCAL_SETUP_IPS
+
+
+def _coerce_active(val: Any) -> bool:
+    if isinstance(val, bool):
+        return val
+    if isinstance(val, int):
+        return bool(val)
+    if isinstance(val, str):
+        return val.strip().lower() not in ('0', 'false', '')
+    return bool(val)
+
+
+def _coerce_deleted(val: Any) -> bool:
+    if isinstance(val, bool):
+        return val
+    if isinstance(val, int):
+        return bool(val)
+    if isinstance(val, str):
+        return val.strip().lower() not in ('0', 'false', '')
+    return bool(val)
+
+
+def is_managing_user(row: Mapping[str, Any], manage: str = DEFAULT_MANAGE) -> bool:
+    if not row or _coerce_deleted(row.get('deleted')):
+        return False
+    if not _coerce_active(row.get('active', True)):
+        return False
+    if (row.get('status') or 'approved') != 'approved':
+        return False
+    perms = row.get('perms') or []
+    if isinstance(perms, str):
+        perms = json.loads(perms or '[]')
+    return manage in perms
+
+
+def count_managing_users(
+    rows: Iterable[Mapping[str, Any]],
+    exclude: Optional[str] = None,
+    manage: str = DEFAULT_MANAGE,
+) -> int:
     n = 0
     for r in rows:
-        if r.get('deleted') or not r.get('active'):
+        if exclude and r.get('id') == exclude:
             continue
-        if exclude and r['id'] == exclude:
-            continue
-        perms = r.get('perms') or []
-        if isinstance(perms, str):
-            perms = json.loads(perms or '[]')
-        if manage in perms:
+        if is_managing_user(r, manage):
             n += 1
     return n
+
+
+def count_active_managers(rows: Iterable[Mapping[str, Any]], exclude: Optional[str] = None, manage: str = DEFAULT_MANAGE) -> int:
+    return count_managing_users(rows, exclude=exclude, manage=manage)
+
+
+def save_would_drop_last_manager(
+    cur_u: Mapping[str, Any],
+    fields: Mapping[str, Any],
+    all_rows: Iterable[Mapping[str, Any]],
+    manage: str = DEFAULT_MANAGE,
+) -> bool:
+    if not is_managing_user(cur_u, manage):
+        return False
+    merged = dict(cur_u)
+    for k, v in fields.items():
+        if k in REPLICATED_USER_COLS:
+            merged[k] = v
+    if 'perms' in merged and isinstance(merged['perms'], str):
+        merged['perms'] = json.loads(merged['perms'] or '[]')
+    if is_managing_user(merged, manage):
+        return False
+    return count_managing_users(all_rows, exclude=cur_u['id'], manage=manage) == 0
 
 
 def loses_last_manager(
@@ -457,6 +518,11 @@ class AuthStore:
         check_password(password, username, full_name, self.min_len)
         if self.has_users():
             raise AuthError('The administrator account already exists. Please log in.', key='autherr.adminExists')
+        if not is_local_setup_ip(ip):
+            raise AuthError(
+                'The first administrator account can only be created on the PC with the program itself.',
+                key='autherr.setupRemote',
+            )
         ts = now()
         uid = uuid.uuid4().hex
         h = hash_password(password)
@@ -615,18 +681,14 @@ class AuthStore:
             cur_u = self._user(c.execute('SELECT * FROM users WHERE id=? AND deleted=0', (uid,)).fetchone())
             if not cur_u:
                 raise AuthError('This user no longer exists.')
-            new_active = fields.get('active', cur_u['active'])
-            if isinstance(new_active, int):
-                new_active = bool(new_active)
-            new_perms = fields.get('perms')
-            if new_perms is not None and isinstance(new_perms, str):
-                new_perms = json.loads(new_perms)
-            elif new_perms is not None:
-                new_perms = list(new_perms)
-            if loses_last_manager(cur_u, self._rows_as_users(c), bool(new_active), new_perms, self.manage):
+            if save_would_drop_last_manager(cur_u, fields, self._rows_as_users(c), self.manage):
                 raise AuthError('At least one active user must keep the right to manage users.', key='autherr.lastAdmin')
 
-        self._commit([{'e': 'users', 'id': uid, 'op': 'update', 's': fields}], check=check_save)
+        ops: List[dict] = [{'e': 'users', 'id': uid, 'op': 'update', 's': fields}]
+        if 'pw_hash' in fields:
+            ops.append({'e': 'userCommands', 'id': uuid.uuid4().hex, 'op': 'insert', 'noaudit': True,
+                        's': {'cmd': 'logout', 'user': uid}})
+        self._commit(ops, check=check_save)
 
     def issue_reset_code(self, uid: str) -> dict:
         u = self.get(uid)
@@ -652,7 +714,8 @@ class AuthStore:
         if not u:
             verify_password(password or '', _DUMMY)
             raise AuthError(generic, key='autherr.wrong')
-        ok = verify_password(password or '', u['pw_hash'])
+        verified_hash = u['pw_hash']
+        ok = verify_password(password or '', verified_hash)
         with self.lock:
             self.conn.execute('BEGIN IMMEDIATE')
             try:
@@ -678,15 +741,23 @@ class AuthStore:
                                         mins=self.lock_minutes)
                     raise AuthError(generic, key='autherr.wrong')
                 live = self.conn.execute(
-                    'SELECT status, status_reason, active, deleted FROM users WHERE id=?', (u['id'],),
+                    'SELECT pw_hash, status, status_reason, active, deleted FROM users WHERE id=?', (u['id'],),
                 ).fetchone()
                 if not live or live['deleted']:
+                    self.conn.execute('ROLLBACK')
+                    raise AuthError(generic, key='autherr.wrong')
+                if not hmac.compare_digest(live['pw_hash'] or '', verified_hash):
                     self.conn.execute('ROLLBACK')
                     raise AuthError(generic, key='autherr.wrong')
                 msg = status_message(live['status'] or 'approved', live['status_reason'] or '')
                 if msg:
                     self.conn.execute('ROLLBACK')
-                    key = 'autherr.signupPending' if live['status'] == 'pending' else 'autherr.signupRejected'
+                    if live['status'] == 'pending':
+                        key = 'autherr.signupPending'
+                    elif live['status'] == 'suspended':
+                        key = 'autherr.suspended'
+                    else:
+                        key = 'autherr.signupRejected'
                     if live['status'] == 'rejected' and (live['status_reason'] or '').strip():
                         key = 'autherr.signupRejectedReason'
                     raise AuthError(msg, key=key, reason=live['status_reason'] or '')
@@ -771,6 +842,11 @@ class AuthStore:
                     verify_password(code or 'x', _DUMMY)
                     self.conn.execute('ROLLBACK')
                     raise AuthError(generic, key='autherr.resetWrong')
+                sole = sole_admin_id(self._rows(), self.manage) == u['id'] and self.manage in u['perms']
+                if sole and row['locked_until']:
+                    self.conn.execute('UPDATE users SET locked_until=NULL WHERE id=?', (u['id'],))
+                    row = dict(row)
+                    row['locked_until'] = None
                 expired = _parse(row['reset_expires']) < datetime.now()
                 ok_code = not expired and verify_password(code, row['reset_hash'])
                 if row['locked_until'] and _parse(row['locked_until']) > datetime.now() and not ok_code:
@@ -782,7 +858,6 @@ class AuthStore:
                 else:
                     if expired:
                         verify_password(code or 'x', _DUMMY)
-                    sole = sole_admin_id(self._rows(), self.manage) == u['id'] and self.manage in u['perms']
                     failed, locked, burn, _ = reset_guess_update(
                         int(row['failed'] or 0), sole, self.max_failed, self.lock_minutes,
                         RESET_CODE_MAX_ATTEMPTS, expired,
@@ -802,6 +877,8 @@ class AuthStore:
                     if journal_batch:
                         self._journal.append(journal_batch)
                     self.conn.execute('COMMIT')
+                    if journal_batch and self._on_commit:
+                        self._on_commit(journal_batch)
             except AuthError:
                 try:
                     self.conn.execute('ROLLBACK')
@@ -822,8 +899,16 @@ class AuthStore:
         uid = u['id']
 
         def check_ok(c: sqlite3.Connection) -> List[dict]:
-            live = c.execute('SELECT reset_hash, reset_expires FROM users WHERE id=?', (uid,)).fetchone()
-            if not live or not live['reset_hash'] or not live['reset_expires']:
+            live = c.execute(
+                'SELECT reset_hash, reset_expires, deleted, active, status FROM users WHERE id=?', (uid,),
+            ).fetchone()
+            if not live or live['deleted']:
+                raise AuthError(generic, key='autherr.resetWrong')
+            if not _coerce_active(live['active']):
+                raise AuthError(generic, key='autherr.resetWrong')
+            if (live['status'] or 'approved') != 'approved':
+                raise AuthError(generic, key='autherr.resetWrong')
+            if not live['reset_hash'] or not live['reset_expires']:
                 raise AuthError(generic, key='autherr.resetWrong')
             if _parse(live['reset_expires']) < datetime.now():
                 raise AuthError(generic, key='autherr.resetWrong')
