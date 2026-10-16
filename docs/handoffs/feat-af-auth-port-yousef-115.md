@@ -15,7 +15,7 @@
 - Checked in repo: 2026-10-17; not a live pull from product `main`.
 
 ## Tests run
-- `python3 -m unittest discover -s packages/af-auth/tests -v` (44 tests)
+- `python3 -m unittest discover -s packages/af-auth/tests -v` (48 tests)
 - `node --test packages/af-auth/tests/core.test.mjs`
 - Factory suite per PLAYBOOK section 1 (record counts in PR)
 
