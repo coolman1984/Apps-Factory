@@ -132,16 +132,18 @@ def status_message(status: str, reason: str = '') -> str:
 
 
 def sole_admin_id(rows: Iterable[Mapping[str, Any]], manage: str = DEFAULT_MANAGE) -> Optional[str]:
-    """When only one active user may manage people, account lockout must not block the office."""
-    admins = []
-    for r in rows:
-        if not r.get('deleted') and r.get('active'):
-            perms = r.get('perms') or []
-            if isinstance(perms, str):
-                perms = json.loads(perms or '[]')
-            if manage in perms:
-                admins.append(r['id'])
+    """When only one usable manager exists, account lockout must not block the office."""
+    admins = [r['id'] for r in rows if is_managing_user(r, manage)]
     return admins[0] if len(admins) == 1 else None
+
+
+def is_sole_managing_user(
+    rows: Iterable[Mapping[str, Any]],
+    uid: str,
+    manage: str = DEFAULT_MANAGE,
+) -> bool:
+    sid = sole_admin_id(rows, manage)
+    return sid is not None and sid == uid
 
 
 def is_local_setup_ip(ip: str) -> bool:
@@ -149,24 +151,72 @@ def is_local_setup_ip(ip: str) -> bool:
     return addr in LOCAL_SETUP_IPS
 
 
+_FLAG_FALSE_STRINGS = frozenset({'0', 'false', ''})
+_FLAG_TRUE_STRINGS = frozenset({'1', 'true'})
+_FLAG_ZERO_LIKE_STRINGS = frozenset({'00', '0.0', '+0', '-0', '0e0'})
+
+
+def normalize_replicated_flag(value: Any, field: str) -> int:
+    """Canonical active/deleted for saves: store INTEGER 0 or 1 only."""
+    if isinstance(value, bool):
+        return int(value)
+    if isinstance(value, int):
+        if value == 0:
+            return 0
+        if value == 1:
+            return 1
+        raise AuthError(f'Invalid {field} value.', key='autherr.badField', field=field)
+    if isinstance(value, float):
+        if value == 0.0:
+            return 0
+        if value == 1.0:
+            return 1
+        raise AuthError(f'Invalid {field} value.', key='autherr.badField', field=field)
+    if isinstance(value, str):
+        s = value.strip().lower()
+        if s in _FLAG_FALSE_STRINGS or s in _FLAG_ZERO_LIKE_STRINGS:
+            return 0
+        if s in _FLAG_TRUE_STRINGS:
+            return 1
+        raise AuthError(f'Invalid {field} value.', key='autherr.badField', field=field)
+    raise AuthError(f'Invalid {field} value.', key='autherr.badField', field=field)
+
+
 def _coerce_active(val: Any) -> bool:
-    if isinstance(val, bool):
-        return val
-    if isinstance(val, int):
-        return bool(val)
-    if isinstance(val, str):
-        return val.strip().lower() not in ('0', 'false', '')
-    return bool(val)
+    if val is None:
+        return True
+    try:
+        return normalize_replicated_flag(val, 'active') == 1
+    except AuthError:
+        return False
 
 
 def _coerce_deleted(val: Any) -> bool:
-    if isinstance(val, bool):
-        return val
-    if isinstance(val, int):
-        return bool(val)
-    if isinstance(val, str):
-        return val.strip().lower() not in ('0', 'false', '')
-    return bool(val)
+    if val is None:
+        return False
+    try:
+        return normalize_replicated_flag(val, 'deleted') == 1
+    except AuthError:
+        return False
+
+
+def is_valid_stored_password_hash(stored: Any) -> bool:
+    if not stored or not isinstance(stored, str):
+        return False
+    try:
+        algo, n, salt, dk = stored.split('$')
+        if algo != 'pbkdf2_sha256':
+            return False
+        n_int = int(n)
+        if n_int < MIN_PBKDF2_ITERATIONS or n_int > MAX_PBKDF2_ITERATIONS:
+            return False
+        if len(salt) != 32 or len(dk) != 64:
+            return False
+        bytes.fromhex(salt)
+        bytes.fromhex(dk)
+    except (ValueError, AttributeError):
+        return False
+    return True
 
 
 def is_managing_user(row: Mapping[str, Any], manage: str = DEFAULT_MANAGE) -> bool:
@@ -226,13 +276,11 @@ def loses_last_manager(
     new_perms: Optional[Sequence[str]] = None,
     manage: str = DEFAULT_MANAGE,
 ) -> bool:
-    if not row or not row.get('active'):
+    if not is_managing_user(row, manage):
         return False
     old_perms = row.get('perms') or []
     if isinstance(old_perms, str):
         old_perms = json.loads(old_perms or '[]')
-    if manage not in old_perms:
-        return False
     perms = list(new_perms) if new_perms is not None else list(old_perms)
     if new_active and manage in perms:
         return False
@@ -311,7 +359,7 @@ def http_auth_delay_seconds(store: 'AuthStore', username: str) -> float:
         ).fetchone()
         if not r:
             return HTTP_AUTH_BASE_DELAY_SECONDS
-        sole = sole_admin_id(store._rows(), store.manage) == r['id'] and store.manage in json.loads(r['perms'] or '[]')
+        sole = is_sole_managing_user(store._rows_as_users(store.conn), r['id'], store.manage)
         extra = sole_admin_login_delay(int(r['failed'] or 0), store.max_failed, sole)
     return HTTP_AUTH_BASE_DELAY_SECONDS + extra
 
@@ -490,8 +538,8 @@ class AuthStore:
             return None
         u = dict(row)
         u['perms'] = json.loads(u['perms'] or '[]')
-        u['active'] = bool(u['active'])
-        u['deleted'] = bool(u['deleted'])
+        u['active'] = _coerce_active(u.get('active'))
+        u['deleted'] = _coerce_deleted(u.get('deleted'))
         u['status'] = u.get('status') or 'approved'
         return u
 
@@ -674,6 +722,10 @@ class AuthStore:
     def save_user_replicated(self, uid: str, fields: Mapping[str, Any]) -> None:
         """Administrator save of replicated fields; local lockout counters are never cleared."""
         fields = dict(fields)
+        if 'active' in fields:
+            fields['active'] = normalize_replicated_flag(fields['active'], 'active')
+        if 'deleted' in fields:
+            fields['deleted'] = normalize_replicated_flag(fields['deleted'], 'deleted')
         if 'perms' in fields and isinstance(fields['perms'], list):
             fields['perms'] = json.dumps(fields['perms'])
 
@@ -683,6 +735,15 @@ class AuthStore:
                 raise AuthError('This user no longer exists.')
             if save_would_drop_last_manager(cur_u, fields, self._rows_as_users(c), self.manage):
                 raise AuthError('At least one active user must keep the right to manage users.', key='autherr.lastAdmin')
+            if 'pw_hash' in fields and not is_valid_stored_password_hash(fields['pw_hash']):
+                rows = self._rows_as_users(c)
+                if is_managing_user(cur_u, self.manage) and count_managing_users(
+                    rows, exclude=cur_u['id'], manage=self.manage,
+                ) == 0:
+                    raise AuthError(
+                        'At least one active user must keep the right to manage users.',
+                        key='autherr.lastAdmin',
+                    )
 
         ops: List[dict] = [{'e': 'users', 'id': uid, 'op': 'update', 's': fields}]
         if 'pw_hash' in fields:
@@ -721,7 +782,8 @@ class AuthStore:
             try:
                 row = self.conn.execute('SELECT failed, locked_until FROM users WHERE id=?', (u['id'],)).fetchone()
                 locked_until = row['locked_until']
-                sole = sole_admin_id(self._rows(), self.manage) == u['id'] and self.manage in u['perms']
+                rows = self._rows_as_users(self.conn)
+                sole = is_sole_managing_user(rows, u['id'], self.manage)
                 if sole and locked_until:
                     self.conn.execute('UPDATE users SET locked_until=NULL WHERE id=?', (u['id'],))
                     locked_until = None
@@ -743,7 +805,7 @@ class AuthStore:
                 live = self.conn.execute(
                     'SELECT pw_hash, status, status_reason, active, deleted FROM users WHERE id=?', (u['id'],),
                 ).fetchone()
-                if not live or live['deleted']:
+                if not live or _coerce_deleted(live['deleted']):
                     self.conn.execute('ROLLBACK')
                     raise AuthError(generic, key='autherr.wrong')
                 if not hmac.compare_digest(live['pw_hash'] or '', verified_hash):
@@ -761,7 +823,7 @@ class AuthStore:
                     if live['status'] == 'rejected' and (live['status_reason'] or '').strip():
                         key = 'autherr.signupRejectedReason'
                     raise AuthError(msg, key=key, reason=live['status_reason'] or '')
-                if not live['active']:
+                if not _coerce_active(live['active']):
                     self.conn.execute('ROLLBACK')
                     raise AuthError('This account is disabled.', key='autherr.disabled')
                 token = secrets.token_urlsafe(32)
@@ -810,10 +872,8 @@ class AuthStore:
             r = self.conn.execute(
                 'SELECT id, failed, perms FROM users WHERE username=? AND deleted=0', ((username or '').strip(),),
             ).fetchone()
-            if not r or sole_admin_id(self._rows(), self.manage) != r['id']:
-                return 0.0
-            perms = json.loads(r['perms'] or '[]')
-            if self.manage not in perms:
+            rows = self._rows_as_users(self.conn)
+            if not r or not is_sole_managing_user(rows, r['id'], self.manage):
                 return 0.0
             failed = int(r['failed'] or 0)
         return sole_admin_login_delay(failed, self.max_failed, True)
@@ -842,7 +902,7 @@ class AuthStore:
                     verify_password(code or 'x', _DUMMY)
                     self.conn.execute('ROLLBACK')
                     raise AuthError(generic, key='autherr.resetWrong')
-                sole = sole_admin_id(self._rows(), self.manage) == u['id'] and self.manage in u['perms']
+                sole = is_sole_managing_user(self._rows_as_users(self.conn), u['id'], self.manage)
                 if sole and row['locked_until']:
                     self.conn.execute('UPDATE users SET locked_until=NULL WHERE id=?', (u['id'],))
                     row = dict(row)
@@ -902,7 +962,7 @@ class AuthStore:
             live = c.execute(
                 'SELECT reset_hash, reset_expires, deleted, active, status FROM users WHERE id=?', (uid,),
             ).fetchone()
-            if not live or live['deleted']:
+            if not live or _coerce_deleted(live['deleted']):
                 raise AuthError(generic, key='autherr.resetWrong')
             if not _coerce_active(live['active']):
                 raise AuthError(generic, key='autherr.resetWrong')
