@@ -24,6 +24,14 @@
     var mode = 'login';
     var lastStatus = null;
     var modeClickBound = false;
+    var modeClickMount = null;
+    function onModeClick(e) {
+      var b = e.target.closest('[data-auth-mode]');
+      if (b) {
+        mode = b.dataset.authMode;
+        show(lastStatus);
+      }
+    }
 
     function t(key, vars) {
       return host.t(key, vars);
@@ -110,15 +118,15 @@
         body = mode === 'signup' ? signupForm() : mode === 'forgot' ? forgotForm() : mode === 'reset' ? resetForm() : loginForm();
       }
       mount.innerHTML = (opts.wrap || function (inner) { return '<div class="auth"><div class="panel">' + inner + '</div></div>'; })(body);
+      if (modeClickMount && modeClickMount !== mount) {
+        modeClickMount.removeEventListener('click', onModeClick);
+        modeClickBound = false;
+        modeClickMount = null;
+      }
       if (!modeClickBound) {
         modeClickBound = true;
-        mount.addEventListener('click', function (e) {
-          var b = e.target.closest('[data-auth-mode]');
-          if (b) {
-            mode = b.dataset.authMode;
-            show(lastStatus);
-          }
-        });
+        modeClickMount = mount;
+        mount.addEventListener('click', onModeClick);
       }
       var form = host.$('#auth-form', mount);
       if (!form) return;
