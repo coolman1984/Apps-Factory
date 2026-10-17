@@ -1,6 +1,6 @@
 {
-  "catalog_version": "1.11.0",
-  "updated": "2026-10-10",
+  "catalog_version": "1.11.1",
+  "updated": "2026-10-17",
   "policy": "Required-if-applicable, never auto-certifies an implementation. Tiers: `core` controls are the release gate (check --release fails when an applicable core control has no verified proof); `reference` controls are advice and never block a release. `merged_from` lists old ids folded into a control; `retired` lists dropped ids with the reason. Profiles: desktop, lan, saas, paid, ai, regulated, sync, mesh, mobile, multi_site, multi_owner, windows. Connectivity tier cloud_sync activates sync and saas.",
   "references": [
     "https://owasp.org/projects/asvs",
@@ -99,7 +99,7 @@
       "requirement": "Create unique admin at first run, secure recovery",
       "acceptance_evidence": "G4 first-run and replay tests",
       "required_if_applies": true,
-      "implementation_status": "planned"
+      "implementation_status": "implemented"
     },
     {
       "id": "IAM-02",
@@ -114,7 +114,7 @@
       "requirement": "Adaptive salted storage, login throttling and session revocation",
       "acceptance_evidence": "G4 auth negative tests",
       "required_if_applies": true,
-      "implementation_status": "planned"
+      "implementation_status": "implemented"
     },
     {
       "id": "IAM-03",
@@ -144,7 +144,7 @@
       "requirement": "Production rejects static demo credentials or shortcuts",
       "acceptance_evidence": "G4 production-mode negative test",
       "required_if_applies": true,
-      "implementation_status": "planned"
+      "implementation_status": "implemented"
     },
     {
       "id": "DATA-01",

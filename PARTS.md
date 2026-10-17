@@ -7,6 +7,12 @@ Product use below was read from the product clones on 2026-10-09 (Store, Teacher
 
 ## Packages (`packages/`)
 
+### af-auth — sign-up approval, reset codes, login lockout, admin safety
+- **Version:** 0.1.0 (`packages/af-auth/af_auth.py`). Stdlib only; pending/approve/refuse/suspend, single-use reset codes with replicated burn, sole-manager lockout exemption, last-manager guards on review.
+- **Vendor:** `python3 scripts/vendor_auth.py <product>` → `server/afauth.py`, `<js>/vendor/af-auth.js`.
+- **Spec:** `docs/AUTH_ACCOUNT_LIFECYCLE_STANDARD.md`; package `packages/af-auth/README.md`. Controls IAM-01, IAM-02, IAM-06 (with af-access for catalogues). IAM-07 (personal sign-in links / vendor recovery) is **planned**.
+- **Used by:** none vendored yet (ported from Trip Orders v1.1.5).
+
 ### af-access — people, profiles, pages and permissions gate
 - **Version:** 0.1.1 (`packages/af-access/af_access.py`). One file, standard library only.
 - **Vendor:** `python3 scripts/vendor_access.py <product>` → `server/afaccess.py`. Run `afaccess.errors(auth.catalogue())` in the product's tests.

@@ -14,6 +14,7 @@ python3 -m unittest discover -s tests -v               # factory CLI + docs (tes
 
 (cd apps/control-center && pip install -r requirements.txt && PYTHONPATH=../../packages/af-license python3 -m unittest discover -s tests -v)
 (cd packages/af-license && pip install -r requirements.txt && python3 -m unittest discover -s tests -v)
+(cd packages/af-auth && python3 -m unittest discover -s tests -v && node --check af-auth.js && node --test tests/core.test.mjs)
 (cd packages/af-access && python3 -m unittest discover -s tests -v)
 (cd packages/af-guide && python3 -m unittest discover -s tests -v && node --check af-guide.js && node --test tests/core.test.mjs \
    && python3 af_guide.py check examples/shop --ui examples/shop/ui-ar.json --ui examples/shop/ui-en.json \
@@ -55,7 +56,7 @@ Products hold byte-identical copies of af-access, af-license codes, af-guide, af
 To run locally, clone the products into one folder and set `AF_STORE_REPO`, `AF_TEACHERS_REPO`, `AF_YOUSEF_TRANSPORTATION_REPO`, `AF_MR_AYMAN_HR_REPO`, then:
 ```bash
 python3 -m unittest discover -s packages/af-license/tests -k test_vendored_copy_in_known_products_matches -v
-for p in af-access af-guide af-consent af-telemetry; do python3 -m unittest discover -s packages/$p/tests -k VendoredCopies -v; done
+for p in af-auth af-access af-guide af-consent af-telemetry; do python3 -m unittest discover -s packages/$p/tests -k VendoredCopies -v; done
 ```
 A stale copy is fixed in the product, not here: bump the part's version if the code changed, run `python3 scripts/vendor_<name>.py <product dir>`, run the product's tests, open a PR in the product repo.
 

@@ -2,6 +2,9 @@
 
 Factory versions (the `README.md` version line). The control catalogue has its own `catalog_version` in `factory/controls.json`.
 
+## 0.20.0 (2026-10-17)
+**af-auth 0.1.0:** product-agnostic sign-up approval, administrator reset codes (single-use with replicated burn), failed-login lockout with sole-manager exemption, last-manager guards on review; optional `af-auth.js` forms; `scripts/vendor_auth.py`. Ported from Trip Orders v1.1.5 auth rules (not full journal integration). Spec: `docs/AUTH_ACCOUNT_LIFECYCLE_STANDARD.md`. Handoff: `docs/handoffs/feat-af-auth-port-yousef-115.md`.
+
 ## 0.19.0 (2026-10-13)
 End-to-end key recovery for **af-atrest 0.2.0**: vendor-only restore (Key Vault recovered-key package), **mandatory** escrow at activation, offline outbox with bilingual `sync_warning`, daily off-site backup **on by default**, plaintext migration orchestration, bilingual errors. Template Cloudflare worker `templates/key-escrow-worker/` and vendor desktop tool `tools/key-vault/` (`make-recovery-package`). **No** client password recovery file. **Not field-verified**; sqlcipher3 still required for live encryption and migration on real data.
 
