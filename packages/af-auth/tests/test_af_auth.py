@@ -465,7 +465,44 @@ class LastManagerSave(unittest.TestCase):
         for bad in ('', 'x'):
             with self.assertRaises(A.AuthError) as e:
                 s.save_user_replicated(boss['id'], {'pw_hash': bad})
-            self.assertEqual(e.exception.key, 'autherr.lastAdmin')
+            self.assertEqual(e.exception.key, 'autherr.badField')
+            self.assertEqual(e.exception.vars.get('field'), 'pw_hash')
+        s.login('boss', 'Secure-pass9')
+
+    def test_two_managers_save_invalid_pw_hash_on_helper_refused(self):
+        s = store()
+        boss = seed_admin(s, password='Secure-pass9')
+        helper = add_user(s, 'helper', perms=[*VIEW, A.DEFAULT_MANAGE])
+        with self.assertRaises(A.AuthError) as e:
+            s.save_user_replicated(helper['id'], {'pw_hash': ''})
+        self.assertEqual(e.exception.key, 'autherr.badField')
+        rows = [dict(r) for r in s.conn.execute('SELECT * FROM users WHERE deleted=0').fetchall()]
+        self.assertIsNone(A.sole_admin_id(rows))
+        self.assertTrue(A.is_managing_user(s.get(helper['id'])))
+        s.login('boss', 'Secure-pass9')
+        s.login('helper', PASS2)
+
+    def test_two_managers_save_invalid_pw_hash_on_boss_refused(self):
+        s = store()
+        boss = seed_admin(s, password='Secure-pass9')
+        helper = add_user(s, 'helper', perms=[*VIEW, A.DEFAULT_MANAGE])
+        with self.assertRaises(A.AuthError) as e:
+            s.save_user_replicated(boss['id'], {'pw_hash': 'x'})
+        self.assertEqual(e.exception.key, 'autherr.badField')
+        s.login('boss', 'Secure-pass9')
+        s.login('helper', PASS2)
+
+    def test_sole_manager_save_uppercase_digest_pw_hash_refused(self):
+        s = store()
+        boss = seed_admin(s, password='Secure-pass9')
+        good = boss['pw_hash']
+        algo, n, salt, dk = good.split('$')
+        bad = f'{algo}${n}${salt}${dk.upper()}'
+        self.assertTrue(A.is_valid_stored_password_hash(good))
+        self.assertFalse(A.is_valid_stored_password_hash(bad))
+        with self.assertRaises(A.AuthError) as e:
+            s.save_user_replicated(boss['id'], {'pw_hash': bad})
+        self.assertEqual(e.exception.key, 'autherr.badField')
         s.login('boss', 'Secure-pass9')
 
 
