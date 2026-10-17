@@ -212,6 +212,8 @@ def is_valid_stored_password_hash(stored: Any) -> bool:
             return False
         if len(salt) != 32 or len(dk) != 64:
             return False
+        if salt != salt.lower() or dk != dk.lower():
+            return False
         bytes.fromhex(salt)
         bytes.fromhex(dk)
     except (ValueError, AttributeError):
@@ -223,6 +225,8 @@ def is_managing_user(row: Mapping[str, Any], manage: str = DEFAULT_MANAGE) -> bo
     if not row or _coerce_deleted(row.get('deleted')):
         return False
     if not _coerce_active(row.get('active', True)):
+        return False
+    if not is_valid_stored_password_hash(row.get('pw_hash')):
         return False
     if (row.get('status') or 'approved') != 'approved':
         return False
@@ -733,17 +737,10 @@ class AuthStore:
             cur_u = self._user(c.execute('SELECT * FROM users WHERE id=? AND deleted=0', (uid,)).fetchone())
             if not cur_u:
                 raise AuthError('This user no longer exists.')
+            if 'pw_hash' in fields and not is_valid_stored_password_hash(fields['pw_hash']):
+                raise AuthError('Invalid pw_hash value.', key='autherr.badField', field='pw_hash')
             if save_would_drop_last_manager(cur_u, fields, self._rows_as_users(c), self.manage):
                 raise AuthError('At least one active user must keep the right to manage users.', key='autherr.lastAdmin')
-            if 'pw_hash' in fields and not is_valid_stored_password_hash(fields['pw_hash']):
-                rows = self._rows_as_users(c)
-                if is_managing_user(cur_u, self.manage) and count_managing_users(
-                    rows, exclude=cur_u['id'], manage=self.manage,
-                ) == 0:
-                    raise AuthError(
-                        'At least one active user must keep the right to manage users.',
-                        key='autherr.lastAdmin',
-                    )
 
         ops: List[dict] = [{'e': 'users', 'id': uid, 'op': 'update', 's': fields}]
         if 'pw_hash' in fields:
