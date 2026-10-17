@@ -747,6 +747,123 @@ class ResetAccountState(unittest.TestCase):
             t.join(timeout=5)
 
 
+class PermsAndStatusGuards(unittest.TestCase):
+    def test_corrupt_stored_perms_does_not_wedge_login_or_save(self):
+        s = store()
+        seed_admin(s, password='Secure-pass9')
+        u = add_user(s, 'broken')
+        s.conn.execute('UPDATE users SET perms=? WHERE id=?', ('[', u['id']))
+        s.login('boss', 'Secure-pass9')
+        s.login('broken', PASS2)
+        self.assertEqual(s.get(u['id'])['perms'], [])
+        s.save_user_replicated(u['id'], {'perms': VIEW})
+        self.assertEqual(s.get(u['id'])['perms'], VIEW)
+
+    def test_save_rejects_invalid_perms(self):
+        s = store()
+        seed_admin(s)
+        u = add_user(s, 'norm')
+        for bad in ('[', 'users.manage', '1', ['overview.view', 1]):
+            with self.assertRaises(A.AuthError) as e:
+                s.save_user_replicated(u['id'], {'perms': bad})
+            self.assertEqual(e.exception.key, 'autherr.badField')
+            self.assertEqual(e.exception.vars.get('field'), 'perms')
+
+    def test_save_rejects_unknown_status(self):
+        s = store()
+        seed_admin(s)
+        u = add_user(s, 'stuser')
+        with self.assertRaises(A.AuthError) as e:
+            s.save_user_replicated(u['id'], {'status': 'weird'})
+        self.assertEqual(e.exception.key, 'autherr.badField')
+        self.assertEqual(e.exception.vars.get('field'), 'status')
+
+    def test_padded_suspended_status_in_db_blocks_login(self):
+        s = store()
+        seed_admin(s)
+        u = add_user(s, 'padme')
+        s.conn.execute('UPDATE users SET status=? WHERE id=?', ('suspended ', u['id']))
+        with self.assertRaises(A.AuthError) as e:
+            s.login('padme', PASS2)
+        self.assertEqual(e.exception.key, 'autherr.suspended')
+
+    def test_unknown_status_in_db_blocks_login(self):
+        s = store()
+        seed_admin(s)
+        u = add_user(s, 'ghost')
+        s.conn.execute('UPDATE users SET status=? WHERE id=?', ('weird', u['id']))
+        with self.assertRaises(A.AuthError) as e:
+            s.login('ghost', PASS2)
+        self.assertEqual(e.exception.key, 'autherr.disabled')
+
+    def test_save_active_change_logs_out_and_clears_reset(self):
+        s = store()
+        seed_admin(s)
+        u = add_user(s, 'inactive')
+        token, _ = s.login('inactive', PASS2)
+        s.issue_reset_code(u['id'])
+        s.save_user_replicated(u['id'], {'active': 0})
+        self.assertIsNone(s.session(token))
+        row = s.conn.execute('SELECT reset_hash FROM users WHERE id=?', (u['id'],)).fetchone()
+        self.assertFalse(row['reset_hash'])
+        ops = s.journal_ops()
+        logouts = [o for o in ops if o.get('e') == 'userCommands' and (o.get('s') or {}).get('cmd') == 'logout']
+        self.assertTrue(any((o.get('s') or {}).get('user') == u['id'] for o in logouts))
+        self.assertTrue(A.journal_clear_reset_hashes(ops))
+
+    def test_issue_reset_code_requires_active(self):
+        s = store()
+        seed_admin(s)
+        u = add_user(s, 'off')
+        s.save_user_replicated(u['id'], {'active': 0})
+        with self.assertRaises(A.AuthError) as e:
+            s.issue_reset_code(u['id'])
+        self.assertEqual(e.exception.key, 'autherr.disabled')
+
+    def test_reject_after_approve_refused(self):
+        s = store()
+        seed_admin(s)
+        s.register('flip', 'Flip User', PASS)
+        u = s.get_by_username('flip')
+        s.review(u['id'], 'approve', perms=VIEW)
+        with self.assertRaises(A.AuthError):
+            s.review(u['id'], 'reject', reason='Too late now')
+
+    def test_reject_race_after_approve_does_not_overwrite(self):
+        s = store()
+        seed_admin(s)
+        s.register('raceflip', 'Race Flip', PASS)
+        u = s.get_by_username('raceflip')
+        gate = threading.Event()
+        done = threading.Event()
+        real_commit = s._commit
+
+        def hooked_commit(ops, apply_local=None, check=None):
+            is_reject = any(
+                (op.get('s') or {}).get('status') == 'rejected'
+                for op in ops if op.get('e') == 'users' and op.get('op') == 'update'
+            )
+            if is_reject and check:
+                gate.set()
+                done.wait(timeout=5)
+            return real_commit(ops, apply_local=apply_local, check=check)
+
+        def reject_worker():
+            with patch.object(s, '_commit', side_effect=hooked_commit):
+                try:
+                    s.review(u['id'], 'reject', reason='Race refuse')
+                except A.AuthError:
+                    pass
+
+        t_reject = threading.Thread(target=reject_worker)
+        t_reject.start()
+        gate.wait(timeout=5)
+        s.review(u['id'], 'approve', perms=VIEW)
+        done.set()
+        t_reject.join(timeout=10)
+        self.assertEqual(s.get(u['id'])['status'], 'approved')
+
+
 class ExampleConsumer(unittest.TestCase):
     """Products import afauth and wire catalogue manage permission."""
 

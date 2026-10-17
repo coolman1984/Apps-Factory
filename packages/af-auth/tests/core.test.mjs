@@ -31,6 +31,15 @@ function makeMount() {
     addEventListener(type, fn) {
       if (type === 'click') clickHandlers.push(fn);
     },
+    removeEventListener(type, fn) {
+      if (type === 'click') {
+        const i = clickHandlers.indexOf(fn);
+        if (i >= 0) clickHandlers.splice(i, 1);
+      }
+    },
+    clickHandlerCount() {
+      return clickHandlers.length;
+    },
     querySelector(sel) {
       const formH2 = sel.match(/^#auth-form\s+h2$/);
       if (formH2) {
@@ -124,8 +133,30 @@ test('mode switch binds one click handler on mount', () => {
   for (let i = 0; i < 5; i++) {
     api.show(status);
   }
+  assert.equal(mount.clickHandlerCount(), 1);
   const signup = mount.querySelector('[data-auth-mode="signup"]');
   assert.ok(signup);
   signup.click();
   assert.equal(mount.querySelector('#auth-form h2').textContent, 'auth.signup.title');
+});
+
+test('mode switch rebinds when root mount node is replaced', () => {
+  const mount1 = makeMount();
+  const host = mockHost(mount1);
+  const api = afAuth.create(host, { rootId: 'root' });
+  const status = { hasUsers: true, local: true };
+  api.show(status);
+  assert.equal(mount1.clickHandlerCount(), 1);
+  const mount2 = makeMount();
+  host.$ = (sel, root) => {
+    const scope = root || mount2;
+    if (sel === '#root') return mount2;
+    return scope.querySelector(sel);
+  };
+  api.show(status);
+  assert.equal(mount1.clickHandlerCount(), 0);
+  assert.equal(mount2.clickHandlerCount(), 1);
+  const signup = mount2.querySelector('[data-auth-mode="signup"]');
+  signup.click();
+  assert.equal(mount2.querySelector('#auth-form h2').textContent, 'auth.signup.title');
 });
