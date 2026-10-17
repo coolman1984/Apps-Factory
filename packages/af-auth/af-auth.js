@@ -22,6 +22,8 @@
     opts = opts || {};
     var paths = Object.assign({}, DEFAULT_PATHS, opts.paths || {});
     var mode = 'login';
+    var lastStatus = null;
+    var modeClickBound = false;
 
     function t(key, vars) {
       return host.t(key, vars);
@@ -89,6 +91,7 @@
     }
 
     function show(status) {
+      lastStatus = status;
       var mount = host.$('#' + (opts.rootId || 'root'));
       var setup = !status.hasUsers;
       var body;
@@ -107,13 +110,16 @@
         body = mode === 'signup' ? signupForm() : mode === 'forgot' ? forgotForm() : mode === 'reset' ? resetForm() : loginForm();
       }
       mount.innerHTML = (opts.wrap || function (inner) { return '<div class="auth"><div class="panel">' + inner + '</div></div>'; })(body);
-      mount.addEventListener('click', function (e) {
-        var b = e.target.closest('[data-auth-mode]');
-        if (b) {
-          mode = b.dataset.authMode;
-          show(status);
-        }
-      });
+      if (!modeClickBound) {
+        modeClickBound = true;
+        mount.addEventListener('click', function (e) {
+          var b = e.target.closest('[data-auth-mode]');
+          if (b) {
+            mode = b.dataset.authMode;
+            show(lastStatus);
+          }
+        });
+      }
       var form = host.$('#auth-form', mount);
       if (!form) return;
       form.addEventListener('submit', function (e) {
