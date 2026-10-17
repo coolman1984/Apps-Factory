@@ -182,6 +182,38 @@ def normalize_replicated_flag(value: Any, field: str) -> int:
     raise AuthError(f'Invalid {field} value.', key='autherr.badField', field=field)
 
 
+def parse_stored_perms(raw: Any) -> List[str]:
+    """Load-time perms: invalid stored JSON or non-list must not wedge scans or login."""
+    if raw is None:
+        return []
+    if isinstance(raw, list):
+        return [p for p in raw if isinstance(p, str)]
+    if isinstance(raw, str):
+        try:
+            parsed = json.loads(raw or '[]')
+        except json.JSONDecodeError:
+            return []
+        if not isinstance(parsed, list):
+            return []
+        return [p for p in parsed if isinstance(p, str)]
+    return []
+
+
+def normalize_save_perms(value: Any) -> str:
+    if not isinstance(value, list) or not all(isinstance(p, str) for p in value):
+        raise AuthError('Invalid perms value.', key='autherr.badField', field='perms')
+    return json.dumps(value)
+
+
+def normalize_save_status(value: Any) -> str:
+    if not isinstance(value, str):
+        raise AuthError('Invalid status value.', key='autherr.badField', field='status')
+    st = value.strip()
+    if st not in USER_STATUSES:
+        raise AuthError('Invalid status value.', key='autherr.badField', field='status')
+    return st
+
+
 def _coerce_active(val: Any) -> bool:
     if val is None:
         return True
@@ -228,11 +260,9 @@ def is_managing_user(row: Mapping[str, Any], manage: str = DEFAULT_MANAGE) -> bo
         return False
     if not is_valid_stored_password_hash(row.get('pw_hash')):
         return False
-    if (row.get('status') or 'approved') != 'approved':
+    if (row.get('status') or 'approved').strip() != 'approved':
         return False
-    perms = row.get('perms') or []
-    if isinstance(perms, str):
-        perms = json.loads(perms or '[]')
+    perms = parse_stored_perms(row.get('perms'))
     return manage in perms
 
 
@@ -266,8 +296,8 @@ def save_would_drop_last_manager(
     for k, v in fields.items():
         if k in REPLICATED_USER_COLS:
             merged[k] = v
-    if 'perms' in merged and isinstance(merged['perms'], str):
-        merged['perms'] = json.loads(merged['perms'] or '[]')
+    if 'perms' in merged:
+        merged['perms'] = parse_stored_perms(merged['perms'])
     if is_managing_user(merged, manage):
         return False
     return count_managing_users(all_rows, exclude=cur_u['id'], manage=manage) == 0
@@ -282,10 +312,7 @@ def loses_last_manager(
 ) -> bool:
     if not is_managing_user(row, manage):
         return False
-    old_perms = row.get('perms') or []
-    if isinstance(old_perms, str):
-        old_perms = json.loads(old_perms or '[]')
-    perms = list(new_perms) if new_perms is not None else list(old_perms)
+    perms = list(new_perms) if new_perms is not None else parse_stored_perms(row.get('perms'))
     if new_active and manage in perms:
         return False
     return count_active_managers(all_rows, exclude=row['id'], manage=manage) == 0
@@ -541,7 +568,7 @@ class AuthStore:
         if not row:
             return None
         u = dict(row)
-        u['perms'] = json.loads(u['perms'] or '[]')
+        u['perms'] = parse_stored_perms(u['perms'])
         u['active'] = _coerce_active(u.get('active'))
         u['deleted'] = _coerce_deleted(u.get('deleted'))
         u['status'] = u.get('status') or 'approved'
@@ -706,6 +733,13 @@ class AuthStore:
             cur_u = self._user(c.execute('SELECT * FROM users WHERE id=? AND deleted=0', (uid,)).fetchone())
             if not cur_u:
                 raise AuthError('This user no longer exists.')
+            st_live = cur_u.get('status') or 'approved'
+            if decision == 'approve' and st_live not in ('pending', 'rejected', 'suspended'):
+                raise AuthError('This account cannot be approved from its current state.')
+            if decision == 'reject' and st_live != 'pending':
+                raise AuthError('Only a waiting sign-up can be refused.')
+            if decision == 'suspend' and st_live not in ('pending', 'approved'):
+                raise AuthError('This account cannot be suspended from its current state.')
             rows = self._rows_as_users(c)
             if decision == 'approve':
                 if loses_last_manager(cur_u, rows, True, use_perms, self.manage):
@@ -725,15 +759,26 @@ class AuthStore:
 
     def save_user_replicated(self, uid: str, fields: Mapping[str, Any]) -> None:
         """Administrator save of replicated fields; local lockout counters are never cleared."""
+        u = self.get(uid)
+        if not u:
+            raise AuthError('This user no longer exists.')
         fields = dict(fields)
         if 'active' in fields:
             fields['active'] = normalize_replicated_flag(fields['active'], 'active')
         if 'deleted' in fields:
             fields['deleted'] = normalize_replicated_flag(fields['deleted'], 'deleted')
-        if 'perms' in fields and isinstance(fields['perms'], list):
-            fields['perms'] = json.dumps(fields['perms'])
+        if 'status' in fields:
+            fields['status'] = normalize_save_status(fields['status'])
+        if 'perms' in fields:
+            fields['perms'] = normalize_save_perms(fields['perms'])
+        cur_status = u.get('status') or 'approved'
+        cur_active = 1 if u.get('active') else 0
+        revoke_session = (
+            ('status' in fields and fields['status'] != cur_status)
+            or ('active' in fields and fields['active'] != cur_active)
+        )
 
-        def check_save(c: sqlite3.Connection) -> None:
+        def check_save(c: sqlite3.Connection) -> Optional[List[dict]]:
             cur_u = self._user(c.execute('SELECT * FROM users WHERE id=? AND deleted=0', (uid,)).fetchone())
             if not cur_u:
                 raise AuthError('This user no longer exists.')
@@ -741,9 +786,16 @@ class AuthStore:
                 raise AuthError('Invalid pw_hash value.', key='autherr.badField', field='pw_hash')
             if save_would_drop_last_manager(cur_u, fields, self._rows_as_users(c), self.manage):
                 raise AuthError('At least one active user must keep the right to manage users.', key='autherr.lastAdmin')
+            extra: List[dict] = []
+            if revoke_session:
+                cur = c.execute('SELECT reset_hash FROM users WHERE id=?', (uid,)).fetchone()
+                bound = (cur['reset_hash'] or '') if cur else ''
+                if bound:
+                    extra.append(clear_reset_code_op(uid, bound))
+            return extra or None
 
         ops: List[dict] = [{'e': 'users', 'id': uid, 'op': 'update', 's': fields}]
-        if 'pw_hash' in fields:
+        if 'pw_hash' in fields or revoke_session:
             ops.append({'e': 'userCommands', 'id': uuid.uuid4().hex, 'op': 'insert', 'noaudit': True,
                         's': {'cmd': 'logout', 'user': uid}})
         self._commit(ops, check=check_save)
@@ -754,6 +806,8 @@ class AuthStore:
             raise AuthError('This user no longer exists.')
         if (u.get('status') or 'approved') != 'approved':
             raise AuthError('Reset codes are only for approved accounts.', key='autherr.resetNotApproved')
+        if not u.get('active'):
+            raise AuthError('This account is disabled.', key='autherr.disabled')
         plain = reset_code_plain()
         exp = (datetime.now() + timedelta(hours=RESET_CODE_HOURS)).isoformat(timespec='seconds')
         ts = now()
@@ -808,16 +862,20 @@ class AuthStore:
                 if not hmac.compare_digest(live['pw_hash'] or '', verified_hash):
                     self.conn.execute('ROLLBACK')
                     raise AuthError(generic, key='autherr.wrong')
-                msg = status_message(live['status'] or 'approved', live['status_reason'] or '')
+                live_status = (live['status'] or 'approved').strip()
+                if live_status not in USER_STATUSES:
+                    self.conn.execute('ROLLBACK')
+                    raise AuthError('This account is disabled.', key='autherr.disabled')
+                msg = status_message(live_status, live['status_reason'] or '')
                 if msg:
                     self.conn.execute('ROLLBACK')
-                    if live['status'] == 'pending':
+                    if live_status == 'pending':
                         key = 'autherr.signupPending'
-                    elif live['status'] == 'suspended':
+                    elif live_status == 'suspended':
                         key = 'autherr.suspended'
                     else:
                         key = 'autherr.signupRejected'
-                    if live['status'] == 'rejected' and (live['status_reason'] or '').strip():
+                    if live_status == 'rejected' and (live['status_reason'] or '').strip():
                         key = 'autherr.signupRejectedReason'
                     raise AuthError(msg, key=key, reason=live['status_reason'] or '')
                 if not _coerce_active(live['active']):
@@ -853,8 +911,10 @@ class AuthStore:
             elif t - _parse(s['created']) > self.max_age:
                 reason = 'max_age'
             u = self.get(s['user_id'])
-            if not reason and u and (u.get('status') or 'approved') != 'approved':
-                reason = 'status'
+            if not reason and u:
+                st = (u.get('status') or 'approved').strip()
+                if st not in USER_STATUSES or st != 'approved':
+                    reason = 'status'
             if not reason and (not u or not u['active']):
                 reason = 'disabled'
             if reason:
